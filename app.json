@@ -48,7 +48,8 @@
         {
           "cameraPermission": "FieldSync needs camera access to upload site photos."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "scheme": "fieldsync",
     "experiments": {
