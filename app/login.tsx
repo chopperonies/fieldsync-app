@@ -33,15 +33,15 @@ export default function Login() {
         return;
       }
 
-      // Register push token
-      const pushToken = await registerPushToken();
-      if (pushToken) {
-        await supabase.from('employees').update({ push_token: pushToken }).eq('id', employee.id);
-        employee.push_token = pushToken;
-      }
-
       await saveUser(employee);
       router.replace(`/(${employee.role as Role})` as any);
+
+      // Register push token in background — don't block login
+      registerPushToken().then(pushToken => {
+        if (pushToken) {
+          supabase.from('employees').update({ push_token: pushToken }).eq('id', employee.id);
+        }
+      }).catch(() => {});
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not sign in.');
     } finally {

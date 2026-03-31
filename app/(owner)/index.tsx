@@ -4,7 +4,7 @@ import {
   ActivityIndicator, RefreshControl, TouchableOpacity
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
-import { clearUser } from '../../lib/storage';
+import { getUser, clearUser } from '../../lib/storage';
 import { router } from 'expo-router';
 
 interface Stats {
