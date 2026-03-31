@@ -13,8 +13,11 @@ export default function Bottleneck() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.from('jobs').select('*').eq('status', 'active').order('name')
-      .then(({ data }) => setJobs(data || []));
+    getUser().then(user => {
+      let q = supabase.from('jobs').select('*').eq('status', 'active').order('name');
+      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
+      q.then(({ data }) => setJobs(data || []));
+    });
   }, []);
 
   async function handleSubmit() {
@@ -28,6 +31,7 @@ export default function Bottleneck() {
       await supabase.from('job_updates').insert({
         job_id: selectedJob.id,
         employee_id: user.id,
+        tenant_id: user.tenant_id,
         type: 'bottleneck',
         message: description.trim(),
       });
@@ -97,9 +101,9 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16,
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', marginRight: 8,
   },
-  jobChipActive: { borderColor: '#f97316', backgroundColor: '#2a1a0a' },
+  jobChipActive: { borderColor: '#0265dc', backgroundColor: '#e8f0fd' },
   jobChipText: { color: '#888', fontSize: 14 },
-  jobChipTextActive: { color: '#f97316' },
+  jobChipTextActive: { color: '#0265dc' },
   input: {
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
     borderRadius: 12, padding: 14, color: '#fff', fontSize: 15, textAlignVertical: 'top',

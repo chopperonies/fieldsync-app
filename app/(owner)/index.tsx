@@ -23,11 +23,17 @@ export default function OwnerOverview() {
   const loadData = useCallback(async () => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
+    const user = await getUser();
+    const tid = user?.tenant_id;
+    const jobsQ = supabase.from('jobs').select('id, name').in('status', ['active', 'in_progress', 'scheduled']);
+    const onSiteQ = supabase.from('job_assignments').select('job_id').not('checked_in_at', 'is', null).is('checked_out_at', null);
+    const suppliesQ = supabase.from('supply_requests').select('job_id').eq('status', 'pending');
+    const bottlenecksQ = supabase.from('job_updates').select('job_id').eq('type', 'bottleneck').gte('created_at', today.toISOString());
     const [{ data: jobs }, { data: onSite }, { data: supplies }, { data: bottlenecks }] = await Promise.all([
-      supabase.from('jobs').select('id, name').eq('status', 'active'),
-      supabase.from('job_assignments').select('job_id').is('checked_out_at', null),
-      supabase.from('supply_requests').select('job_id').eq('status', 'pending'),
-      supabase.from('job_updates').select('job_id').eq('type', 'bottleneck').gte('created_at', today.toISOString()),
+      tid ? jobsQ.eq('tenant_id', tid) : jobsQ,
+      tid ? onSiteQ.eq('tenant_id', tid) : onSiteQ,
+      tid ? suppliesQ.eq('tenant_id', tid) : suppliesQ,
+      tid ? bottlenecksQ.eq('tenant_id', tid) : bottlenecksQ,
     ]);
 
     const jobBreakdown = (jobs || []).map(job => ({
@@ -55,32 +61,32 @@ export default function OwnerOverview() {
   }
 
   if (loading || !stats) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#f97316" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
   }
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#f97316" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
     >
       <Text style={styles.sectionLabel}>Today's Summary</Text>
       <View style={styles.statsGrid}>
-        <StatCard value={stats.activeJobs} label="Active Jobs" color="#3b82f6" />
-        <StatCard value={stats.crewOnSite} label="Crew On Site" color="#4ade80" />
-        <StatCard value={stats.pendingSupplies} label="Pending Supplies" color="#f97316" />
-        <StatCard value={stats.bottlenecksToday} label="Bottlenecks Today" color="#ef4444" />
+        <StatCard value={stats.activeJobs} label="Active Jobs" color="#3b82f6" onPress={() => router.push('/(owner)/dashboard' as any)} />
+        <StatCard value={stats.crewOnSite} label="Crew On Site" color="#4ade80" onPress={() => router.push('/(owner)/dashboard' as any)} />
+        <StatCard value={stats.pendingSupplies} label="Pending Supplies" color="#0265dc" onPress={() => router.push('/(owner)/supplies' as any)} />
+        <StatCard value={stats.bottlenecksToday} label="Bottlenecks Today" color="#ef4444" onPress={() => router.push('/(owner)/dashboard' as any)} />
       </View>
 
       <Text style={styles.sectionLabel}>Job Breakdown</Text>
       {stats.jobBreakdown.map((job, i) => (
-        <View key={i} style={styles.jobRow}>
+        <TouchableOpacity key={i} style={styles.jobRow} onPress={() => router.push('/(owner)/dashboard' as any)}>
           <Text style={styles.jobName}>{job.name}</Text>
           <View style={styles.jobBadges}>
             <Text style={styles.crewBadge}>👷 {job.crew}</Text>
             {job.pendingSupplies > 0 && <Text style={styles.supplyBadge}>📦 {job.pendingSupplies}</Text>}
           </View>
-        </View>
+        </TouchableOpacity>
       ))}
 
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -90,12 +96,12 @@ export default function OwnerOverview() {
   );
 }
 
-function StatCard({ value, label, color }: { value: number; label: string; color: string }) {
+function StatCard({ value, label, color, onPress }: { value: number; label: string; color: string; onPress: () => void }) {
   return (
-    <View style={[styles.statCard, { borderColor: color + '44' }]}>
+    <TouchableOpacity style={[styles.statCard, { borderColor: color + '44' }]} onPress={onPress} activeOpacity={0.7}>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -118,7 +124,7 @@ const styles = StyleSheet.create({
   jobName: { color: '#fff', fontSize: 14, fontWeight: '600', flex: 1 },
   jobBadges: { flexDirection: 'row', gap: 8 },
   crewBadge: { color: '#4ade80', fontSize: 13, fontWeight: '600' },
-  supplyBadge: { color: '#f97316', fontSize: 13, fontWeight: '600' },
+  supplyBadge: { color: '#0265dc', fontSize: 13, fontWeight: '600' },
   logoutBtn: {
     marginTop: 24, borderRadius: 12, padding: 14,
     alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a',

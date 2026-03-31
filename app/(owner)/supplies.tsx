@@ -12,7 +12,7 @@ const STATUS_COLORS: Record<string, string> = {
   delivered: '#4ade80',
 };
 
-export default function ManagerSupplies() {
+export default function OwnerSupplies() {
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

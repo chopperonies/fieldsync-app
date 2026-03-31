@@ -30,7 +30,7 @@ interface AssignedEmployee {
   employees: { name: string };
 }
 
-export default function ManagerJobs() {
+export default function OwnerJobs() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,7 +116,6 @@ export default function ManagerJobs() {
     const toAdd = [...selected_crew].filter(id => !current.includes(id));
     const toRemove = current.filter(id => !selected_crew.has(id));
 
-    // Add new pre-assignments (only if not already checked in)
     if (toAdd.length > 0) {
       await supabase.from('job_assignments').upsert(
         toAdd.map(id => ({ job_id: assignJobId, employee_id: id })),
@@ -124,7 +123,6 @@ export default function ManagerJobs() {
       );
     }
 
-    // Remove only pre-assignments (not active check-ins)
     for (const id of toRemove) {
       const entry = (assignedMap[assignJobId] || []).find(a => a.employee_id === id);
       if (entry && !entry.checked_in_at) {
@@ -175,7 +173,6 @@ export default function ManagerJobs() {
 
               {isOpen && (
                 <View style={styles.expanded}>
-                  {/* Pipeline selector */}
                   <Text style={styles.sectionLabel}>Status</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                     <View style={styles.pipelineRow}>
@@ -194,7 +191,6 @@ export default function ManagerJobs() {
                     </View>
                   </ScrollView>
 
-                  {/* Assigned crew */}
                   <View style={styles.crewHeader}>
                     <Text style={styles.sectionLabel}>Crew</Text>
                     <TouchableOpacity onPress={() => openAssignModal(item.id)}>

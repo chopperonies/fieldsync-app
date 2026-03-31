@@ -18,7 +18,10 @@ export default function CheckIn() {
   }, []);
 
   async function loadJobs() {
-    const { data } = await supabase.from('jobs').select('*').eq('status', 'active').order('name');
+    const user = await getUser();
+    let query = supabase.from('jobs').select('*').eq('status', 'active').order('name');
+    if (user?.tenant_id) query = query.eq('tenant_id', user.tenant_id);
+    const { data } = await query;
     setJobs(data || []);
     setLoading(false);
   }
@@ -43,6 +46,7 @@ export default function CheckIn() {
       await supabase.from('job_assignments').upsert({
         job_id: job.id,
         employee_id: user.id,
+        tenant_id: user.tenant_id,
         checked_in_at: new Date().toISOString(),
         checked_out_at: null,
       }, { onConflict: 'job_id,employee_id' });
@@ -50,6 +54,7 @@ export default function CheckIn() {
       await supabase.from('job_updates').insert({
         job_id: job.id,
         employee_id: user.id,
+        tenant_id: user.tenant_id,
         type: 'checkin',
         message: `${user.name} checked in`,
       });
@@ -74,6 +79,7 @@ export default function CheckIn() {
       await supabase.from('job_updates').insert({
         job_id: job.id,
         employee_id: user.id,
+        tenant_id: user.tenant_id,
         type: 'checkout',
         message: `${user.name} checked out`,
       });
@@ -88,7 +94,7 @@ export default function CheckIn() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#f97316" />
+        <ActivityIndicator size="large" color="#0265dc" />
       </View>
     );
   }
@@ -142,11 +148,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2a2a',
   },
-  cardActive: { borderColor: '#f97316' },
+  cardActive: { borderColor: '#0265dc' },
   jobName: { color: '#fff', fontSize: 16, fontWeight: '600' },
   jobAddress: { color: '#666', fontSize: 13, marginTop: 2 },
   btn: { borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, minWidth: 90, alignItems: 'center' },
-  btnIn: { backgroundColor: '#f97316' },
+  btnIn: { backgroundColor: '#0265dc' },
   btnOut: { backgroundColor: '#ef4444' },
   btnText: { color: '#000', fontWeight: '700', fontSize: 13 },
 });

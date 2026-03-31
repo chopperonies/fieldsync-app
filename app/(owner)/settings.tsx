@@ -1,0 +1,126 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl
+} from 'react-native';
+import { supabase } from '../../lib/supabase';
+import { getUser } from '../../lib/storage';
+
+export default function OwnerSettings() {
+  const [companyName, setCompanyName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    const user = await getUser();
+    if (!user?.tenant_id) { setLoading(false); setRefreshing(false); return; }
+    const { data } = await supabase
+      .from('tenants')
+      .select('company_name, phone, address')
+      .eq('id', user.tenant_id)
+      .single();
+    if (data) {
+      setCompanyName(data.company_name || '');
+      setPhone(data.phone || '');
+      setAddress(data.address || '');
+    }
+    setLoading(false);
+    setRefreshing(false);
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  async function save() {
+    const user = await getUser();
+    if (!user?.tenant_id) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('tenants')
+      .update({ company_name: companyName.trim(), phone: phone.trim(), address: address.trim() })
+      .eq('id', user.tenant_id);
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      Alert.alert('Saved', 'Company settings updated.');
+    }
+    setSaving(false);
+  }
+
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+  }
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+    >
+      <Text style={styles.sectionLabel}>Company Info</Text>
+      <Text style={styles.hint}>This appears on invoices sent to your clients.</Text>
+
+      <Text style={styles.fieldLabel}>Company Name</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Your company name"
+        placeholderTextColor="#555"
+        value={companyName}
+        onChangeText={setCompanyName}
+      />
+
+      <Text style={styles.fieldLabel}>Phone</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Business phone number"
+        placeholderTextColor="#555"
+        value={phone}
+        onChangeText={setPhone}
+        keyboardType="phone-pad"
+      />
+
+      <Text style={styles.fieldLabel}>Address</Text>
+      <TextInput
+        style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+        placeholder="Business address"
+        placeholderTextColor="#555"
+        value={address}
+        onChangeText={setAddress}
+        multiline
+      />
+
+      <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={saving}>
+        {saving
+          ? <ActivityIndicator color="#000" />
+          : <Text style={styles.saveBtnText}>Save Changes</Text>
+        }
+      </TouchableOpacity>
+
+      <View style={styles.divider} />
+
+      <Text style={styles.sectionLabel}>Logo</Text>
+      <Text style={styles.hint}>To upload your company logo, visit the Settings page on the web dashboard at linkcrew.io.</Text>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
+  content: { padding: 20, gap: 4 },
+  sectionLabel: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 4, marginTop: 8 },
+  hint: { color: '#555', fontSize: 13, marginBottom: 16, lineHeight: 18 },
+  fieldLabel: { color: '#888', fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 12 },
+  input: {
+    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
+    borderRadius: 10, padding: 14, color: '#fff', fontSize: 15,
+  },
+  saveBtn: {
+    backgroundColor: '#0265dc', borderRadius: 12,
+    padding: 16, alignItems: 'center', marginTop: 24,
+  },
+  saveBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
+  divider: { height: 1, backgroundColor: '#2a2a2a', marginVertical: 24 },
+});

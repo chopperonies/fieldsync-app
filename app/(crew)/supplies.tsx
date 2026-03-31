@@ -16,8 +16,11 @@ export default function Supplies() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.from('jobs').select('*').eq('status', 'active').order('name')
-      .then(({ data }) => setJobs(data || []));
+    getUser().then(user => {
+      let q = supabase.from('jobs').select('*').eq('status', 'active').order('name');
+      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
+      q.then(({ data }) => setJobs(data || []));
+    });
   }, []);
 
   async function pickPhoto() {
@@ -54,6 +57,7 @@ export default function Supplies() {
       await supabase.from('supply_requests').insert({
         job_id: selectedJob.id,
         employee_id: user.id,
+        tenant_id: user.tenant_id,
         items: items.trim(),
         urgency,
         photo_url: photoUrl,
@@ -62,6 +66,7 @@ export default function Supplies() {
       await supabase.from('job_updates').insert({
         job_id: selectedJob.id,
         employee_id: user.id,
+        tenant_id: user.tenant_id,
         type: 'supply_request',
         message: `Missing supplies: ${items.trim()} (${urgency.replace('_', ' ')})`,
       });
@@ -142,9 +147,9 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16,
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', marginRight: 8,
   },
-  jobChipActive: { borderColor: '#f97316', backgroundColor: '#2a1a0a' },
+  jobChipActive: { borderColor: '#0265dc', backgroundColor: '#e8f0fd' },
   jobChipText: { color: '#888', fontSize: 14 },
-  jobChipTextActive: { color: '#f97316' },
+  jobChipTextActive: { color: '#0265dc' },
   input: {
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
     borderRadius: 12, padding: 14, color: '#fff', fontSize: 15, textAlignVertical: 'top',
@@ -154,9 +159,9 @@ const styles = StyleSheet.create({
     flex: 1, borderRadius: 10, padding: 12, alignItems: 'center',
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
   },
-  urgencyBtnActive: { borderColor: '#f97316', backgroundColor: '#2a1a0a' },
+  urgencyBtnActive: { borderColor: '#0265dc', backgroundColor: '#e8f0fd' },
   urgencyText: { color: '#888', fontWeight: '600' },
-  urgencyTextActive: { color: '#f97316' },
+  urgencyTextActive: { color: '#0265dc' },
   photoBtn: {
     borderRadius: 10, padding: 14, alignItems: 'center',
     borderWidth: 1, borderColor: '#2a2a2a', borderStyle: 'dashed',
@@ -164,7 +169,7 @@ const styles = StyleSheet.create({
   photoBtnText: { color: '#888', fontSize: 14 },
   preview: { width: '100%', height: 180, borderRadius: 10, marginTop: 8 },
   submitBtn: {
-    backgroundColor: '#f97316', borderRadius: 12, padding: 16,
+    backgroundColor: '#0265dc', borderRadius: 12, padding: 16,
     alignItems: 'center', marginTop: 16,
   },
   submitText: { color: '#000', fontWeight: '700', fontSize: 16 },

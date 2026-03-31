@@ -12,51 +12,81 @@ export default function Photo() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [caption, setCaption] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.from('jobs').select('*').eq('status', 'active').order('name')
-      .then(({ data }) => setJobs(data || []));
+    getUser().then(user => {
+      let q = supabase.from('jobs').select('*').in('status', ['active', 'in_progress', 'scheduled']).order('name');
+      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
+      q.then(({ data }) => setJobs(data || []));
+    });
   }, []);
 
   async function takePhoto() {
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
+    if (!result.canceled) {
+      setPhotoUri(result.assets[0].uri);
+      setPhotoBase64(result.assets[0].base64 ?? null);
+    }
   }
 
   async function pickFromGallery() {
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.8, base64: true });
+    if (!result.canceled) {
+      setPhotoUri(result.assets[0].uri);
+      setPhotoBase64(result.assets[0].base64 ?? null);
+    }
   }
 
   async function handleSubmit() {
     if (!selectedJob) return Alert.alert('Select a job site first');
-    if (!photoUri) return Alert.alert('Take or select a photo first');
+    if (!photoUri || !photoBase64) return Alert.alert('Take or select a photo first');
     const user = await getUser();
     if (!user) return;
 
     setLoading(true);
     try {
-      const response = await fetch(photoUri);
-      const blob = await response.blob();
+      // Convert base64 → Uint8Array (no network request, works on Android)
+      const binaryString = atob(photoBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
       const fileName = `${user.id}/${Date.now()}.jpg`;
-      await supabase.storage.from('photos').upload(fileName, blob, {
-        contentType: 'image/jpeg', upsert: true,
-      });
+      const { error: uploadError } = await supabase.storage
+        .from('photos')
+        .upload(fileName, bytes, { contentType: 'image/jpeg' });
+
+      if (uploadError) {
+        Alert.alert('Upload failed', uploadError.message);
+        return;
+      }
+
       const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(fileName);
 
-      await supabase.from('job_updates').insert({
+      const { error: insertError } = await supabase.from('job_updates').insert({
         job_id: selectedJob.id,
         employee_id: user.id,
+        tenant_id: user.tenant_id,
         type: 'photo',
         message: caption.trim() || 'Site photo',
         photo_url: publicUrl,
       });
 
+      if (insertError) {
+        Alert.alert('Save failed', insertError.message);
+        return;
+      }
+
       Alert.alert('Uploaded!', 'Photo saved to job site.');
       setPhotoUri(null);
+      setPhotoBase64(null);
       setCaption('');
       setSelectedJob(null);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Something went wrong.');
     } finally {
       setLoading(false);
     }
@@ -122,9 +152,9 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16,
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', marginRight: 8,
   },
-  jobChipActive: { borderColor: '#f97316', backgroundColor: '#2a1a0a' },
+  jobChipActive: { borderColor: '#0265dc', backgroundColor: '#e8f0fd' },
   jobChipText: { color: '#888', fontSize: 14 },
-  jobChipTextActive: { color: '#f97316' },
+  jobChipTextActive: { color: '#0265dc' },
   photoArea: {
     height: 220, backgroundColor: '#1a1a1a', borderRadius: 14,
     borderWidth: 1, borderColor: '#2a2a2a', overflow: 'hidden',
@@ -143,7 +173,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, padding: 14, color: '#fff', fontSize: 15,
   },
   submitBtn: {
-    backgroundColor: '#f97316', borderRadius: 12, padding: 16,
+    backgroundColor: '#0265dc', borderRadius: 12, padding: 16,
     alignItems: 'center', marginTop: 16,
   },
   submitText: { color: '#000', fontWeight: '700', fontSize: 16 },

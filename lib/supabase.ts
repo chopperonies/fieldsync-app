@@ -21,6 +21,7 @@ export interface Employee {
   name: string;
   phone: string;
   role: Role;
+  tenant_id?: string;
   telegram_id?: string;
   whatsapp_number?: string;
   created_at: string;
@@ -30,10 +31,48 @@ export interface Job {
   id: string;
   name: string;
   address: string;
-  status: 'active' | 'completed' | 'on_hold';
+  status: 'quoted' | 'scheduled' | 'in_progress' | 'complete' | 'invoiced' | 'on_hold' | 'active';
   latitude?: number;
   longitude?: number;
   created_at: string;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  notes?: string;
+  tenant_id?: string;
+  created_at: string;
+}
+
+export interface Invoice {
+  id: string;
+  job_id: string;
+  tenant_id?: string;
+  amount: number;
+  status: 'draft' | 'sent' | 'paid' | 'overdue';
+  due_date?: string;
+  sent_at?: string;
+  paid_at?: string;
+  stripe_invoice_id?: string;
+  created_at: string;
+  jobs?: { name: string; address: string; client_id?: string };
+  clients?: { name: string; email?: string };
+}
+
+export interface ServiceAgreement {
+  id: string;
+  job_id: string;
+  tenant_id?: string;
+  title: string;
+  body: string;
+  status: 'draft' | 'sent' | 'signed';
+  signed_at?: string;
+  created_at: string;
+  jobs?: { name: string };
 }
 
 export interface SupplyRequest {

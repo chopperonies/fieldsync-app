@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal
 } from 'react-native';
 import { supabase, Employee, Role } from '../../lib/supabase';
+import { getUser } from '../../lib/storage';
 
 const ROLES: Role[] = ['crew', 'manager', 'owner'];
 
@@ -18,7 +19,10 @@ export default function OwnerCrew() {
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
-    const { data } = await supabase.from('employees').select('*').order('name');
+    const user = await getUser();
+    let q = supabase.from('employees').select('*').order('name');
+    if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
+    const { data } = await q;
     setEmployees(data || []);
     setLoading(false);
     setRefreshing(false);
@@ -29,9 +33,10 @@ export default function OwnerCrew() {
   async function addEmployee() {
     if (!newName.trim() || !newPhone.trim()) return Alert.alert('Fill in name and phone');
     setSaving(true);
+    const user = await getUser();
     const { data, error } = await supabase
       .from('employees')
-      .insert({ name: newName.trim(), phone: newPhone.trim(), role: newRole })
+      .insert({ name: newName.trim(), phone: newPhone.trim(), role: newRole, tenant_id: user?.tenant_id })
       .select().single();
     if (error) { Alert.alert('Error', error.message); setSaving(false); return; }
     setEmployees(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
@@ -45,10 +50,10 @@ export default function OwnerCrew() {
     setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, role } : e));
   }
 
-  const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', manager: '#f97316', owner: '#a855f7' };
+  const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', manager: '#0265dc', owner: '#a855f7' };
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#f97316" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
   }
 
   return (
@@ -57,7 +62,7 @@ export default function OwnerCrew() {
         data={employees}
         keyExtractor={e => e.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#f97316" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={{ flex: 1 }}>
@@ -94,7 +99,7 @@ export default function OwnerCrew() {
               {ROLES.map(r => (
                 <TouchableOpacity
                   key={r}
-                  style={[styles.roleSelectorChip, newRole === r && { backgroundColor: '#f97316', borderColor: '#f97316' }]}
+                  style={[styles.roleSelectorChip, newRole === r && { backgroundColor: '#0265dc', borderColor: '#0265dc' }]}
                   onPress={() => setNewRole(r)}
                 >
                   <Text style={[styles.roleSelectorText, newRole === r && { color: '#000' }]}>{r}</Text>
@@ -133,7 +138,7 @@ const styles = StyleSheet.create({
   roleText: { color: '#555', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
-    backgroundColor: '#f97316', borderRadius: 28,
+    backgroundColor: '#0265dc', borderRadius: 28,
     paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
   },
   fabText: { color: '#000', fontWeight: '700', fontSize: 15 },
@@ -154,6 +159,6 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10 },
   cancelBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a' },
   cancelText: { color: '#888', fontWeight: '600' },
-  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#f97316' },
+  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0265dc' },
   saveText: { color: '#000', fontWeight: '700' },
 });

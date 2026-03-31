@@ -16,7 +16,7 @@ interface JobWithCrew {
   recentUpdates: { type: string; message: string; employees: { name: string }; created_at: string; photo_url?: string }[];
 }
 
-export default function ManagerDashboard() {
+export default function OwnerDashboard() {
   const [jobs, setJobs] = useState<JobWithCrew[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

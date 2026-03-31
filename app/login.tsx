@@ -10,35 +10,30 @@ import { registerPushToken } from '../lib/notifications';
 
 export default function Login() {
   const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
-    if (!phone.trim() || !name.trim()) {
-      Alert.alert('Missing info', 'Please enter your name and phone number.');
+    if (!phone.trim()) {
+      Alert.alert('Missing info', 'Please enter your phone number.');
       return;
     }
     setLoading(true);
     try {
-      // Look up employee by phone
-      let { data: employee } = await supabase
+      const { data: employee, error } = await supabase
         .from('employees')
         .select('*')
         .eq('phone', phone.trim())
         .single();
 
-      if (!employee) {
-        // Auto-register as crew
-        const { data: newEmp, error } = await supabase
-          .from('employees')
-          .insert({ name: name.trim(), phone: phone.trim(), role: 'crew' })
-          .select()
-          .single();
-        if (error) throw error;
-        employee = newEmp;
+      if (error || !employee) {
+        Alert.alert(
+          'Not found',
+          'Your phone number is not registered. Ask your manager to add you to the team.'
+        );
+        return;
       }
 
-      // Register push token and save to Supabase
+      // Register push token
       const pushToken = await registerPushToken();
       if (pushToken) {
         await supabase.from('employees').update({ push_token: pushToken }).eq('id', employee.id);
@@ -60,17 +55,9 @@ export default function Login() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.inner}>
-        <Text style={styles.logo}>⚡ FieldSync</Text>
+        <Text style={styles.logo}>LinkCrew</Text>
         <Text style={styles.subtitle}>Field crew management</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Your name"
-          placeholderTextColor="#555"
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-        />
         <TextInput
           style={styles.input}
           placeholder="Phone number"
@@ -78,6 +65,7 @@ export default function Login() {
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
+          autoFocus
         />
 
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
@@ -87,7 +75,7 @@ export default function Login() {
           }
         </TouchableOpacity>
 
-        <Text style={styles.hint}>New? You'll be registered automatically as crew.</Text>
+        <Text style={styles.hint}>Your manager adds you to the team. Contact them if you can't sign in.</Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -96,7 +84,7 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0a' },
   inner: { flex: 1, justifyContent: 'center', padding: 28 },
-  logo: { fontSize: 36, fontWeight: '800', color: '#f97316', marginBottom: 6 },
+  logo: { fontSize: 36, fontWeight: '800', color: '#0265dc', marginBottom: 6 },
   subtitle: { fontSize: 16, color: '#666', marginBottom: 48 },
   input: {
     backgroundColor: '#1a1a1a',
@@ -109,7 +97,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   button: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#0265dc',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
