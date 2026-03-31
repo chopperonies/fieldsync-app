@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Modal, ScrollView
+  Modal, ScrollView, Linking
 } from 'react-native';
 import { supabase, Client } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
@@ -117,7 +117,9 @@ export default function OwnerClients() {
                   {item.phone && (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Phone</Text>
-                      <Text style={styles.detailValue}>{item.phone}</Text>
+                      <TouchableOpacity onPress={() => Linking.openURL(`tel:${item.phone}`)}>
+                        <Text style={[styles.detailValue, { color: '#0265dc' }]}>{item.phone}</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                   {item.notes && (

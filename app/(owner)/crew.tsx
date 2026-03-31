@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal
+  StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal, Linking
 } from 'react-native';
 import { supabase, Employee, Role } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
@@ -67,7 +67,9 @@ export default function OwnerCrew() {
           <View style={styles.card}>
             <View style={{ flex: 1 }}>
               <Text style={styles.empName}>{item.name}</Text>
-              <Text style={styles.empPhone}>{item.phone}</Text>
+              <TouchableOpacity onPress={() => Linking.openURL(`tel:${item.phone}`)}>
+                <Text style={styles.empPhone}>{item.phone}</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.roleRow}>
               {ROLES.map(r => (
@@ -129,7 +131,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#2a2a2a',
   },
   empName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  empPhone: { color: '#666', fontSize: 13, marginTop: 2, marginBottom: 10 },
+  empPhone: { color: '#0265dc', fontSize: 13, marginTop: 2, marginBottom: 10 },
   roleRow: { flexDirection: 'row', gap: 6 },
   roleChip: {
     borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10,
