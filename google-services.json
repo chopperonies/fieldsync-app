@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:1027067401245:android:0ce2f814fe8c56f098a2f4",
         "android_client_info": {
-          "package_name": "com.kingstondatagroup.fieldsync"
+          "package_name": "io.linkcrew.app"
         }
       },
       "oauth_client": [],
