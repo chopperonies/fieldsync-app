@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "FieldSync",
-    "slug": "fieldsync-app",
+    "name": "LinkCrew",
+    "slug": "linkcrew-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -17,7 +17,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0a0a"
       },
-      "package": "com.kingstondatagroup.fieldsync",
+      "package": "io.linkcrew.app",
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -40,18 +40,18 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "FieldSync needs location to auto-detect job sites."
+          "locationAlwaysAndWhenInUsePermission": "LinkCrew needs location to auto-detect job sites."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "FieldSync needs camera access to upload site photos."
+          "cameraPermission": "LinkCrew needs camera access to upload site photos."
         }
       ],
       "expo-font"
     ],
-    "scheme": "fieldsync",
+    "scheme": "linkcrew",
     "experiments": {
       "typedRoutes": true
     },
