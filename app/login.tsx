@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase, Role } from '../lib/supabase';
-import { saveUser } from '../lib/storage';
+import { saveUser, savePlan } from '../lib/storage';
 import { registerPushToken } from '../lib/notifications';
 
 export default function Login() {
@@ -34,6 +34,23 @@ export default function Login() {
       }
 
       await saveUser(employee);
+
+      // Fetch and store plan info for owners
+      if (employee.role === 'owner' && employee.tenant_id) {
+        const { data: tenant } = await supabase
+          .from('tenants')
+          .select('plan, subscription_status, max_users')
+          .eq('id', employee.tenant_id)
+          .single();
+        if (tenant) {
+          await savePlan({
+            plan: tenant.plan ?? null,
+            subscription_status: tenant.subscription_status ?? null,
+            max_users: tenant.max_users ?? 1,
+          });
+        }
+      }
+
       router.replace(`/(${employee.role as Role})` as any);
 
       // Register push token in background — don't block login

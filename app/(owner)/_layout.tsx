@@ -1,7 +1,8 @@
-import { TouchableOpacity } from 'react-native';
+import { useEffect, useState } from 'react';
+import { TouchableOpacity, View, Text, StyleSheet, Linking } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { clearUser } from '../../lib/storage';
+import { clearUser, getPlan } from '../../lib/storage';
 
 async function logout() {
   await clearUser();
@@ -9,6 +10,34 @@ async function logout() {
 }
 
 export default function OwnerLayout() {
+  const [locked, setLocked] = useState(false);
+
+  useEffect(() => {
+    getPlan().then(p => {
+      if (p?.subscription_status === 'canceled' || p?.subscription_status === 'past_due') {
+        setLocked(true);
+      }
+    });
+  }, []);
+
+  if (locked) {
+    return (
+      <View style={styles.lockout}>
+        <Text style={styles.lockIcon}>🔒</Text>
+        <Text style={styles.lockTitle}>Subscription Required</Text>
+        <Text style={styles.lockBody}>
+          Your LinkCrew subscription is inactive. Choose a plan to restore access to your dashboard.
+        </Text>
+        <TouchableOpacity style={styles.lockBtn} onPress={() => Linking.openURL('https://linkcrew.io/pricing')}>
+          <Text style={styles.lockBtnText}>View Plans</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -92,3 +121,14 @@ export default function OwnerLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  lockout: { flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center', padding: 32 },
+  lockIcon: { fontSize: 48, marginBottom: 16 },
+  lockTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginBottom: 10, textAlign: 'center' },
+  lockBody: { color: '#555', fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 32 },
+  lockBtn: { backgroundColor: '#0265dc', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, marginBottom: 12 },
+  lockBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  logoutBtn: { padding: 12 },
+  logoutText: { color: '#444', fontSize: 13 },
+});

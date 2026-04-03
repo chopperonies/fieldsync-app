@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl
+  StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl, Linking
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
-import { getUser } from '../../lib/storage';
+import { getUser, getPlan } from '../../lib/storage';
+
+const PRIORITY_PLANS = ['team', 'pro', 'business'];
 
 export default function OwnerSettings() {
   const [companyName, setCompanyName] = useState('');
@@ -13,10 +15,13 @@ export default function OwnerSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasPrioritySupport, setHasPrioritySupport] = useState(false);
 
   const loadData = useCallback(async () => {
     const user = await getUser();
     if (!user?.tenant_id) { setLoading(false); setRefreshing(false); return; }
+    const plan = await getPlan();
+    setHasPrioritySupport(PRIORITY_PLANS.includes(plan?.plan ?? ''));
     const { data } = await supabase
       .from('tenants')
       .select('company_name, phone, address')
@@ -102,6 +107,20 @@ export default function OwnerSettings() {
 
       <Text style={styles.sectionLabel}>Logo</Text>
       <Text style={styles.hint}>To upload your company logo, visit the Settings page on the web dashboard at linkcrew.io.</Text>
+
+      {hasPrioritySupport && (
+        <>
+          <View style={styles.divider} />
+          <Text style={styles.sectionLabel}>Support</Text>
+          <Text style={styles.hint}>As a Team+ member you have access to priority support.</Text>
+          <TouchableOpacity
+            style={styles.supportBtn}
+            onPress={() => Linking.openURL('mailto:hello@linkcrew.io?subject=Priority Support Request')}
+          >
+            <Text style={styles.supportBtnText}>Contact Priority Support</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -123,4 +142,9 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
   divider: { height: 1, backgroundColor: '#2a2a2a', marginVertical: 24 },
+  supportBtn: {
+    borderWidth: 1, borderColor: '#0265dc', borderRadius: 12,
+    padding: 16, alignItems: 'center', marginTop: 8,
+  },
+  supportBtnText: { color: '#0265dc', fontWeight: '700', fontSize: 15 },
 });

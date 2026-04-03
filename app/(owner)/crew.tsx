@@ -4,7 +4,7 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal, Linking
 } from 'react-native';
 import { supabase, Employee, Role } from '../../lib/supabase';
-import { getUser } from '../../lib/storage';
+import { getUser, getPlan } from '../../lib/storage';
 
 const ROLES: Role[] = ['crew', 'manager', 'owner'];
 
@@ -29,6 +29,20 @@ export default function OwnerCrew() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  async function handleAddPress() {
+    const plan = await getPlan();
+    const maxUsers = plan?.max_users ?? 1;
+    if (employees.length >= maxUsers) {
+      Alert.alert(
+        'Plan limit reached',
+        `Your ${plan?.plan ?? 'current'} plan allows up to ${maxUsers} crew member${maxUsers === 1 ? '' : 's'}. Upgrade your plan at linkcrew.io/pricing to add more.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    setShowAdd(true);
+  }
 
   async function addEmployee() {
     if (!newName.trim() || !newPhone.trim()) return Alert.alert('Fill in name and phone');
@@ -86,7 +100,7 @@ export default function OwnerCrew() {
         )}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
+      <TouchableOpacity style={styles.fab} onPress={handleAddPress}>
         <Text style={styles.fabText}>+ Add Member</Text>
       </TouchableOpacity>
 
