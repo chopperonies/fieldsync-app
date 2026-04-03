@@ -2,32 +2,72 @@ import { useEffect, useState } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Linking } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { clearUser, getPlan } from '../../lib/storage';
+import { clearUser, getPlan, getUser } from '../../lib/storage';
+import { supabase } from '../../lib/supabase';
 
 async function logout() {
   await clearUser();
   router.replace('/login');
 }
 
+type LockState = 'subscription' | 'paused' | 'blocked' | null;
+
 export default function OwnerLayout() {
-  const [locked, setLocked] = useState(false);
+  const [lockState, setLockState] = useState<LockState>(null);
 
   useEffect(() => {
-    getPlan().then(p => {
-      if (p?.subscription_status === 'canceled' || p?.subscription_status === 'past_due') {
-        setLocked(true);
+    async function checkStatus() {
+      const user = await getUser();
+      if (user?.tenant_id) {
+        const { data } = await supabase.from('tenants')
+          .select('subscription_status, trial_ends_at, paused, blocked')
+          .eq('id', user.tenant_id).single();
+        if (data?.blocked) { setLockState('blocked'); return; }
+        if (data?.paused) { setLockState('paused'); return; }
+        const trialExpired = data?.subscription_status === 'trialing' && data?.trial_ends_at && new Date(data.trial_ends_at) < new Date();
+        if (trialExpired || data?.subscription_status === 'canceled' || data?.subscription_status === 'past_due') {
+          setLockState('subscription');
+        }
       }
-    });
+    }
+    checkStatus();
   }, []);
 
-  if (locked) {
+  if (lockState === 'blocked') {
+    return (
+      <View style={styles.lockout}>
+        <Text style={styles.lockIcon}>🚫</Text>
+        <Text style={styles.lockTitle}>Account Suspended</Text>
+        <Text style={styles.lockBody}>Your account has been suspended. Contact hello@linkcrew.io for more information.</Text>
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (lockState === 'paused') {
+    return (
+      <View style={styles.lockout}>
+        <Text style={styles.lockIcon}>⏸</Text>
+        <Text style={styles.lockTitle}>Account Paused</Text>
+        <Text style={styles.lockBody}>Your account has been paused. Choose a plan to restore access.</Text>
+        <TouchableOpacity style={styles.lockBtn} onPress={() => Linking.openURL('https://linkcrew.io/pricing')}>
+          <Text style={styles.lockBtnText}>View Plans</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (lockState === 'subscription') {
     return (
       <View style={styles.lockout}>
         <Text style={styles.lockIcon}>🔒</Text>
         <Text style={styles.lockTitle}>Subscription Required</Text>
-        <Text style={styles.lockBody}>
-          Your LinkCrew subscription is inactive. Choose a plan to restore access to your dashboard.
-        </Text>
+        <Text style={styles.lockBody}>Your LinkCrew subscription is inactive. Choose a plan to restore access.</Text>
         <TouchableOpacity style={styles.lockBtn} onPress={() => Linking.openURL('https://linkcrew.io/pricing')}>
           <Text style={styles.lockBtnText}>View Plans</Text>
         </TouchableOpacity>
