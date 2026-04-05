@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Modal, ScrollView
+  Modal, ScrollView, Share, Linking
 } from 'react-native';
 import { supabase, Job, Employee } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
+import { setCache, getStaleCache } from '../../lib/cache';
 
 const PIPELINE = [
   { key: 'quoted',      label: 'Quoted',      color: '#6366f1' },
@@ -41,6 +42,8 @@ export default function OwnerJobs() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAddress, setNewAddress] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [newEstimate, setNewEstimate] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Assign crew modal
@@ -48,15 +51,26 @@ export default function OwnerJobs() {
   const [allCrew, setAllCrew] = useState<Employee[]>([]);
   const [selected_crew, setSelectedCrew] = useState<Set<string>>(new Set());
   const [assigning, setAssigning] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const loadData = useCallback(async () => {
     const user = await getUser();
-    let q = supabase.from('jobs').select('*').order('name');
-    if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-    const { data } = await q;
-    setJobs(data || []);
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      let q = supabase.from('jobs').select('*').order('name');
+      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
+      const { data, error } = await q;
+      if (error) throw error;
+      const result = data || [];
+      setJobs(result);
+      setIsOffline(false);
+      await setCache('owner_jobs_' + user?.tenant_id, result);
+    } catch {
+      const cached = await getStaleCache<Job[]>('owner_jobs_' + user?.tenant_id);
+      if (cached) { setJobs(cached); setIsOffline(true); }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -89,11 +103,21 @@ export default function OwnerJobs() {
     setSaving(true);
     const user = await getUser();
     const { data } = await supabase.from('jobs')
-      .insert({ name: newName.trim(), address: newAddress.trim(), status: 'quoted', tenant_id: user?.tenant_id })
+      .insert({
+        name: newName.trim(), address: newAddress.trim(), status: 'quoted',
+        tenant_id: user?.tenant_id,
+        description: newDesc.trim() || null,
+        estimate_amount: newEstimate ? parseFloat(newEstimate) : null,
+      })
       .select().single();
     if (data) setJobs(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewName(''); setNewAddress('');
+    setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
     setShowAdd(false); setSaving(false);
+  }
+
+  async function shareWorkOrder(jobId: string) {
+    const url = `https://linkcrew.io/workorder?job_id=${jobId}`;
+    await Share.share({ message: `View work order / estimate: ${url}`, url });
   }
 
   async function openAssignModal(jobId: string) {
@@ -145,6 +169,13 @@ export default function OwnerJobs() {
 
   return (
     <View style={styles.container}>
+      {isOffline && (
+        <View style={{ backgroundColor: '#7f1d1d', paddingVertical: 8, paddingHorizontal: 16 }}>
+          <Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>
+            📵 No connection — showing cached jobs
+          </Text>
+        </View>
+      )}
       <FlatList
         data={jobs}
         keyExtractor={j => j.id}
@@ -191,6 +222,17 @@ export default function OwnerJobs() {
                     </View>
                   </ScrollView>
 
+                  {(item as any).description ? (
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={styles.sectionLabel}>Scope of Work</Text>
+                      <Text style={{ color: '#aaa', fontSize: 13, lineHeight: 19, marginTop: 4 }}>{(item as any).description}</Text>
+                    </View>
+                  ) : null}
+
+                  <TouchableOpacity style={styles.shareBtn} onPress={() => shareWorkOrder(item.id)}>
+                    <Text style={styles.shareBtnText}>📋 Share Work Order</Text>
+                  </TouchableOpacity>
+
                   <View style={styles.crewHeader}>
                     <Text style={styles.sectionLabel}>Crew</Text>
                     <TouchableOpacity onPress={() => openAssignModal(item.id)}>
@@ -228,6 +270,8 @@ export default function OwnerJobs() {
             <Text style={styles.modalTitle}>New Job Site</Text>
             <TextInput style={styles.input} placeholder="Job name" placeholderTextColor="#555" value={newName} onChangeText={setNewName} />
             <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#555" value={newAddress} onChangeText={setNewAddress} />
+            <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} placeholder="Scope of work / description" placeholderTextColor="#555" value={newDesc} onChangeText={setNewDesc} multiline />
+            <TextInput style={styles.input} placeholder="Estimate amount (e.g. 2500)" placeholderTextColor="#555" value={newEstimate} onChangeText={setNewEstimate} keyboardType="decimal-pad" />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdd(false)}>
                 <Text style={styles.cancelText}>Cancel</Text>
@@ -336,4 +380,6 @@ const styles = StyleSheet.create({
   checkmark: { color: '#000', fontSize: 13, fontWeight: '700' },
   crewCheckName: { color: '#fff', fontSize: 14, fontWeight: '600' },
   crewCheckRole: { color: '#666', fontSize: 12, marginTop: 1, textTransform: 'capitalize' },
+  shareBtn: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#0265dc', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center', marginBottom: 14 },
+  shareBtnText: { color: '#0265dc', fontSize: 13, fontWeight: '600' },
 });

@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { supabase, Client } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
+import { setCache, getStaleCache } from '../../lib/cache';
 
 export default function OwnerClients() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -22,28 +23,42 @@ export default function OwnerClients() {
   const [newCompany, setNewCompany] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const loadData = useCallback(async () => {
     const user = await getUser();
-    let q = supabase.from('clients').select('*').order('name');
-    if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-    const { data } = await q;
-    setClients(data || []);
+    try {
+      let q = supabase.from('clients').select('*').order('name');
+      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
+      const { data, error } = await q;
+      if (error) throw error;
+      const result = data || [];
+      setClients(result);
+      setIsOffline(false);
+      await setCache('owner_clients_' + user?.tenant_id, result);
 
-    if (data && data.length > 0) {
-      const counts: Record<string, number> = {};
-      await Promise.all(data.map(async (c) => {
-        const { count } = await supabase
-          .from('jobs')
-          .select('id', { count: 'exact', head: true })
-          .eq('client_id', c.id);
-        counts[c.id] = count || 0;
-      }));
-      setJobCounts(counts);
+      if (result.length > 0) {
+        const counts: Record<string, number> = {};
+        await Promise.all(result.map(async (c) => {
+          const { count } = await supabase
+            .from('jobs').select('id', { count: 'exact', head: true }).eq('client_id', c.id);
+          counts[c.id] = count || 0;
+        }));
+        setJobCounts(counts);
+        await setCache('owner_client_job_counts_' + user?.tenant_id, counts);
+      }
+    } catch {
+      const cached = await getStaleCache<Client[]>('owner_clients_' + user?.tenant_id);
+      if (cached) {
+        setClients(cached);
+        setIsOffline(true);
+        const cachedCounts = await getStaleCache<Record<string, number>>('owner_client_job_counts_' + user?.tenant_id);
+        if (cachedCounts) setJobCounts(cachedCounts);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-
-    setLoading(false);
-    setRefreshing(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -79,6 +94,13 @@ export default function OwnerClients() {
 
   return (
     <View style={styles.container}>
+      {isOffline && (
+        <View style={{ backgroundColor: '#7f1d1d', paddingVertical: 8, paddingHorizontal: 16 }}>
+          <Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>
+            📵 No connection — showing cached clients
+          </Text>
+        </View>
+      )}
       <FlatList
         data={clients}
         keyExtractor={c => c.id}
