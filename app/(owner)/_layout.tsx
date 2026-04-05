@@ -81,15 +81,16 @@ export default function OwnerLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1a1a1a' },
+        tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1e1e1e', height: 60, paddingBottom: 8 },
         tabBarActiveTintColor: '#0265dc',
-        tabBarInactiveTintColor: '#555',
+        tabBarInactiveTintColor: '#888',
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
         headerStyle: { backgroundColor: '#0a0a0a' },
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
         headerRight: () => (
           <TouchableOpacity onPress={logout} style={{ marginRight: 16 }}>
-            <Ionicons name="log-out-outline" size={22} color="#555" />
+            <Ionicons name="log-out-outline" size={22} color="#888" />
           </TouchableOpacity>
         ),
       }}
@@ -97,65 +98,74 @@ export default function OwnerLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Overview',
-          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />,
+          title: 'Home',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />,
           headerTitle: 'LinkCrew',
-        }}
-      />
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Jobs',
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="supplies"
-        options={{
-          title: 'Supplies',
-          tabBarIcon: ({ color, size }) => <Ionicons name="cube" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="jobs"
         options={{
-          title: 'Manage',
-          tabBarIcon: ({ color, size }) => <Ionicons name="briefcase" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="crew"
-        options={{
-          title: 'Crew',
-          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="photos"
-        options={{
-          title: 'Photos',
-          tabBarIcon: ({ color, size }) => <Ionicons name="images" size={size} color={color} />,
+          title: 'Jobs',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'hammer' : 'hammer-outline'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="clients"
         options={{
           title: 'Clients',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="invoices"
         options={{
           title: 'Invoices',
-          tabBarIcon: ({ color, size }) => <Ionicons name="receipt" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'cash' : 'cash-outline'} size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="crew"
+        options={{
+          title: 'Crew',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="photos"
+        options={{
+          title: 'Photos',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'camera' : 'camera-outline'} size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="supplies"
+        options={{
+          title: 'Supplies',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'layers' : 'layers-outline'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={size} color={color} />,
         }}
       />
     </Tabs>
