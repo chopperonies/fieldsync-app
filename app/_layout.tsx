@@ -5,7 +5,7 @@ import { AppState, AppStateStatus, View, Text, TouchableOpacity, StyleSheet, Act
 import { getBiometricEnabled, getUser } from '../lib/storage';
 import { authenticate } from '../lib/biometric';
 
-const LOCK_AFTER_MS = 5000; // lock after 5 seconds in background
+const LOCK_AFTER_MS = 5 * 60 * 1000; // lock after 5 minutes in background
 
 export default function RootLayout() {
   const [locked, setLocked] = useState(false);
