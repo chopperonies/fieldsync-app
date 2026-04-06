@@ -19,10 +19,11 @@ export default function Login() {
     }
     setLoading(true);
     try {
+      const normalizedPhone = phone.replace(/\D/g, '');
       const { data: employee, error } = await supabase
         .from('employees')
         .select('*')
-        .eq('phone', phone.trim())
+        .eq('phone', normalizedPhone)
         .single();
 
       if (error || !employee) {
