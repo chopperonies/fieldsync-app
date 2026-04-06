@@ -3,10 +3,22 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, AppState
 } from 'react-native';
+import * as Location from 'expo-location';
 import { supabase, Job } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
 import { enqueue, syncQueue, getQueueCount } from '../../lib/offlineQueue';
+
+async function getGPS(): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return null;
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+  } catch {
+    return null;
+  }
+}
 
 export default function CheckIn() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -98,27 +110,35 @@ export default function CheckIn() {
     const user = await getUser();
     if (!user) return;
     setActionLoading(true);
+    const gps = await getGPS();
     try {
+      const checkedInAt = new Date().toISOString();
       const payload = {
         job_id: job.id,
         employee_id: user.id,
         tenant_id: user.tenant_id,
-        checked_in_at: new Date().toISOString(),
+        checked_in_at: checkedInAt,
         checked_out_at: null,
         employee_name: user.name,
+        punch_in_lat: gps?.lat ?? null,
+        punch_in_lng: gps?.lng ?? null,
       };
 
       if (isOnline) {
         const { error } = await supabase.from('job_assignments').upsert(
-          { job_id: job.id, employee_id: user.id, tenant_id: user.tenant_id, checked_in_at: payload.checked_in_at, checked_out_at: null },
+          {
+            job_id: job.id, employee_id: user.id, tenant_id: user.tenant_id,
+            checked_in_at: checkedInAt, checked_out_at: null,
+            punch_in_lat: gps?.lat ?? null, punch_in_lng: gps?.lng ?? null,
+          },
           { onConflict: 'job_id,employee_id' }
         );
         if (error) throw error;
         await supabase.from('job_updates').insert({
           job_id: job.id, employee_id: user.id, tenant_id: user.tenant_id,
-          type: 'checkin', message: `${user.name} checked in`,
+          type: 'checkin', message: `${user.name} checked in${gps ? ' 📍' : ''}`,
         });
-        Alert.alert('Checked in!', `You're now on site at ${job.name}`);
+        Alert.alert('Checked in!', `You're now on site at ${job.name}${gps ? '\n📍 Location recorded' : ''}`);
       } else {
         await enqueue('checkin', payload);
         const count = await getQueueCount();
@@ -152,22 +172,24 @@ export default function CheckIn() {
     if (!user) return;
     setActionLoading(true);
     const checkedOutAt = new Date().toISOString();
+    const gps = await getGPS();
     try {
       if (isOnline) {
         const { error } = await supabase.from('job_assignments')
-          .update({ checked_out_at: checkedOutAt })
+          .update({ checked_out_at: checkedOutAt, punch_out_lat: gps?.lat ?? null, punch_out_lng: gps?.lng ?? null })
           .eq('job_id', job.id)
           .eq('employee_id', user.id);
         if (error) throw error;
         await supabase.from('job_updates').insert({
           job_id: job.id, employee_id: user.id, tenant_id: user.tenant_id,
-          type: 'checkout', message: `${user.name} checked out`,
+          type: 'checkout', message: `${user.name} checked out${gps ? ' 📍' : ''}`,
         });
-        Alert.alert('Checked out', `Good work at ${job.name}!`);
+        Alert.alert('Checked out', `Good work at ${job.name}!${gps ? '\n📍 Location recorded' : ''}`);
       } else {
         await enqueue('checkout', {
           job_id: job.id, employee_id: user.id, tenant_id: user.tenant_id,
           checked_out_at: checkedOutAt, employee_name: user.name,
+          punch_out_lat: gps?.lat ?? null, punch_out_lng: gps?.lng ?? null,
         });
         const count = await getQueueCount();
         setPendingCount(count);
