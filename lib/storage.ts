@@ -3,6 +3,8 @@ import { Employee } from './supabase';
 
 const USER_KEY = 'fieldsync_user';
 const PLAN_KEY = 'fieldsync_plan';
+const BIOMETRIC_KEY = 'fieldsync_biometric';
+const BIOMETRIC_PROMPTED_KEY = 'fieldsync_biometric_prompted';
 
 export async function saveUser(user: Employee) {
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -31,4 +33,22 @@ export async function savePlan(plan: TenantPlan) {
 export async function getPlan(): Promise<TenantPlan | null> {
   const raw = await AsyncStorage.getItem(PLAN_KEY);
   return raw ? JSON.parse(raw) : null;
+}
+
+export async function getBiometricEnabled(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(BIOMETRIC_KEY);
+  return raw === 'true';
+}
+
+export async function setBiometricEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(BIOMETRIC_KEY, enabled ? 'true' : 'false');
+}
+
+export async function getBiometricPrompted(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(BIOMETRIC_PROMPTED_KEY);
+  return raw === 'true';
+}
+
+export async function setBiometricPrompted(): Promise<void> {
+  await AsyncStorage.setItem(BIOMETRIC_PROMPTED_KEY, 'true');
 }

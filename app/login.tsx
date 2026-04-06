@@ -5,8 +5,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase, Role } from '../lib/supabase';
-import { saveUser, savePlan } from '../lib/storage';
+import { saveUser, savePlan, getBiometricPrompted, setBiometricPrompted, setBiometricEnabled } from '../lib/storage';
 import { registerPushToken } from '../lib/notifications';
+import { isBiometricAvailable } from '../lib/biometric';
 
 export default function Login() {
   const [phone, setPhone] = useState('');
@@ -53,6 +54,20 @@ export default function Login() {
       }
 
       router.replace(`/(${employee.role as Role})` as any);
+
+      // First-time biometric enrollment prompt
+      const [prompted, available] = await Promise.all([getBiometricPrompted(), isBiometricAvailable()]);
+      if (!prompted && available) {
+        await setBiometricPrompted();
+        Alert.alert(
+          'Enable App Lock?',
+          'Use Face ID or fingerprint to secure the app when you reopen it.',
+          [
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'Enable', onPress: () => setBiometricEnabled(true) },
+          ]
+        );
+      }
 
       // Register push token in background — don't block login
       registerPushToken().then(pushToken => {

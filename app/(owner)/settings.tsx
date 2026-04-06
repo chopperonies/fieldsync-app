@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, Switch,
   StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl, Linking
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
-import { getUser, getPlan } from '../../lib/storage';
+import { getUser, getPlan, getBiometricEnabled, setBiometricEnabled } from '../../lib/storage';
+import { isBiometricAvailable } from '../../lib/biometric';
 
 const PRIORITY_PLANS = ['team', 'pro', 'business'];
 
@@ -16,12 +17,17 @@ export default function OwnerSettings() {
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasPrioritySupport, setHasPrioritySupport] = useState(false);
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
 
   const loadData = useCallback(async () => {
     const user = await getUser();
     if (!user?.tenant_id) { setLoading(false); setRefreshing(false); return; }
     const plan = await getPlan();
     setHasPrioritySupport(PRIORITY_PLANS.includes(plan?.plan ?? ''));
+    const [enabled, available] = await Promise.all([getBiometricEnabled(), isBiometricAvailable()]);
+    setBiometricEnabledState(enabled);
+    setBiometricAvailable(available);
     const { data } = await supabase
       .from('tenants')
       .select('company_name, phone, address')
@@ -105,6 +111,29 @@ export default function OwnerSettings() {
 
       <View style={styles.divider} />
 
+      <Text style={styles.sectionLabel}>Security</Text>
+      {biometricAvailable ? (
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowLabel}>App Lock</Text>
+            <Text style={styles.hint}>Require Face ID or fingerprint when reopening the app.</Text>
+          </View>
+          <Switch
+            value={biometricEnabled}
+            onValueChange={async (val) => {
+              setBiometricEnabledState(val);
+              await setBiometricEnabled(val);
+            }}
+            trackColor={{ false: '#2a2a2a', true: '#0ea5e9' }}
+            thumbColor="#fff"
+          />
+        </View>
+      ) : (
+        <Text style={styles.hint}>No biometric hardware found on this device.</Text>
+      )}
+
+      <View style={styles.divider} />
+
       <Text style={styles.sectionLabel}>Logo</Text>
       <Text style={styles.hint}>To upload your company logo, visit the Settings page on the web dashboard at linkcrew.io.</Text>
 
@@ -142,6 +171,8 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
   divider: { height: 1, backgroundColor: '#2a2a2a', marginVertical: 24 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  rowLabel: { color: '#fff', fontSize: 15, fontWeight: '600', marginBottom: 2 },
   supportBtn: {
     borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 12,
     padding: 16, alignItems: 'center', marginTop: 8,
