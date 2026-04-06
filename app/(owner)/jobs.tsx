@@ -11,7 +11,7 @@ import { setCache, getStaleCache } from '../../lib/cache';
 const PIPELINE = [
   { key: 'quoted',      label: 'Quoted',      color: '#6366f1' },
   { key: 'scheduled',   label: 'Scheduled',   color: '#3b82f6' },
-  { key: 'in_progress', label: 'In Progress', color: '#0265dc' },
+  { key: 'in_progress', label: 'In Progress', color: '#0ea5e9' },
   { key: 'complete',    label: 'Complete',    color: '#4ade80' },
   { key: 'invoiced',    label: 'Invoiced',    color: '#a78bfa' },
   { key: 'on_hold',     label: 'On Hold',     color: '#f59e0b' },
@@ -164,7 +164,7 @@ export default function OwnerJobs() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -180,7 +180,7 @@ export default function OwnerJobs() {
         data={jobs}
         keyExtractor={j => j.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
         renderItem={({ item }) => {
           const isOpen = selected === item.id;
           const stage = pipelineFor(item.status);
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
   },
   pipeChipText: { color: '#555', fontSize: 12, fontWeight: '600' },
   crewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  assignLink: { color: '#0265dc', fontSize: 13, fontWeight: '600' },
+  assignLink: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
   noCrewText: { color: '#444', fontSize: 13 },
   crewRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: '#2a2a2a' },
   crewName: { color: '#ccc', fontSize: 14, flex: 1 },
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
   crewBadgeText: { fontSize: 11, fontWeight: '700' },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
-    backgroundColor: '#0265dc', borderRadius: 28,
+    backgroundColor: '#0ea5e9', borderRadius: 28,
     paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
   },
   fabText: { color: '#000', fontWeight: '700', fontSize: 15 },
@@ -372,14 +372,14 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10 },
   cancelBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a' },
   cancelText: { color: '#888', fontWeight: '600' },
-  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0265dc' },
+  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0ea5e9' },
   saveText: { color: '#000', fontWeight: '700' },
   crewCheckRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#444', alignItems: 'center', justifyContent: 'center' },
-  checkboxChecked: { backgroundColor: '#0265dc', borderColor: '#0265dc' },
+  checkboxChecked: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
   checkmark: { color: '#000', fontSize: 13, fontWeight: '700' },
   crewCheckName: { color: '#fff', fontSize: 14, fontWeight: '600' },
   crewCheckRole: { color: '#666', fontSize: 12, marginTop: 1, textTransform: 'capitalize' },
-  shareBtn: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#0265dc', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center', marginBottom: 14 },
-  shareBtnText: { color: '#0265dc', fontSize: 13, fontWeight: '600' },
+  shareBtn: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center', marginBottom: 14 },
+  shareBtnText: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
 });

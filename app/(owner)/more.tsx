@@ -27,7 +27,7 @@ export default function More() {
           activeOpacity={0.7}
         >
           <View style={styles.iconWrap}>
-            <Ionicons name={item.icon as any} size={22} color="#0265dc" />
+            <Ionicons name={item.icon as any} size={22} color="#0ea5e9" />
           </View>
           <Text style={styles.label}>{item.label}</Text>
           <Ionicons name="chevron-forward" size={18} color="#444" />

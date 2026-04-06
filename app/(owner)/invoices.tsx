@@ -8,7 +8,7 @@ import { getUser } from '../../lib/storage';
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   draft:   { color: '#555',    label: 'Draft' },
-  sent:    { color: '#0265dc', label: 'Sent' },
+  sent:    { color: '#0ea5e9', label: 'Sent' },
   paid:    { color: '#4ade80', label: 'Paid' },
   overdue: { color: '#ef4444', label: 'Overdue' },
 };
@@ -40,7 +40,7 @@ export default function OwnerInvoices() {
   const totalOwed = invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + (i.amount || 0), 0);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -51,8 +51,8 @@ export default function OwnerInvoices() {
           <Text style={styles.summaryValue}>${totalPaid.toLocaleString()}</Text>
           <Text style={styles.summaryLabel}>Collected</Text>
         </View>
-        <View style={[styles.summaryCard, { borderColor: '#0265dc44' }]}>
-          <Text style={[styles.summaryValue, { color: '#0265dc' }]}>${totalOwed.toLocaleString()}</Text>
+        <View style={[styles.summaryCard, { borderColor: '#0ea5e944' }]}>
+          <Text style={[styles.summaryValue, { color: '#0ea5e9' }]}>${totalOwed.toLocaleString()}</Text>
           <Text style={styles.summaryLabel}>Outstanding</Text>
         </View>
       </View>
@@ -76,7 +76,7 @@ export default function OwnerInvoices() {
         data={filtered}
         keyExtractor={i => i.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
         ListEmptyComponent={<Text style={styles.empty}>No invoices found.</Text>}
         renderItem={({ item }) => {
           const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.draft;
@@ -139,9 +139,9 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
     borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#111',
   },
-  filterChipActive: { backgroundColor: '#0265dc22', borderColor: '#0265dc' },
+  filterChipActive: { backgroundColor: '#0ea5e922', borderColor: '#0ea5e9' },
   filterText: { color: '#555', fontSize: 12, fontWeight: '600' },
-  filterTextActive: { color: '#0265dc' },
+  filterTextActive: { color: '#0ea5e9' },
   card: { backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#2a2a2a' },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   jobName: { color: '#fff', fontSize: 15, fontWeight: '600' },

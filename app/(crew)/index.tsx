@@ -219,7 +219,7 @@ export default function CheckIn() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#0265dc" />
+        <ActivityIndicator size="large" color="#0ea5e9" />
       </View>
     );
   }
@@ -291,11 +291,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16,
     flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a',
   },
-  cardActive: { borderColor: '#0265dc' },
+  cardActive: { borderColor: '#0ea5e9' },
   jobName: { color: '#fff', fontSize: 16, fontWeight: '600' },
   jobAddress: { color: '#666', fontSize: 13, marginTop: 2 },
   btn: { borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, minWidth: 90, alignItems: 'center' },
-  btnIn: { backgroundColor: '#0265dc' },
+  btnIn: { backgroundColor: '#0ea5e9' },
   btnOut: { backgroundColor: '#ef4444' },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 });

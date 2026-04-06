@@ -64,7 +64,7 @@ export default function ManagerDashboard() {
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -73,7 +73,7 @@ export default function ManagerDashboard() {
       keyExtractor={j => j.id}
       style={styles.container}
       contentContainerStyle={{ padding: 16, gap: 12 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0265dc" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0ea5e9" />}
       renderItem={({ item }) => {
         const isOpen = selected === item.id;
         return (
@@ -95,7 +95,7 @@ export default function ManagerDashboard() {
                 </View>
                 {item.pendingSupplies > 0 && (
                   <View style={[styles.badge, { backgroundColor: '#e8f0fd' }]}>
-                    <Text style={[styles.badgeText, { color: '#0265dc' }]}>📦 {item.pendingSupplies}</Text>
+                    <Text style={[styles.badgeText, { color: '#0ea5e9' }]}>📦 {item.pendingSupplies}</Text>
                   </View>
                 )}
               </View>

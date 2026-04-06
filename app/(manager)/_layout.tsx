@@ -13,7 +13,7 @@ export default function ManagerLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1a1a1a' },
-        tabBarActiveTintColor: '#0265dc',
+        tabBarActiveTintColor: '#0ea5e9',
         tabBarInactiveTintColor: '#555',
         headerStyle: { backgroundColor: '#0a0a0a' },
         headerTintColor: '#fff',

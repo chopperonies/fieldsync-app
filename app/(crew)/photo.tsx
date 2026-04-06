@@ -152,9 +152,9 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16,
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', marginRight: 8,
   },
-  jobChipActive: { borderColor: '#0265dc', backgroundColor: '#e8f0fd' },
+  jobChipActive: { borderColor: '#0ea5e9', backgroundColor: '#e8f0fd' },
   jobChipText: { color: '#888', fontSize: 14 },
-  jobChipTextActive: { color: '#0265dc' },
+  jobChipTextActive: { color: '#0ea5e9' },
   photoArea: {
     height: 220, backgroundColor: '#1a1a1a', borderRadius: 14,
     borderWidth: 1, borderColor: '#2a2a2a', overflow: 'hidden',
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, padding: 14, color: '#fff', fontSize: 15,
   },
   submitBtn: {
-    backgroundColor: '#0265dc', borderRadius: 12, padding: 16,
+    backgroundColor: '#0ea5e9', borderRadius: 12, padding: 16,
     alignItems: 'center', marginTop: 16,
   },
   submitText: { color: '#000', fontWeight: '700', fontSize: 16 },

@@ -7,7 +7,7 @@ import { supabase, SupplyRequest } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: '#0265dc',
+  pending: '#0ea5e9',
   ordered: '#3b82f6',
   delivered: '#4ade80',
 };
@@ -42,7 +42,7 @@ export default function OwnerSupplies() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -51,7 +51,7 @@ export default function OwnerSupplies() {
       keyExtractor={r => r.id}
       style={styles.container}
       contentContainerStyle={{ padding: 16, gap: 10 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
       ListEmptyComponent={<Text style={styles.empty}>No supply requests yet.</Text>}
       renderItem={({ item }) => (
         <View style={styles.card}>
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   actionBtn: {
     flex: 1, borderRadius: 8, padding: 10, alignItems: 'center',
-    backgroundColor: '#e8f0fd', borderWidth: 1, borderColor: '#0265dc',
+    backgroundColor: '#e8f0fd', borderWidth: 1, borderColor: '#0ea5e9',
   },
-  actionText: { color: '#0265dc', fontWeight: '600', fontSize: 13 },
+  actionText: { color: '#0ea5e9', fontWeight: '600', fontSize: 13 },
 });

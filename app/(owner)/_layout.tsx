@@ -82,7 +82,7 @@ export default function OwnerLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1e1e1e', height: 60, paddingBottom: 8 },
-        tabBarActiveTintColor: '#0265dc',
+        tabBarActiveTintColor: '#0ea5e9',
         tabBarInactiveTintColor: '#888',
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
         headerStyle: { backgroundColor: '#0a0a0a' },
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   lockIcon: { fontSize: 48, marginBottom: 16 },
   lockTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginBottom: 10, textAlign: 'center' },
   lockBody: { color: '#555', fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 32 },
-  lockBtn: { backgroundColor: '#0265dc', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, marginBottom: 12 },
+  lockBtn: { backgroundColor: '#0ea5e9', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, marginBottom: 12 },
   lockBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   logoutBtn: { padding: 12 },
   logoutText: { color: '#444', fontSize: 13 },

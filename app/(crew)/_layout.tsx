@@ -13,7 +13,7 @@ export default function CrewLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1e1e1e', height: 60, paddingBottom: 8 },
-        tabBarActiveTintColor: '#0265dc',
+        tabBarActiveTintColor: '#0ea5e9',
         tabBarInactiveTintColor: '#888',
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
         headerStyle: { backgroundColor: '#0a0a0a' },

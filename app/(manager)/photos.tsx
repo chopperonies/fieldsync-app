@@ -36,7 +36,7 @@ export default function ManagerPhotos() {
   useEffect(() => { loadData(); }, [loadData]);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -47,7 +47,7 @@ export default function ManagerPhotos() {
       style={styles.container}
       contentContainerStyle={{ padding: 10, gap: 10 }}
       columnWrapperStyle={{ gap: 10 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
       ListEmptyComponent={
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>📸</Text>

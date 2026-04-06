@@ -147,9 +147,9 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16,
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', marginRight: 8,
   },
-  jobChipActive: { borderColor: '#0265dc', backgroundColor: '#e8f0fd' },
+  jobChipActive: { borderColor: '#0ea5e9', backgroundColor: '#e8f0fd' },
   jobChipText: { color: '#888', fontSize: 14 },
-  jobChipTextActive: { color: '#0265dc' },
+  jobChipTextActive: { color: '#0ea5e9' },
   input: {
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
     borderRadius: 12, padding: 14, color: '#fff', fontSize: 15, textAlignVertical: 'top',
@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
     flex: 1, borderRadius: 10, padding: 12, alignItems: 'center',
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
   },
-  urgencyBtnActive: { borderColor: '#0265dc', backgroundColor: '#e8f0fd' },
+  urgencyBtnActive: { borderColor: '#0ea5e9', backgroundColor: '#e8f0fd' },
   urgencyText: { color: '#888', fontWeight: '600' },
-  urgencyTextActive: { color: '#0265dc' },
+  urgencyTextActive: { color: '#0ea5e9' },
   photoBtn: {
     borderRadius: 10, padding: 14, alignItems: 'center',
     borderWidth: 1, borderColor: '#2a2a2a', borderStyle: 'dashed',
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
   photoBtnText: { color: '#888', fontSize: 14 },
   preview: { width: '100%', height: 180, borderRadius: 10, marginTop: 8 },
   submitBtn: {
-    backgroundColor: '#0265dc', borderRadius: 12, padding: 16,
+    backgroundColor: '#0ea5e9', borderRadius: 12, padding: 16,
     alignItems: 'center', marginTop: 16,
   },
   submitText: { color: '#000', fontWeight: '700', fontSize: 16 },

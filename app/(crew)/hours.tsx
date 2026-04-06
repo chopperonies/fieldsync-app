@@ -63,7 +63,7 @@ export default function CrewHours() {
   useEffect(() => { loadData(); }, [loadData]);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -72,7 +72,7 @@ export default function CrewHours() {
       keyExtractor={a => a.id}
       style={styles.container}
       contentContainerStyle={{ padding: 16, gap: 10 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
       ListHeaderComponent={
         <View style={styles.summaryCard}>
           <Text style={styles.summaryValue}>{weekHours}h</Text>
@@ -109,9 +109,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
   summaryCard: {
     backgroundColor: '#1a1a1a', borderRadius: 14, padding: 20,
-    alignItems: 'center', borderWidth: 1, borderColor: '#0265dc33', marginBottom: 4,
+    alignItems: 'center', borderWidth: 1, borderColor: '#0ea5e933', marginBottom: 4,
   },
-  summaryValue: { color: '#0265dc', fontSize: 48, fontWeight: '800' },
+  summaryValue: { color: '#0ea5e9', fontSize: 48, fontWeight: '800' },
   summaryLabel: { color: '#666', fontSize: 14, marginTop: 4 },
   empty: { color: '#444', textAlign: 'center', marginTop: 60, fontSize: 15 },
   card: {
@@ -121,6 +121,6 @@ const styles = StyleSheet.create({
   },
   jobName: { color: '#fff', fontSize: 15, fontWeight: '600' },
   date: { color: '#666', fontSize: 12, marginTop: 2 },
-  duration: { color: '#0265dc', fontSize: 15, fontWeight: '700' },
+  duration: { color: '#0ea5e9', fontSize: 15, fontWeight: '700' },
   timeRange: { color: '#555', fontSize: 12, marginTop: 2 },
 });

@@ -64,10 +64,10 @@ export default function OwnerCrew() {
     setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, role } : e));
   }
 
-  const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', manager: '#0265dc', owner: '#a855f7' };
+  const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', manager: '#0ea5e9', owner: '#a855f7' };
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -76,7 +76,7 @@ export default function OwnerCrew() {
         data={employees}
         keyExtractor={e => e.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={{ flex: 1 }}>
@@ -115,7 +115,7 @@ export default function OwnerCrew() {
               {ROLES.map(r => (
                 <TouchableOpacity
                   key={r}
-                  style={[styles.roleSelectorChip, newRole === r && { backgroundColor: '#0265dc', borderColor: '#0265dc' }]}
+                  style={[styles.roleSelectorChip, newRole === r && { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' }]}
                   onPress={() => setNewRole(r)}
                 >
                   <Text style={[styles.roleSelectorText, newRole === r && { color: '#000' }]}>{r}</Text>
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#2a2a2a',
   },
   empName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  empPhone: { color: '#0265dc', fontSize: 13, marginTop: 2, marginBottom: 10 },
+  empPhone: { color: '#0ea5e9', fontSize: 13, marginTop: 2, marginBottom: 10 },
   roleRow: { flexDirection: 'row', gap: 6 },
   roleChip: {
     borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10,
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   roleText: { color: '#555', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
-    backgroundColor: '#0265dc', borderRadius: 28,
+    backgroundColor: '#0ea5e9', borderRadius: 28,
     paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
   },
   fabText: { color: '#000', fontWeight: '700', fontSize: 15 },
@@ -175,6 +175,6 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10 },
   cancelBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a' },
   cancelText: { color: '#888', fontWeight: '600' },
-  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0265dc' },
+  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0ea5e9' },
   saveText: { color: '#000', fontWeight: '700' },
 });

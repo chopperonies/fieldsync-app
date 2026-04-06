@@ -76,7 +76,7 @@ export default function CrewNotes() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -111,7 +111,7 @@ export default function CrewNotes() {
         data={notes}
         keyExtractor={n => n.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
         ListEmptyComponent={<Text style={styles.empty}>No notes yet. Log your first field note above.</Text>}
         renderItem={({ item }) => (
           <View style={styles.noteCard}>
@@ -135,14 +135,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0a' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
   inputArea: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
-  currentJob: { color: '#0265dc', fontSize: 13, fontWeight: '600', marginBottom: 8 },
+  currentJob: { color: '#0ea5e9', fontSize: 13, fontWeight: '600', marginBottom: 8 },
   notCheckedIn: { color: '#555', fontSize: 13, marginBottom: 8 },
   input: {
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
     borderRadius: 10, padding: 12, color: '#fff', fontSize: 14,
     minHeight: 80, textAlignVertical: 'top', marginBottom: 10,
   },
-  submitBtn: { backgroundColor: '#0265dc', borderRadius: 10, padding: 12, alignItems: 'center' },
+  submitBtn: { backgroundColor: '#0ea5e9', borderRadius: 10, padding: 12, alignItems: 'center' },
   submitDisabled: { backgroundColor: '#3a2010', opacity: 0.6 },
   submitText: { color: '#000', fontWeight: '700', fontSize: 14 },
   empty: { color: '#444', textAlign: 'center', marginTop: 40, fontSize: 14 },

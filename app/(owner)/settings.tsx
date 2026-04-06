@@ -55,14 +55,14 @@ export default function OwnerSettings() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
     >
       <Text style={styles.sectionLabel}>Company Info</Text>
       <Text style={styles.hint}>This appears on invoices sent to your clients.</Text>
@@ -137,14 +137,14 @@ const styles = StyleSheet.create({
     borderRadius: 10, padding: 14, color: '#fff', fontSize: 15,
   },
   saveBtn: {
-    backgroundColor: '#0265dc', borderRadius: 12,
+    backgroundColor: '#0ea5e9', borderRadius: 12,
     padding: 16, alignItems: 'center', marginTop: 24,
   },
   saveBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
   divider: { height: 1, backgroundColor: '#2a2a2a', marginVertical: 24 },
   supportBtn: {
-    borderWidth: 1, borderColor: '#0265dc', borderRadius: 12,
+    borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 12,
     padding: 16, alignItems: 'center', marginTop: 8,
   },
-  supportBtnText: { color: '#0265dc', fontWeight: '700', fontSize: 15 },
+  supportBtnText: { color: '#0ea5e9', fontWeight: '700', fontSize: 15 },
 });

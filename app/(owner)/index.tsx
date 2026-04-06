@@ -61,20 +61,20 @@ export default function OwnerOverview() {
   }
 
   if (loading || !stats) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
     >
       <Text style={styles.sectionLabel}>Today's Summary</Text>
       <View style={styles.statsGrid}>
         <StatCard value={stats.activeJobs} label="Active Jobs" color="#3b82f6" onPress={() => router.push('/(owner)/dashboard' as any)} />
         <StatCard value={stats.crewOnSite} label="Crew On Site" color="#4ade80" onPress={() => router.push('/(owner)/dashboard' as any)} />
-        <StatCard value={stats.pendingSupplies} label="Pending Supplies" color="#0265dc" onPress={() => router.push('/(owner)/supplies' as any)} />
+        <StatCard value={stats.pendingSupplies} label="Pending Supplies" color="#0ea5e9" onPress={() => router.push('/(owner)/supplies' as any)} />
         <StatCard value={stats.bottlenecksToday} label="Bottlenecks Today" color="#ef4444" onPress={() => router.push('/(owner)/dashboard' as any)} />
       </View>
 
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   jobName: { color: '#fff', fontSize: 14, fontWeight: '600', flex: 1 },
   jobBadges: { flexDirection: 'row', gap: 8 },
   crewBadge: { color: '#4ade80', fontSize: 13, fontWeight: '600' },
-  supplyBadge: { color: '#0265dc', fontSize: 13, fontWeight: '600' },
+  supplyBadge: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
   logoutBtn: {
     marginTop: 24, borderRadius: 12, padding: 14,
     alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a',

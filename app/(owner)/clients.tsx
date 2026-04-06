@@ -89,7 +89,7 @@ export default function OwnerClients() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0265dc" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
   }
 
   return (
@@ -105,7 +105,7 @@ export default function OwnerClients() {
         data={clients}
         keyExtractor={c => c.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0265dc" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
         ListEmptyComponent={<Text style={styles.empty}>No clients yet. Add your first client.</Text>}
         renderItem={({ item }) => {
           const isOpen = selected === item.id;
@@ -140,7 +140,7 @@ export default function OwnerClients() {
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Phone</Text>
                       <TouchableOpacity onPress={() => Linking.openURL(`tel:${item.phone}`)}>
-                        <Text style={[styles.detailValue, { color: '#0265dc' }]}>{item.phone}</Text>
+                        <Text style={[styles.detailValue, { color: '#0ea5e9' }]}>{item.phone}</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -203,9 +203,9 @@ const styles = StyleSheet.create({
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#0265dc22', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0ea5e922', alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { color: '#0265dc', fontSize: 18, fontWeight: '700' },
+  avatarText: { color: '#0ea5e9', fontSize: 18, fontWeight: '700' },
   clientName: { color: '#fff', fontSize: 15, fontWeight: '600' },
   company: { color: '#666', fontSize: 13, marginTop: 1 },
   jobBadge: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   addedDate: { color: '#444', fontSize: 11, marginTop: 4 },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
-    backgroundColor: '#0265dc', borderRadius: 28,
+    backgroundColor: '#0ea5e9', borderRadius: 28,
     paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
   },
   fabText: { color: '#000', fontWeight: '700', fontSize: 15 },
@@ -231,6 +231,6 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   cancelBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a' },
   cancelText: { color: '#888', fontWeight: '600' },
-  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0265dc' },
+  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0ea5e9' },
   saveText: { color: '#000', fontWeight: '700' },
 });
