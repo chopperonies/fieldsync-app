@@ -176,6 +176,7 @@ export default function JobDetailScreen() {
                       style={[
                         styles.pill,
                         { borderColor: active ? s.color : '#2a2a2a', backgroundColor: active ? s.color : 'transparent' },
+                        busy && { opacity: 0.6 },
                       ]}>
                       <Text style={[styles.pillText, { color: active ? '#fff' : '#bbb' }]}>
                         {s.order_index}. {s.name}

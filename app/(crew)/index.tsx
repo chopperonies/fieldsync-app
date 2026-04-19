@@ -265,7 +265,9 @@ export default function CheckIn() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.jobName}>{item.name}</Text>
                 <Text style={styles.jobAddress}>{item.address}</Text>
-                <Text style={styles.viewHint}>Tap to view workflow →</Text>
+                <Text style={styles.viewHint}>
+                  {item.workflow_id ? 'Tap to open workflow →' : 'Tap to view job →'}
+                </Text>
               </View>
               <TouchableOpacity
                 style={[styles.btn, isActive ? styles.btnOut : styles.btnIn]}

@@ -37,6 +37,11 @@ export interface Job {
   latitude?: number;
   longitude?: number;
   created_at: string;
+  workflow_id?: string | null;
+  workflow_progress?: {
+    current_status_id?: string;
+    completed_steps?: Record<string, number[]>;
+  };
 }
 
 export interface Client {
