@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, AppState
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { supabase, Job } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
@@ -21,6 +22,7 @@ async function getGPS(): Promise<{ lat: number; lng: number } | null> {
 }
 
 export default function CheckIn() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [checkedInJob, setCheckedInJob] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,14 +258,18 @@ export default function CheckIn() {
         renderItem={({ item }) => {
           const isActive = checkedInJob === item.id;
           return (
-            <View style={[styles.card, isActive && styles.cardActive]}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: item.id } } as any)}
+              style={[styles.card, isActive && styles.cardActive]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.jobName}>{item.name}</Text>
                 <Text style={styles.jobAddress}>{item.address}</Text>
+                <Text style={styles.viewHint}>Tap to view workflow →</Text>
               </View>
               <TouchableOpacity
                 style={[styles.btn, isActive ? styles.btnOut : styles.btnIn]}
-                onPress={() => isActive ? handleCheckOut(item) : handleCheckIn(item)}
+                onPress={(e) => { e.stopPropagation?.(); isActive ? handleCheckOut(item) : handleCheckIn(item); }}
                 disabled={actionLoading || (!!checkedInJob && !isActive)}
               >
                 {actionLoading && isActive
@@ -271,7 +277,7 @@ export default function CheckIn() {
                   : <Text style={styles.btnText}>{isActive ? 'Check Out' : 'Check In'}</Text>
                 }
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
@@ -294,6 +300,7 @@ const styles = StyleSheet.create({
   cardActive: { borderColor: '#0ea5e9' },
   jobName: { color: '#fff', fontSize: 16, fontWeight: '600' },
   jobAddress: { color: '#666', fontSize: 13, marginTop: 2 },
+  viewHint: { color: '#0ea5e9', fontSize: 11, fontWeight: '600', marginTop: 4 },
   btn: { borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, minWidth: 90, alignItems: 'center' },
   btnIn: { backgroundColor: '#0ea5e9' },
   btnOut: { backgroundColor: '#ef4444' },

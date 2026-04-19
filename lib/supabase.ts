@@ -32,6 +32,8 @@ export interface Job {
   name: string;
   address: string;
   status: 'quoted' | 'scheduled' | 'in_progress' | 'complete' | 'invoiced' | 'on_hold' | 'active';
+  description?: string;
+  estimate_amount?: number;
   latitude?: number;
   longitude?: number;
   created_at: string;
