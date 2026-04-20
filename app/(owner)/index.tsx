@@ -56,6 +56,19 @@ function timeAgo(iso: string): string {
   return `${days}d`;
 }
 
+const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+function weekStripDays(today: Date): Date[] {
+  const sunday = new Date(today);
+  sunday.setDate(today.getDate() - today.getDay());
+  sunday.setHours(0, 0, 0, 0);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
+    return d;
+  });
+}
+
 export default function OwnerOverview() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [financials, setFinancials] = useState<Financials | null>(null);
@@ -91,7 +104,7 @@ export default function OwnerOverview() {
     jobBreakdown: [], todayJobs: [], stuckJobs: [],
   };
   const today = new Date();
-  const todayLabel = today.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  const dateLabel = today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const greeting = (() => {
     const h = today.getHours();
     if (h < 12) return 'Good morning';
@@ -99,64 +112,128 @@ export default function OwnerOverview() {
     return 'Good evening';
   })();
 
+  const days = weekStripDays(today);
+  const todayIdx = today.getDay();
+
+  // Smart hero card: stuck > 0 → attention; no active → new job CTA; else all-clear
+  const hero = (() => {
+    const stuck = safe.stuckJobs || [];
+    if (stuck.length > 0) {
+      return {
+        kind: 'attention' as const,
+        title: stuck.length === 1 ? 'Needs attention' : `${stuck.length} jobs need attention`,
+        body: stuck[0].name + (stuck.length > 1 ? ` · +${stuck.length - 1} more` : ''),
+        cta: 'Review',
+        onPress: () => router.push('/(owner)/jobs?filter=active' as any),
+      };
+    }
+    if (safe.activeJobs === 0) {
+      return {
+        kind: 'empty' as const,
+        title: 'Let\'s get started',
+        body: 'No active jobs right now. Create one to get on the board.',
+        cta: '+ Schedule a job',
+        onPress: () => router.push('/(owner)/jobs?open=new' as any),
+      };
+    }
+    return {
+      kind: 'running' as const,
+      title: 'All systems go',
+      body: `${safe.activeJobs} active · ${safe.crewOnSite} on site`,
+      cta: 'View jobs',
+      onPress: () => router.push('/(owner)/jobs?filter=active' as any),
+    };
+  })();
+
+  // To-do: stuck jobs + pending supplies. Capped to keep it actionable.
+  const todoItems: { id: string; label: string; sub: string; icon: any; color: string; onPress: () => void }[] = [];
+  (safe.stuckJobs || []).slice(0, 3).forEach(j => todoItems.push({
+    id: 'stuck-' + j.id,
+    label: j.name,
+    sub: `Stuck ${j.updated_at ? timeAgo(j.updated_at) : ''}${j.stage_name ? ` · ${j.stage_name}` : ''}`,
+    icon: 'warning-outline',
+    color: '#f59e0b',
+    onPress: () => router.push('/(owner)/jobs?filter=active' as any),
+  }));
+  if (safe.pendingSupplies > 0) todoItems.push({
+    id: 'supplies',
+    label: `${safe.pendingSupplies} pending supply ${safe.pendingSupplies === 1 ? 'request' : 'requests'}`,
+    sub: 'Mark ordered or delivered from Supplies',
+    icon: 'cube-outline',
+    color: '#0ea5e9',
+    onPress: () => router.push('/(owner)/supplies' as any),
+  });
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={loading || refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
     >
-      {/* Header */}
       <View style={styles.header}>
+        <Text style={styles.date}>{dateLabel}</Text>
         <Text style={styles.greeting}>{greeting}{firstName ? `, ${firstName}` : ''}</Text>
-        <Text style={styles.date}>{todayLabel}</Text>
       </View>
 
-      {/* Compact KPI strip — 4 across, small */}
-      <View style={styles.kpiStrip}>
-        <KpiCell
-          value={String(safe.activeJobs)}
-          label="Active"
-          color="#3b82f6"
-          onPress={() => router.push('/(owner)/jobs?filter=active' as any)}
-        />
-        <KpiCell
-          value={String(safe.crewOnSite)}
-          label="On site"
-          color="#4ade80"
-          onPress={() => router.push('/(owner)/crew' as any)}
-        />
-        <KpiCell
-          value={financials ? shortMoney(financials.revenueMtd) : '—'}
-          label="MTD"
-          color="#4ade80"
-          onPress={() => router.push('/(owner)/invoices' as any)}
-        />
-        <KpiCell
-          value={financials ? shortMoney(financials.outstanding) : '—'}
-          label="Unpaid"
-          color="#facc15"
-          onPress={() => router.push('/(owner)/invoices?open=record_payment' as any)}
-        />
-      </View>
+      {/* Smart hero card */}
+      <TouchableOpacity
+        style={[
+          styles.hero,
+          hero.kind === 'attention' && { backgroundColor: '#1a1006', borderColor: '#f59e0b55' },
+          hero.kind === 'empty' && { backgroundColor: '#0a1a2e', borderColor: '#0ea5e955' },
+          hero.kind === 'running' && { backgroundColor: '#062017', borderColor: '#16a34a55' },
+        ]}
+        onPress={hero.onPress}
+        activeOpacity={0.85}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[
+            styles.heroTitle,
+            hero.kind === 'attention' && { color: '#fcd34d' },
+            hero.kind === 'running' && { color: '#86efac' },
+            hero.kind === 'empty' && { color: '#7dd3fc' },
+          ]}>{hero.title}</Text>
+          <Text style={styles.heroBody}>{hero.body}</Text>
+        </View>
+        <Text style={[
+          styles.heroCta,
+          hero.kind === 'attention' && { color: '#fcd34d' },
+          hero.kind === 'running' && { color: '#86efac' },
+          hero.kind === 'empty' && { color: '#7dd3fc' },
+        ]}>{hero.cta} ›</Text>
+      </TouchableOpacity>
 
-      {/* Needs attention — stuck jobs */}
-      {safe.stuckJobs && safe.stuckJobs.length > 0 && (
+      {/* Week strip */}
+      <TouchableOpacity
+        style={styles.weekStrip}
+        onPress={() => router.push('/(owner)/dashboard' as any)}
+        activeOpacity={0.8}
+      >
+        {days.map((d, i) => {
+          const isToday = i === todayIdx;
+          return (
+            <View key={i} style={styles.dayCell}>
+              <Text style={styles.dayLetter}>{DAY_LETTERS[i]}</Text>
+              <View style={[styles.dayBubble, isToday && styles.dayBubbleToday]}>
+                <Text style={[styles.dayNumber, isToday && styles.dayNumberToday]}>{d.getDate()}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </TouchableOpacity>
+
+      {/* To do */}
+      {todoItems.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>
-            <Ionicons name="warning-outline" size={14} color="#f59e0b" /> Needs attention
-          </Text>
-          {safe.stuckJobs.slice(0, 4).map(j => (
-            <TouchableOpacity
-              key={j.id}
-              style={[styles.stuckRow]}
-              onPress={() => router.push('/(owner)/jobs' as any)}
-            >
+          <Text style={styles.sectionLabel}>To do</Text>
+          {todoItems.map(t => (
+            <TouchableOpacity key={t.id} style={styles.todoRow} onPress={t.onPress} activeOpacity={0.75}>
+              <View style={[styles.todoIcon, { backgroundColor: t.color + '22', borderColor: t.color + '55' }]}>
+                <Ionicons name={t.icon} size={18} color={t.color} />
+              </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.jobName}>{j.name}</Text>
-                <Text style={styles.stuckMeta}>
-                  No activity in {j.updated_at ? timeAgo(j.updated_at) : '24h+'}
-                  {j.stage_name ? ` · ${j.stage_name}` : ''}
-                </Text>
+                <Text style={styles.todoLabel}>{t.label}</Text>
+                <Text style={styles.todoSub}>{t.sub}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#555" />
             </TouchableOpacity>
@@ -164,14 +241,28 @@ export default function OwnerOverview() {
         </>
       )}
 
-      {/* Today — active jobs */}
+      {/* Business health */}
+      {financials && (
+        <>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionLabel}>Business health</Text>
+            <TouchableOpacity onPress={() => router.push('/(owner)/invoices' as any)}>
+              <Text style={styles.sectionLink}>View all ›</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.healthCard}>
+            <HealthRow label="Revenue this month" sub="MTD" value={shortMoney(financials.revenueMtd)} />
+            <HealthRow label="Outstanding" sub="Awaiting payment" value={shortMoney(financials.outstanding)} valueColor="#facc15" />
+            <HealthRow label="Paid in the last 7 days" sub="Cash collected" value={shortMoney(financials.paidThisWeek)} valueColor="#4ade80" last />
+          </View>
+        </>
+      )}
+
+      {/* Today's active jobs */}
       <Text style={styles.sectionLabel}>Today</Text>
       {(safe.todayJobs?.length ?? 0) === 0 && !loading ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyText}>No active jobs right now.</Text>
-          <TouchableOpacity onPress={() => router.push('/(owner)/jobs?open=new' as any)}>
-            <Text style={styles.emptyAction}>Create a job →</Text>
-          </TouchableOpacity>
         </View>
       ) : (
         safe.todayJobs!.map(j => (
@@ -216,42 +307,79 @@ export default function OwnerOverview() {
   );
 }
 
-function KpiCell({ value, label, color, onPress }: { value: string; label: string; color: string; onPress: () => void }) {
+function HealthRow({
+  label, sub, value, valueColor, last,
+}: { label: string; sub?: string; value: string; valueColor?: string; last?: boolean }) {
   return (
-    <TouchableOpacity style={styles.kpiCell} activeOpacity={0.7} onPress={onPress}>
-      <Text style={[styles.kpiValue, { color }]}>{value}</Text>
-      <Text style={styles.kpiLabel}>{label}</Text>
-    </TouchableOpacity>
+    <View style={[styles.healthRow, last && { borderBottomWidth: 0 }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.healthLabel}>{label}</Text>
+        {sub && <Text style={styles.healthSub}>{sub}</Text>}
+      </View>
+      <Text style={[styles.healthValue, { color: valueColor || '#fff' }]}>{value}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0a' },
-  content: { padding: 16, gap: 12, paddingBottom: 120 },
+  content: { padding: 16, gap: 14, paddingBottom: 140 },
 
-  header: { marginBottom: 2 },
-  greeting: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  date: { color: '#666', fontSize: 13, marginTop: 2 },
+  header: { marginBottom: 4 },
+  date: { color: '#888', fontSize: 13, fontWeight: '600', marginBottom: 4 },
+  greeting: { color: '#fff', fontSize: 28, fontWeight: '800' },
 
-  kpiStrip: {
-    flexDirection: 'row', gap: 8, marginBottom: 4,
+  hero: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
+    borderRadius: 16, padding: 16,
   },
-  kpiCell: {
-    flex: 1, backgroundColor: '#111', borderRadius: 12,
-    paddingVertical: 12, paddingHorizontal: 8,
-    alignItems: 'center', borderWidth: 1, borderColor: '#1e1e1e',
+  heroTitle: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  heroBody: { color: '#bbb', fontSize: 13, marginTop: 4, lineHeight: 18 },
+  heroCta: { color: '#0ea5e9', fontSize: 13, fontWeight: '800' },
+
+  weekStrip: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
+    borderRadius: 16, paddingVertical: 10, paddingHorizontal: 8,
   },
-  kpiValue: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
-  kpiLabel: { color: '#777', fontSize: 11, marginTop: 4, fontWeight: '600' },
+  dayCell: { flex: 1, alignItems: 'center', gap: 4 },
+  dayLetter: { color: '#666', fontSize: 11, fontWeight: '700' },
+  dayBubble: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  dayBubbleToday: { backgroundColor: '#0ea5e9' },
+  dayNumber: { color: '#bbb', fontSize: 14, fontWeight: '700' },
+  dayNumberToday: { color: '#000', fontWeight: '800' },
 
-  sectionLabel: { color: '#bbb', fontSize: 13, fontWeight: '700', marginTop: 10, marginBottom: 2 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  sectionLabel: { color: '#ddd', fontSize: 14, fontWeight: '800', marginTop: 6 },
+  sectionLink: { color: '#0ea5e9', fontSize: 13, fontWeight: '700' },
 
-  stuckRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#1a1006', borderWidth: 1, borderColor: '#f59e0b55',
+  todoRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
     borderRadius: 12, padding: 12,
   },
-  stuckMeta: { color: '#fbbf24', fontSize: 12, marginTop: 2 },
+  todoIcon: {
+    width: 34, height: 34, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  todoLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  todoSub: { color: '#888', fontSize: 12, marginTop: 2 },
+
+  healthCard: {
+    backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: '#1e1e1e',
+    paddingHorizontal: 14,
+  },
+  healthRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#1e1e1e',
+  },
+  healthLabel: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  healthSub: { color: '#666', fontSize: 12, marginTop: 2 },
+  healthValue: { fontSize: 20, fontWeight: '800' },
 
   jobCard: {
     backgroundColor: '#111', borderRadius: 12,
@@ -276,6 +404,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: '#1e1e1e',
     padding: 18, alignItems: 'center',
   },
-  emptyText: { color: '#555', fontSize: 14, marginBottom: 8 },
-  emptyAction: { color: '#0ea5e9', fontSize: 13, fontWeight: '700' },
+  emptyText: { color: '#666', fontSize: 14 },
 });

@@ -1,91 +1,91 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, Modal, StyleSheet, Pressable,
+  View, Text, TouchableOpacity, Modal, StyleSheet, Pressable, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import QuickInvoiceModal from './QuickInvoiceModal';
 
-// Universal quick-create button visible on every owner tab. Bottom-right
-// round (+) that opens a sheet with the five most-common create actions.
-// Quick Invoice has its own modal (walk-up client flow); other actions
-// route to the corresponding tab with an ?open=… param the target screen
-// reads to auto-open its existing create modal.
 const TAB_BAR_HEIGHT = 60;      // keep in sync with (owner)/_layout.tsx
 const FAB_GAP_ABOVE_TABS = 16;  // clear space above the bottom nav
+const FAB_SIZE = 60;
+
+// Action list is stored top→bottom; the stack renders reversed so the
+// first entry sits closest to the FAB (just above it).
+const ACTIONS: { label: string; icon: any; color: string; path?: string; quick?: 'invoice' }[] = [
+  { label: 'Invoice',  icon: 'document-text', color: '#4ade80', quick: 'invoice' },
+  { label: 'Job',      icon: 'hammer',        color: '#0ea5e9', path: '/(owner)/jobs?open=new' },
+  { label: 'Client',   icon: 'person-add',    color: '#a78bfa', path: '/(owner)/clients?open=new' },
+  { label: 'Quote',    icon: 'pricetag',      color: '#6366f1', path: '/(owner)/jobs?open=new_quote' },
+  { label: 'Payment',  icon: 'cash',          color: '#facc15', path: '/(owner)/invoices?open=record_payment' },
+  { label: 'Crew',     icon: 'person-circle', color: '#f472b6', path: '/(owner)/crew?open=new' },
+];
 
 export default function OwnerFab() {
   const insets = useSafeAreaInsets();
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [quickInvoiceOpen, setQuickInvoiceOpen] = useState(false);
+  const rotate = useRef(new Animated.Value(0)).current;
 
-  // Lift the FAB clear of the tab bar on every device (gesture bar, notched,
-  // or plain). Old constant bottom=96 landed on top of the More icon on
-  // devices with tall system insets.
   const fabBottom = insets.bottom + TAB_BAR_HEIGHT + FAB_GAP_ABOVE_TABS;
 
-  function go(path: string) {
-    setSheetOpen(false);
-    setTimeout(() => router.push(path as any), 60);
+  function toggle(next: boolean) {
+    setOpen(next);
+    Animated.timing(rotate, {
+      toValue: next ? 1 : 0,
+      duration: 160,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
   }
+
+  function pick(action: typeof ACTIONS[number]) {
+    toggle(false);
+    setTimeout(() => {
+      if (action.quick === 'invoice') setQuickInvoiceOpen(true);
+      else if (action.path) router.push(action.path as any);
+    }, 80);
+  }
+
+  const fabRotation = rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
 
   return (
     <>
       <TouchableOpacity
         style={[styles.fab, { bottom: fabBottom }]}
-        activeOpacity={0.8}
-        onPress={() => setSheetOpen(true)}
+        activeOpacity={0.85}
+        onPress={() => toggle(!open)}
       >
-        <Ionicons name="add" size={32} color="#000" />
+        <Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
+          <Ionicons name="add" size={32} color="#000" />
+        </Animated.View>
       </TouchableOpacity>
 
-      <Modal visible={sheetOpen} transparent animationType="fade" onRequestClose={() => setSheetOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setSheetOpen(false)}>
-          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]} onPress={() => {}}>
-            <View style={styles.grabber} />
-            <Text style={styles.title}>Quick Create</Text>
-            <Text style={styles.subtitle}>Pick an action to start right now.</Text>
-
-            <View style={styles.grid}>
-              <ActionTile
-                icon="document-text"
-                label="Invoice"
-                color="#4ade80"
-                onPress={() => { setSheetOpen(false); setTimeout(() => setQuickInvoiceOpen(true), 60); }}
-              />
-              <ActionTile
-                icon="hammer"
-                label="Job"
-                color="#0ea5e9"
-                onPress={() => go('/(owner)/jobs?open=new')}
-              />
-              <ActionTile
-                icon="person-add"
-                label="Client"
-                color="#a78bfa"
-                onPress={() => go('/(owner)/clients?open=new')}
-              />
-              <ActionTile
-                icon="pricetag"
-                label="Quote"
-                color="#6366f1"
-                onPress={() => go('/(owner)/jobs?open=new_quote')}
-              />
-              <ActionTile
-                icon="cash"
-                label="Payment"
-                color="#facc15"
-                onPress={() => go('/(owner)/invoices?open=record_payment')}
-              />
-              <ActionTile
-                icon="person-circle"
-                label="Crew"
-                color="#f472b6"
-                onPress={() => go('/(owner)/crew?open=new')}
-              />
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => toggle(false)}>
+        <Pressable style={styles.backdrop} onPress={() => toggle(false)}>
+          <View pointerEvents="box-none" style={styles.stackContainer}>
+            <View style={[styles.stack, { bottom: fabBottom + FAB_SIZE + 16, right: 20 }]}>
+              {ACTIONS.map((a, i) => (
+                <Pressable
+                  key={a.label}
+                  onPress={() => pick(a)}
+                  style={({ pressed }) => [
+                    styles.row,
+                    pressed && { opacity: 0.6 },
+                    { marginBottom: 14 },
+                  ]}
+                >
+                  <View style={styles.labelWrap}>
+                    <Text style={styles.label}>{a.label}</Text>
+                  </View>
+                  <View style={[styles.iconCircle, { borderColor: a.color + '66' }]}>
+                    <Ionicons name={a.icon} size={22} color={a.color} />
+                  </View>
+                </Pressable>
+              ))}
             </View>
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
 
@@ -97,52 +97,36 @@ export default function OwnerFab() {
   );
 }
 
-function ActionTile({
-  icon, label, color, onPress,
-}: {
-  icon: any; label: string; color: string; onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={styles.tile} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.tileIcon, { backgroundColor: color + '22', borderColor: color + '44' }]}>
-        <Ionicons name={icon} size={26} color={color} />
-      </View>
-      <Text style={styles.tileLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute', right: 20,
-    width: 60, height: 60, borderRadius: 30,
+    width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2,
     backgroundColor: '#0ea5e9',
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
     elevation: 6,
     zIndex: 1000,
   },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  sheet: {
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
+  stackContainer: { flex: 1 },
+  stack: { position: 'absolute', alignItems: 'flex-end' },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+  },
+  labelWrap: {
     backgroundColor: '#0f0f0f',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20,
+    borderWidth: 1, borderColor: '#2a2a2a',
+    borderRadius: 14,
+    paddingVertical: 8, paddingHorizontal: 14,
+    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#2a2a2a', marginBottom: 14 },
-  title: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  subtitle: { color: '#888', fontSize: 13, marginTop: 4, marginBottom: 18 },
-  grid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 10,
-  },
-  tile: {
-    width: '31.5%',
-    backgroundColor: '#111', borderRadius: 16, padding: 14,
-    alignItems: 'center', borderWidth: 1, borderColor: '#1e1e1e',
-  },
-  tileIcon: {
-    width: 56, height: 56, borderRadius: 28,
+  label: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  iconCircle: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: '#0f0f0f', borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, marginBottom: 10,
+    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  tileLabel: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });
