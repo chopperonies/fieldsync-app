@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
   Modal, ScrollView, Linking
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Client } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
@@ -48,6 +49,11 @@ export default function OwnerClients() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const params = useLocalSearchParams<{ open?: string }>();
+  useEffect(() => {
+    if (params.open === 'new') setShowAdd(true);
+  }, [params.open]);
 
   async function addClient() {
     if (!newName.trim()) return Alert.alert('Name is required');
@@ -144,10 +150,6 @@ export default function OwnerClients() {
           );
         }}
       />
-
-      <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
-        <Text style={styles.fabText}>+ Add Client</Text>
-      </TouchableOpacity>
 
       <Modal visible={showAdd} transparent animationType="slide">
         <View style={styles.modalOverlay}>

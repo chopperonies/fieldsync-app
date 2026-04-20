@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert,
   StyleSheet, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
 
 type InvoiceJob = {
@@ -124,6 +125,11 @@ export default function OwnerInvoices() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const params = useLocalSearchParams<{ open?: string }>();
+  useEffect(() => {
+    if (params.open === 'record_payment') setFilter('unpaid');
+  }, [params.open]);
+
   const filtered = jobs.filter(j => {
     if (filter === 'all') return true;
     if (filter === 'paid') return isPaid(j);
@@ -207,9 +213,6 @@ export default function OwnerInvoices() {
         }}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={openCreateModal}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
 
       <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={() => setModalOpen(false)}>
         <KeyboardAvoidingView

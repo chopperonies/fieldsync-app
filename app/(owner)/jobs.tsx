@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
   Modal, ScrollView, Share, Linking
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Job, Employee } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
@@ -76,6 +77,11 @@ export default function OwnerJobs() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const params = useLocalSearchParams<{ open?: string }>();
+  useEffect(() => {
+    if (params.open === 'new' || params.open === 'new_quote') setShowAdd(true);
+  }, [params.open]);
 
   async function loadAssigned(jobId: string) {
     try {
@@ -298,9 +304,6 @@ export default function OwnerJobs() {
         }}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
-        <Text style={styles.fabText}>+ Add Job</Text>
-      </TouchableOpacity>
 
       {/* Add Job Modal */}
       <Modal visible={showAdd} transparent animationType="slide">

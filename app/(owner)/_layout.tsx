@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearUser, getPlan, getUser } from '../../lib/storage';
 import { mobileGet } from '../../lib/mobileApi';
+import OwnerFab from '../../components/OwnerFab';
 
 async function logout() {
   await clearUser();
@@ -83,6 +84,7 @@ export default function OwnerLayout() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1e1e1e', height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
@@ -144,6 +146,8 @@ export default function OwnerLayout() {
       <Tabs.Screen name="dashboard" options={{ href: null }} />
       <Tabs.Screen name="settings"  options={{ href: null }} />
     </Tabs>
+    <OwnerFab />
+    </View>
   );
 }
 
