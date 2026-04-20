@@ -20,23 +20,20 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      let normalizedPhone = phone.replace(/\D/g, '');
-      if (normalizedPhone.length === 11 && normalizedPhone.startsWith('1')) {
-        normalizedPhone = normalizedPhone.slice(1);
-      }
-      const { data: employee, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('phone', normalizedPhone)
-        .single();
-
-      if (error || !employee) {
+      const res = await fetch('https://linkcrew.io/api/login-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload.employee) {
         Alert.alert(
           'Not found',
-          'Your phone number is not registered. Ask your manager to add you to the team.'
+          payload.error || 'Your phone number is not registered. Ask your manager to add you to the team.'
         );
         return;
       }
+      const employee = payload.employee;
 
       await saveUser(employee);
 
