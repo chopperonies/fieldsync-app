@@ -30,6 +30,8 @@ export default function RootLayout() {
         router.push({ pathname: '/(crew)/job/[id]', params: { id: String(data.job_id) } } as any);
       } else if (data.type === 'appointment' && data.job_id) {
         router.push({ pathname: '/(crew)/job/[id]', params: { id: String(data.job_id) } } as any);
+      } else if (data.type === 'assigned' && data.job_id) {
+        router.push({ pathname: '/(crew)/job/[id]', params: { id: String(data.job_id) } } as any);
       }
     });
     return () => sub.remove();
