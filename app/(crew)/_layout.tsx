@@ -2,12 +2,6 @@ import { TouchableOpacity } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { clearUser } from '../../lib/storage';
-
-async function logout() {
-  await clearUser();
-  router.replace('/login');
-}
 
 export default function CrewLayout() {
   const insets = useSafeAreaInsets();
@@ -22,8 +16,8 @@ export default function CrewLayout() {
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
         headerRight: () => (
-          <TouchableOpacity onPress={logout} style={{ marginRight: 16 }}>
-            <Ionicons name="log-out-outline" size={22} color="#888" />
+          <TouchableOpacity onPress={() => router.push('/(crew)/settings' as any)} style={{ marginRight: 16 }}>
+            <Ionicons name="settings-outline" size={22} color="#888" />
           </TouchableOpacity>
         ),
       }}
@@ -79,6 +73,7 @@ export default function CrewLayout() {
       />
       {/* Nested dynamic route — hidden from tab bar; reached via router.push from the jobs list */}
       <Tabs.Screen name="job/[id]" options={{ href: null, title: 'Job' }} />
+      <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
     </Tabs>
   );
 }

@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, Switch,
+  View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl, Linking
 } from 'react-native';
 import { mobileGet, mobilePatch, mobilePost } from '../../lib/mobileApi';
-import { getPlan, getBiometricEnabled, setBiometricEnabled } from '../../lib/storage';
-import { isBiometricAvailable } from '../../lib/biometric';
+import { getPlan } from '../../lib/storage';
+import LockSettings from '../../components/LockSettings';
 
 const PRIORITY_PLANS = ['team', 'pro', 'business'];
 
@@ -17,8 +17,6 @@ export default function OwnerSettings() {
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasPrioritySupport, setHasPrioritySupport] = useState(false);
-  const [biometricEnabled, setBiometricEnabledState] = useState(false);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [stripeConnected, setStripeConnected] = useState<boolean | null>(null);
   const [stripeBusy, setStripeBusy] = useState(false);
   const [planName, setPlanName] = useState<string | null>(null);
@@ -31,9 +29,6 @@ export default function OwnerSettings() {
     try {
       const plan = await getPlan();
       setHasPrioritySupport(PRIORITY_PLANS.includes(plan?.plan ?? ''));
-      const [enabled, available] = await Promise.all([getBiometricEnabled(), isBiometricAvailable()]);
-      setBiometricEnabledState(enabled);
-      setBiometricAvailable(available);
       const [data, stripe] = await Promise.all([
         mobileGet<{
           company_name?: string; phone?: string; address?: string;
@@ -241,25 +236,7 @@ export default function OwnerSettings() {
       <View style={styles.divider} />
 
       <Text style={styles.sectionLabel}>Security</Text>
-      {biometricAvailable ? (
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>App Lock</Text>
-            <Text style={styles.hint}>Require Face ID or fingerprint when reopening the app.</Text>
-          </View>
-          <Switch
-            value={biometricEnabled}
-            onValueChange={async (val) => {
-              setBiometricEnabledState(val);
-              await setBiometricEnabled(val);
-            }}
-            trackColor={{ false: '#2a2a2a', true: '#0ea5e9' }}
-            thumbColor="#fff"
-          />
-        </View>
-      ) : (
-        <Text style={styles.hint}>No biometric hardware found on this device.</Text>
-      )}
+      <LockSettings />
 
       <View style={styles.divider} />
 

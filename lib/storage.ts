@@ -59,6 +59,11 @@ export async function setBiometricPrompted(): Promise<void> {
   await AsyncStorage.setItem(BIOMETRIC_PROMPTED_KEY, 'true');
 }
 
+// Shared "have we asked about app-lock yet?" flag — aliases the biometric
+// prompt key so legacy installs don't re-prompt.
+export const getLockPrompted = getBiometricPrompted;
+export const setLockPrompted = setBiometricPrompted;
+
 // Login role — remember which tab the user used last (owner or crew).
 export type LoginRole = 'owner' | 'crew';
 export async function getLoginRole(): Promise<LoginRole> {

@@ -73,6 +73,28 @@ export default function OwnerCrew() {
     }
   }
 
+  function revokeSession(emp: Employee) {
+    Alert.alert(
+      `Kick ${emp.name} off mobile?`,
+      'Their phone will be logged out immediately and must log in again. Use this if a phone is lost or the person is no longer on the team.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Revoke',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await mobilePost(`/api/mobile/owner/crew/${emp.id}/revoke-session`);
+              Alert.alert('Revoked', `${emp.name}'s phone session has been cleared.`);
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Could not revoke session.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
   const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', manager: '#0ea5e9', owner: '#a855f7' };
 
   if (loading) {
@@ -94,16 +116,21 @@ export default function OwnerCrew() {
                 <Text style={styles.empPhone}>{item.phone}</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.roleRow}>
-              {ROLES.map(r => (
-                <TouchableOpacity
-                  key={r}
-                  style={[styles.roleChip, item.role === r && { backgroundColor: ROLE_COLORS[r] + '22', borderColor: ROLE_COLORS[r] }]}
-                  onPress={() => changeRole(item, r)}
-                >
-                  <Text style={[styles.roleText, item.role === r && { color: ROLE_COLORS[r] }]}>{r}</Text>
-                </TouchableOpacity>
-              ))}
+            <View style={{ alignItems: 'flex-end' }}>
+              <View style={styles.roleRow}>
+                {ROLES.map(r => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.roleChip, item.role === r && { backgroundColor: ROLE_COLORS[r] + '22', borderColor: ROLE_COLORS[r] }]}
+                    onPress={() => changeRole(item, r)}
+                  >
+                    <Text style={[styles.roleText, item.role === r && { color: ROLE_COLORS[r] }]}>{r}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity onPress={() => revokeSession(item)} style={{ marginTop: 6 }}>
+                <Text style={styles.revokeLink}>Kick from mobile</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -161,6 +188,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#1a1a1a',
   },
   roleText: { color: '#555', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  revokeLink: { color: '#ef4444', fontSize: 11, fontWeight: '600' },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
     backgroundColor: '#0ea5e9', borderRadius: 28,
