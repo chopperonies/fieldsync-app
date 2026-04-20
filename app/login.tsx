@@ -20,7 +20,10 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const normalizedPhone = phone.replace(/\D/g, '');
+      let normalizedPhone = phone.replace(/\D/g, '');
+      if (normalizedPhone.length === 11 && normalizedPhone.startsWith('1')) {
+        normalizedPhone = normalizedPhone.slice(1);
+      }
       const { data: employee, error } = await supabase
         .from('employees')
         .select('*')
