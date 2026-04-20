@@ -3,8 +3,8 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, Alert
 } from 'react-native';
-import { supabase, SupplyRequest } from '../../lib/supabase';
-import { getUser } from '../../lib/storage';
+import { SupplyRequest } from '../../lib/supabase';
+import { mobileGet, mobilePatch } from '../../lib/mobileApi';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#0ea5e9',
@@ -18,20 +18,26 @@ export default function ManagerSupplies() {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    const user = await getUser();
-    let q = supabase.from('supply_requests').select('*, jobs(name), employees(name)').order('created_at', { ascending: false });
-    if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-    const { data } = await q;
-    setRequests(data || []);
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const data = await mobileGet<SupplyRequest[]>('/api/mobile/owner/supplies');
+      setRequests(data || []);
+    } catch {
+      setRequests([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   async function updateStatus(id: string, status: string) {
-    await supabase.from('supply_requests').update({ status }).eq('id', id);
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: status as any } : r));
+    try {
+      await mobilePatch(`/api/mobile/owner/supplies/${id}`, { status });
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, status: status as any } : r));
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not update.');
+    }
   }
 
   function confirmUpdate(id: string, status: string, label: string) {

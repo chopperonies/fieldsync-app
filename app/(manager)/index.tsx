@@ -3,8 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Image
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
-import { getUser } from '../../lib/storage';
+import { mobileGet } from '../../lib/mobileApi';
 
 interface JobWithCrew {
   id: string;
@@ -23,40 +22,15 @@ export default function ManagerDashboard() {
   const [selected, setSelected] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    const user = await getUser();
-    let q = supabase.from('jobs').select('*').order('name');
-    if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-    const { data: jobList } = await q;
-    if (!jobList) return;
-
-    const enriched = await Promise.all(jobList.map(async job => {
-      const [{ data: assignments }, { data: supplies }, { data: updates }] = await Promise.all([
-        supabase.from('job_assignments')
-          .select('employees(name)')
-          .eq('job_id', job.id)
-          .is('checked_out_at', null),
-        supabase.from('supply_requests')
-          .select('id')
-          .eq('job_id', job.id)
-          .eq('status', 'pending'),
-        supabase.from('job_updates')
-          .select('type, message, photo_url, created_at, employees(name)')
-          .eq('job_id', job.id)
-          .order('created_at', { ascending: false })
-          .limit(5),
-      ]);
-
-      return {
-        ...job,
-        crew: (assignments || []).map((a: any) => a.employees),
-        pendingSupplies: (supplies || []).length,
-        recentUpdates: updates || [],
-      };
-    }));
-
-    setJobs(enriched);
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const data = await mobileGet<JobWithCrew[]>('/api/mobile/owner/dashboard');
+      setJobs(data || []);
+    } catch {
+      setJobs([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

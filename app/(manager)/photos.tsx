@@ -3,8 +3,7 @@ import {
   View, Text, FlatList, Image, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, Linking
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
-import { getUser } from '../../lib/storage';
+import { mobileGet } from '../../lib/mobileApi';
 
 interface PhotoUpdate {
   id: string;
@@ -21,16 +20,15 @@ export default function ManagerPhotos() {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    const user = await getUser();
-    let q = supabase.from('job_updates')
-      .select('id, message, photo_url, created_at, jobs(name), employees(name)')
-      .eq('type', 'photo').not('photo_url', 'is', null)
-      .order('created_at', { ascending: false }).limit(40);
-    if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-    const { data } = await q;
-    setPhotos((data || []) as PhotoUpdate[]);
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const data = await mobileGet<PhotoUpdate[]>('/api/mobile/owner/photos');
+      setPhotos(data || []);
+    } catch {
+      setPhotos([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
