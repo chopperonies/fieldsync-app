@@ -55,6 +55,7 @@ export default function OwnerJobDetail() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [picker, setPicker] = useState<null | 'schedule' | 'estimate' | 'details' | 'invoice' | 'assign'>(null);
+  const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
 
   // Shared edit state
   const [scheduledDate, setScheduledDate] = useState<string | null>(null);
@@ -400,14 +401,32 @@ export default function OwnerJobDetail() {
                 <View>
                   <Text style={styles.invoiceAmount}>${invoiceAmountExisting.toLocaleString()}</Text>
                   {!isPaid && (
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                      <TouchableOpacity style={styles.actionBtn} onPress={() => markPaid(true)}>
-                        <Text style={styles.actionBtnText}>Mark Paid + Email</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1a1a1a' }]} onPress={() => markPaid(false)}>
-                        <Text style={[styles.actionBtnText, { color: '#0ea5e9' }]}>Mark Paid (no email)</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <>
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                        <TouchableOpacity style={styles.actionBtn} onPress={() => markPaid(true)}>
+                          <Text style={styles.actionBtnText}>Mark Paid + Email</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1a1a1a' }]} onPress={() => markPaid(false)}>
+                          <Text style={[styles.actionBtnText, { color: '#0ea5e9' }]}>Mark Paid (no email)</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {client?.email && (
+                        <TouchableOpacity
+                          style={[styles.actionBtnGhost, { marginTop: 8 }]}
+                          onPress={async () => {
+                            try {
+                              const resp: any = await mobilePost(`/api/mobile/owner/jobs/${job.id}/invoice/resend`);
+                              Alert.alert('Sent', `Invoice re-emailed to ${resp?.emailed_to || client.email}`);
+                            } catch (e: any) {
+                              Alert.alert('Error', e?.message || 'Could not resend');
+                            }
+                          }}
+                        >
+                          <Ionicons name="mail-outline" size={18} color="#0ea5e9" />
+                          <Text style={styles.actionBtnGhostText}>Resend invoice email</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
                   )}
                 </View>
               ) : (
@@ -517,12 +536,12 @@ export default function OwnerJobDetail() {
             ) : (
               <View style={styles.photoGrid}>
                 {photoUpdates.map(u => (
-                  <View key={u.id} style={styles.photoCell}>
+                  <TouchableOpacity key={u.id} style={styles.photoCell} onPress={() => setPhotoViewerUrl(u.photo_url)}>
                     <Image source={{ uri: u.photo_url! }} style={styles.photo} />
                     <Text style={styles.photoMeta}>
                       {u.employees?.name || 'Crew'} · {new Date(u.created_at).toLocaleDateString()}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             )}
@@ -662,6 +681,18 @@ export default function OwnerJobDetail() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Full-screen photo viewer */}
+      <Modal visible={!!photoViewerUrl} transparent animationType="fade" onRequestClose={() => setPhotoViewerUrl(null)}>
+        <View style={styles.photoViewer}>
+          <TouchableOpacity style={styles.photoViewerClose} onPress={() => setPhotoViewerUrl(null)}>
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          {photoViewerUrl && (
+            <Image source={{ uri: photoViewerUrl }} style={styles.photoViewerImage} resizeMode="contain" />
+          )}
+        </View>
+      </Modal>
+
       {/* Assign crew modal */}
       <Modal visible={picker === 'assign'} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -774,6 +805,12 @@ const styles = StyleSheet.create({
   photoCell: { width: '48%' },
   photo: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#1a1a1a' },
   photoMeta: { color: '#666', fontSize: 10, marginTop: 4 },
+  photoViewer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  photoViewerImage: { width: '100%', height: '90%' },
+  photoViewerClose: {
+    position: 'absolute', top: 50, right: 20, zIndex: 10,
+    backgroundColor: '#00000099', borderRadius: 20, padding: 8,
+  },
 
   modalOverlay: { flex: 1, backgroundColor: '#000000aa', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
