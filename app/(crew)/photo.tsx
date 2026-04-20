@@ -6,6 +6,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { supabase, Job } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
+import { mobileGet, mobilePost } from '../../lib/mobileApi';
 
 export default function Photo() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -16,11 +17,7 @@ export default function Photo() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    getUser().then(user => {
-      let q = supabase.from('jobs').select('*').in('status', ['active', 'in_progress', 'scheduled']).order('name');
-      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-      q.then(({ data }) => setJobs(data || []));
-    });
+    mobileGet<Job[]>('/api/mobile/crew/jobs').then(data => setJobs(data || [])).catch(() => setJobs([]));
   }, []);
 
   async function takePhoto() {
@@ -66,17 +63,14 @@ export default function Photo() {
 
       const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(fileName);
 
-      const { error: insertError } = await supabase.from('job_updates').insert({
-        job_id: selectedJob.id,
-        employee_id: user.id,
-        tenant_id: user.tenant_id,
-        type: 'photo',
-        message: caption.trim() || 'Site photo',
-        photo_url: publicUrl,
-      });
-
-      if (insertError) {
-        Alert.alert('Save failed', insertError.message);
+      try {
+        await mobilePost(`/api/mobile/crew/jobs/${selectedJob.id}/updates`, {
+          type: 'photo',
+          message: caption.trim() || 'Site photo',
+          photo_url: publicUrl,
+        });
+      } catch (e: any) {
+        Alert.alert('Save failed', e.message || 'Could not save photo record.');
         return;
       }
 

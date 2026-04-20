@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, StyleSheet,
   ActivityIndicator, RefreshControl
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
+import { mobileGet } from '../../lib/mobileApi';
 import { getUser } from '../../lib/storage';
 
 function formatDuration(start: string, end: string | null): string {
@@ -32,15 +32,12 @@ export default function CrewHours() {
     const user = await getUser();
     if (!user) return;
 
-    const { data } = await supabase
-      .from('job_assignments')
-      .select('id, checked_in_at, checked_out_at, jobs(name)')
-      .eq('employee_id', user.id)
-      .not('checked_in_at', 'is', null)
-      .order('checked_in_at', { ascending: false })
-      .limit(40);
-
-    const rows = (data || []) as Assignment[];
+    let rows: Assignment[] = [];
+    try {
+      rows = await mobileGet<Assignment[]>('/api/mobile/crew/my-assignments');
+    } catch {
+      rows = [];
+    }
     setAssignments(rows);
 
     const weekStart = new Date();

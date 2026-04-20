@@ -6,6 +6,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { supabase, Job } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
+import { mobileGet, mobilePost } from '../../lib/mobileApi';
 
 export default function Supplies() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -16,11 +17,7 @@ export default function Supplies() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    getUser().then(user => {
-      let q = supabase.from('jobs').select('*').eq('status', 'active').order('name');
-      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-      q.then(({ data }) => setJobs(data || []));
-    });
+    mobileGet<Job[]>('/api/mobile/crew/jobs').then(data => setJobs(data || [])).catch(() => setJobs([]));
   }, []);
 
   async function pickPhoto() {
@@ -54,19 +51,13 @@ export default function Supplies() {
       let photoUrl: string | null = null;
       if (photoUri) photoUrl = await uploadPhoto(photoUri, user.id);
 
-      await supabase.from('supply_requests').insert({
-        job_id: selectedJob.id,
-        employee_id: user.id,
-        tenant_id: user.tenant_id,
+      await mobilePost(`/api/mobile/crew/jobs/${selectedJob.id}/supply-request`, {
         items: items.trim(),
         urgency,
         photo_url: photoUrl,
       });
 
-      await supabase.from('job_updates').insert({
-        job_id: selectedJob.id,
-        employee_id: user.id,
-        tenant_id: user.tenant_id,
+      await mobilePost(`/api/mobile/crew/jobs/${selectedJob.id}/updates`, {
         type: 'supply_request',
         message: `Missing supplies: ${items.trim()} (${urgency.replace('_', ' ')})`,
       });
@@ -75,6 +66,8 @@ export default function Supplies() {
       setItems('');
       setPhotoUri(null);
       setSelectedJob(null);
+    } catch (e: any) {
+      Alert.alert('Failed', e.message || 'Could not submit request.');
     } finally {
       setLoading(false);
     }

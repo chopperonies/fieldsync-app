@@ -4,7 +4,7 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
   KeyboardAvoidingView, Platform
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
+import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { getUser } from '../../lib/storage';
 
 interface Note {
@@ -23,36 +23,23 @@ export default function CrewNotes() {
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
-    const user = await getUser();
-    if (!user) return;
+    try {
+      const assignment = await mobileGet<{ job_id: string } | null>('/api/mobile/crew/assignment');
+      if (assignment?.job_id) {
+        const { job } = await mobileGet<{ job: { id: string; name: string } }>(`/api/mobile/crew/jobs/${assignment.job_id}`);
+        setCurrentJob(job ? { id: job.id, name: job.name } : null);
+      } else {
+        setCurrentJob(null);
+      }
 
-    const { data: assignments } = await supabase
-      .from('job_assignments')
-      .select('job_id')
-      .eq('employee_id', user.id)
-      .not('checked_in_at', 'is', null)
-      .is('checked_out_at', null)
-      .limit(1);
-
-    const jobId = assignments?.[0]?.job_id ?? null;
-    if (jobId) {
-      const { data: job } = await supabase.from('jobs').select('id, name').eq('id', jobId).single();
-      setCurrentJob(job ? { id: job.id, name: job.name } : null);
-    } else {
-      setCurrentJob(null);
+      const notes = await mobileGet<Note[]>('/api/mobile/crew/my-updates?type=note&limit=20');
+      setNotes(notes || []);
+    } catch {
+      setNotes([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-
-    const { data } = await supabase
-      .from('job_updates')
-      .select('id, message, created_at, jobs(name)')
-      .eq('employee_id', user.id)
-      .eq('type', 'note')
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    setNotes((data || []) as Note[]);
-    setLoading(false);
-    setRefreshing(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -60,19 +47,22 @@ export default function CrewNotes() {
   async function submitNote() {
     if (!text.trim()) return;
     if (!currentJob) return Alert.alert('Not checked in', 'Check in to a job site first.');
-    const user = await getUser();
-    if (!user) return;
-
     setSaving(true);
-    const { data } = await supabase
-      .from('job_updates')
-      .insert({ job_id: currentJob.id, employee_id: user.id, tenant_id: user.tenant_id, type: 'note', message: text.trim() })
-      .select('id, message, created_at, jobs(name)')
-      .single();
-
-    if (data) setNotes(prev => [data as Note, ...prev]);
-    setText('');
-    setSaving(false);
+    try {
+      const saved = await mobilePost<any>(`/api/mobile/crew/jobs/${currentJob.id}/updates`, {
+        type: 'note',
+        message: text.trim(),
+      });
+      if (saved) {
+        const enriched: Note = { ...saved, jobs: { name: currentJob.name } };
+        setNotes(prev => [enriched, ...prev]);
+      }
+      setText('');
+    } catch (e: any) {
+      Alert.alert('Save failed', e.message || 'Could not save note.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) {

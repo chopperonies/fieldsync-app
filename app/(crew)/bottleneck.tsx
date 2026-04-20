@@ -3,8 +3,8 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator
 } from 'react-native';
-import { supabase, Job } from '../../lib/supabase';
-import { getUser } from '../../lib/storage';
+import { Job } from '../../lib/supabase';
+import { mobileGet, mobilePost } from '../../lib/mobileApi';
 
 export default function Bottleneck() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -13,32 +13,23 @@ export default function Bottleneck() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    getUser().then(user => {
-      let q = supabase.from('jobs').select('*').eq('status', 'active').order('name');
-      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-      q.then(({ data }) => setJobs(data || []));
-    });
+    mobileGet<Job[]>('/api/mobile/crew/jobs').then(data => setJobs(data || [])).catch(() => setJobs([]));
   }, []);
 
   async function handleSubmit() {
     if (!selectedJob) return Alert.alert('Select a job site first');
     if (!description.trim()) return Alert.alert('Describe the issue');
-    const user = await getUser();
-    if (!user) return;
-
     setLoading(true);
     try {
-      await supabase.from('job_updates').insert({
-        job_id: selectedJob.id,
-        employee_id: user.id,
-        tenant_id: user.tenant_id,
+      await mobilePost(`/api/mobile/crew/jobs/${selectedJob.id}/updates`, {
         type: 'bottleneck',
         message: description.trim(),
       });
-
       Alert.alert('Reported', 'Manager has been notified of the bottleneck.');
       setDescription('');
       setSelectedJob(null);
+    } catch (e: any) {
+      Alert.alert('Failed', e.message || 'Could not flag bottleneck.');
     } finally {
       setLoading(false);
     }
