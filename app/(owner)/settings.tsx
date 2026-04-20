@@ -3,8 +3,8 @@ import {
   View, Text, TextInput, TouchableOpacity, Switch,
   StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl, Linking
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
-import { getUser, getPlan, getBiometricEnabled, setBiometricEnabled } from '../../lib/storage';
+import { mobileGet, mobilePatch } from '../../lib/mobileApi';
+import { getPlan, getBiometricEnabled, setBiometricEnabled } from '../../lib/storage';
 import { isBiometricAvailable } from '../../lib/biometric';
 
 const PRIORITY_PLANS = ['team', 'pro', 'business'];
@@ -21,43 +21,44 @@ export default function OwnerSettings() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
 
   const loadData = useCallback(async () => {
-    const user = await getUser();
-    if (!user?.tenant_id) { setLoading(false); setRefreshing(false); return; }
-    const plan = await getPlan();
-    setHasPrioritySupport(PRIORITY_PLANS.includes(plan?.plan ?? ''));
-    const [enabled, available] = await Promise.all([getBiometricEnabled(), isBiometricAvailable()]);
-    setBiometricEnabledState(enabled);
-    setBiometricAvailable(available);
-    const { data } = await supabase
-      .from('tenants')
-      .select('company_name, phone, address')
-      .eq('id', user.tenant_id)
-      .single();
-    if (data) {
-      setCompanyName(data.company_name || '');
-      setPhone(data.phone || '');
-      setAddress(data.address || '');
+    try {
+      const plan = await getPlan();
+      setHasPrioritySupport(PRIORITY_PLANS.includes(plan?.plan ?? ''));
+      const [enabled, available] = await Promise.all([getBiometricEnabled(), isBiometricAvailable()]);
+      setBiometricEnabledState(enabled);
+      setBiometricAvailable(available);
+      const data = await mobileGet<{ company_name?: string; phone?: string; address?: string }>(
+        '/api/mobile/owner/tenant'
+      );
+      if (data) {
+        setCompanyName(data.company_name || '');
+        setPhone(data.phone || '');
+        setAddress(data.address || '');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to load settings');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    setLoading(false);
-    setRefreshing(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   async function save() {
-    const user = await getUser();
-    if (!user?.tenant_id) return;
     setSaving(true);
-    const { error } = await supabase
-      .from('tenants')
-      .update({ company_name: companyName.trim(), phone: phone.trim(), address: address.trim() })
-      .eq('id', user.tenant_id);
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
+    try {
+      await mobilePatch('/api/mobile/owner/tenant', {
+        company_name: companyName.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+      });
       Alert.alert('Saved', 'Company settings updated.');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to save');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   if (loading) {
