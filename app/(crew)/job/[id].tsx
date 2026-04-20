@@ -217,6 +217,11 @@ export default function JobDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: job.name, headerBackTitle: 'Back' }} />
+      <View style={styles.backBar}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(crew)')} style={styles.backBtn}>
+          <Text style={styles.backBtnText}>{'‹ Back to Jobs'}</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, gap: 14 }}>
         <View>
           <Text style={styles.jobName}>{job.name}</Text>
@@ -396,4 +401,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', gap: 12,
   },
   busyText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  backBar: {
+    backgroundColor: '#0a0a0a', borderBottomWidth: 1, borderBottomColor: '#1a1a1a',
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  backBtn: { alignSelf: 'flex-start' },
+  backBtnText: { color: '#0ea5e9', fontSize: 15, fontWeight: '600' },
 });

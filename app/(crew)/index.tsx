@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator, AppState
+  StyleSheet, Alert, ActivityIndicator, AppState, RefreshControl
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -75,13 +75,23 @@ export default function CheckIn() {
       setFromCache(false);
       setIsOnline(true);
       await setCache('crew_jobs_' + user?.tenant_id, result);
-    } catch {
-      // Offline — load from cache
-      const cached = await getStaleCache<Job[]>('crew_jobs_' + user?.tenant_id);
-      if (cached) {
-        setJobs(cached);
-        setFromCache(true);
-        setIsOnline(false);
+    } catch (e: any) {
+      // Only fall into offline mode if the fetch actually rejected (no network).
+      // HTTP 4xx/5xx throw Error with "failed: <code>" message — those mean the
+      // server replied, so we are online and should surface the error instead.
+      const msg = String(e?.message || '');
+      const serverResponded = /failed:\s*\d+/.test(msg);
+      if (serverResponded) {
+        setJobs([]);
+        setFromCache(false);
+        setIsOnline(true);
+      } else {
+        const cached = await getStaleCache<Job[]>('crew_jobs_' + user?.tenant_id);
+        if (cached) {
+          setJobs(cached);
+          setFromCache(true);
+          setIsOnline(false);
+        }
       }
     } finally {
       setLoading(false);
@@ -191,14 +201,6 @@ export default function CheckIn() {
     }
   }
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#0ea5e9" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       {!isOnline && (
@@ -223,10 +225,16 @@ export default function CheckIn() {
         data={jobs}
         keyExtractor={j => j.id}
         contentContainerStyle={{ gap: 12, padding: 16 }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadJobs} tintColor="#0ea5e9" />}
         ListEmptyComponent={
-          <Text style={{ color: '#555', textAlign: 'center', marginTop: 40 }}>
-            {fromCache ? 'No cached jobs available.' : 'No active jobs found.'}
-          </Text>
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            <Text style={{ color: '#555', textAlign: 'center', marginBottom: 16 }}>
+              {fromCache ? 'No cached jobs available.' : 'No active jobs found.'}
+            </Text>
+            <TouchableOpacity onPress={loadJobs} style={{ backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Try again</Text>
+            </TouchableOpacity>
+          </View>
         }
         renderItem={({ item }) => {
           const isActive = checkedInJob === item.id;
