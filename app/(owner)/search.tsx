@@ -112,7 +112,18 @@ export default function OwnerSearch() {
 
       {showEmpty ? (
         <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <Text style={styles.sectionLabel}>Recently active</Text>
+          <Text style={styles.sectionLabel}>Quick jump</Text>
+          <View style={styles.shortcutGrid}>
+            <Shortcut icon="calendar-outline" label="Today's schedule" color="#0ea5e9"
+              onPress={() => router.push(`/(owner)/jobs?day=${new Date().toISOString().slice(0, 10)}` as any)} />
+            <Shortcut icon="cash-outline" label="Unpaid invoices" color="#facc15"
+              onPress={() => router.push('/(owner)/invoices?open=record_payment' as any)} />
+            <Shortcut icon="location-outline" label="On-site crew" color="#4ade80"
+              onPress={() => router.push('/(owner)/crew' as any)} />
+            <Shortcut icon="cube-outline" label="Pending supplies" color="#a78bfa"
+              onPress={() => router.push('/(owner)/supplies' as any)} />
+          </View>
+          <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Recent clients</Text>
           {recentClients.length === 0 ? (
             <Text style={styles.empty}>Nothing yet. Clients you create show up here.</Text>
           ) : (
@@ -157,6 +168,17 @@ function Section({ label, children }: { label: string; children: React.ReactNode
       <Text style={styles.sectionLabel}>{label}</Text>
       {children}
     </View>
+  );
+}
+
+function Shortcut({ icon, label, color, onPress }: { icon: any; label: string; color: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.shortcut} onPress={onPress} activeOpacity={0.75}>
+      <View style={[styles.shortcutIcon, { backgroundColor: color + '22', borderColor: color + '55' }]}>
+        <Ionicons name={icon} size={22} color={color} />
+      </View>
+      <Text style={styles.shortcutLabel}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -268,5 +290,18 @@ const styles = StyleSheet.create({
   rowTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
   rowSub: { color: '#888', fontSize: 12, marginTop: 2 },
   rowMeta: { color: '#fff', fontSize: 13, fontWeight: '700' },
+
+  shortcutGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  shortcut: {
+    width: '48%',
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
+    borderRadius: 12, padding: 12,
+  },
+  shortcutIcon: {
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  shortcutLabel: { color: '#fff', fontSize: 13, fontWeight: '700', flex: 1 },
 });
 
