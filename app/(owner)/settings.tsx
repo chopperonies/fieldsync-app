@@ -21,6 +21,11 @@ export default function OwnerSettings() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [stripeConnected, setStripeConnected] = useState<boolean | null>(null);
   const [stripeBusy, setStripeBusy] = useState(false);
+  const [planName, setPlanName] = useState<string | null>(null);
+  const [subStatus, setSubStatus] = useState<string | null>(null);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -30,13 +35,21 @@ export default function OwnerSettings() {
       setBiometricEnabledState(enabled);
       setBiometricAvailable(available);
       const [data, stripe] = await Promise.all([
-        mobileGet<{ company_name?: string; phone?: string; address?: string }>('/api/mobile/owner/tenant'),
+        mobileGet<{
+          company_name?: string; phone?: string; address?: string;
+          plan?: string; subscription_status?: string; trial_ends_at?: string;
+          stripe_customer_id?: string;
+        }>('/api/mobile/owner/tenant'),
         mobileGet<{ connected: boolean }>('/api/mobile/owner/stripe-connect/status').catch(() => null),
       ]);
       if (data) {
         setCompanyName(data.company_name || '');
         setPhone(data.phone || '');
         setAddress(data.address || '');
+        setPlanName(data.plan || null);
+        setSubStatus(data.subscription_status || null);
+        setTrialEndsAt(data.trial_ends_at || null);
+        setHasStripeCustomer(!!data.stripe_customer_id);
       }
       if (stripe) setStripeConnected(!!stripe.connected);
     } catch (e: any) {
@@ -48,6 +61,22 @@ export default function OwnerSettings() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  async function openBillingPortal() {
+    setPortalBusy(true);
+    try {
+      const resp = await mobilePost<{ url: string }>('/api/mobile/owner/billing-portal');
+      if (resp?.url) await Linking.openURL(resp.url);
+    } catch (e: any) {
+      if (String(e?.message || '').includes('No billing account')) {
+        Alert.alert('No subscription', 'Subscribe at linkcrew.io/app to manage billing.');
+      } else {
+        Alert.alert('Error', e?.message || 'Could not open billing portal');
+      }
+    } finally {
+      setPortalBusy(false);
+    }
+  }
 
   async function connectStripe() {
     setStripeBusy(true);
@@ -159,6 +188,32 @@ export default function OwnerSettings() {
 
       <View style={styles.divider} />
 
+      <Text style={styles.sectionLabel}>Subscription</Text>
+      <View style={[styles.row, { marginBottom: 12 }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowLabel}>
+            {planName ? planName.charAt(0).toUpperCase() + planName.slice(1) : 'No plan'}
+            {subStatus ? ` · ${subStatus}` : ''}
+          </Text>
+          {trialEndsAt && subStatus === 'trialing' && (
+            <Text style={styles.hint}>
+              Trial ends {new Date(trialEndsAt).toLocaleDateString()}
+            </Text>
+          )}
+        </View>
+      </View>
+      {hasStripeCustomer ? (
+        <TouchableOpacity style={styles.outlineBtnBlue} onPress={openBillingPortal} disabled={portalBusy}>
+          {portalBusy
+            ? <ActivityIndicator color="#0ea5e9" />
+            : <Text style={styles.outlineBtnTextBlue}>Manage Subscription</Text>}
+        </TouchableOpacity>
+      ) : (
+        <Text style={styles.hint}>Subscribe at linkcrew.io/app to manage billing from your phone.</Text>
+      )}
+
+      <View style={styles.divider} />
+
       <Text style={styles.sectionLabel}>Payments</Text>
       <Text style={styles.hint}>Connect Stripe to let clients pay invoices by card through their portal.</Text>
       {stripeConnected === null ? (
@@ -258,4 +313,9 @@ const styles = StyleSheet.create({
     padding: 14, alignItems: 'center', marginTop: 4,
   },
   outlineBtnTextDanger: { color: '#ef4444', fontWeight: '700', fontSize: 15 },
+  outlineBtnBlue: {
+    borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 12,
+    padding: 14, alignItems: 'center', marginTop: 4,
+  },
+  outlineBtnTextBlue: { color: '#0ea5e9', fontWeight: '700', fontSize: 15 },
 });
