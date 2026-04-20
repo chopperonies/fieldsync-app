@@ -44,8 +44,12 @@ export default function JobDetailScreen() {
 
   const [clientPhone, setClientPhone] = useState<string | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
-    if (!id) return;
+    if (!id) { setLoading(false); setLoadError('Missing job id'); return; }
+    setLoadError(null);
+    setLoading(true);
     try {
       const payload = await mobileGet<{ job: Job; client: { phone?: string } | null }>(`/api/mobile/crew/jobs/${id}`);
       setJob(payload.job);
@@ -61,7 +65,7 @@ export default function JobDetailScreen() {
         setWorkflow(null);
       }
     } catch (e: any) {
-      Alert.alert('Failed to load', e.message || 'Could not load job detail.');
+      setLoadError(e?.message || 'Could not load job detail');
     } finally {
       setLoading(false);
     }
@@ -203,14 +207,32 @@ export default function JobDetailScreen() {
     }
   }
 
-  if (loading) {
-    return (
-      <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>
-    );
-  }
   if (!job) {
     return (
-      <View style={styles.center}><Text style={styles.muted}>Job not found.</Text></View>
+      <View style={styles.container}>
+        <View style={styles.backBar}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(crew)')} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>{'‹ Back to Jobs'}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.center}>
+          {loading ? (
+            <>
+              <ActivityIndicator size="large" color="#0ea5e9" />
+              <Text style={[styles.muted, { marginTop: 12 }]}>Loading job…</Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.muted, { marginBottom: 14, textAlign: 'center', paddingHorizontal: 20 }]}>
+                {loadError || 'Job not found.'}
+              </Text>
+              <TouchableOpacity onPress={load} style={{ backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 }}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Try again</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
     );
   }
 
