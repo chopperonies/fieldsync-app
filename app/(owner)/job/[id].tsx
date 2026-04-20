@@ -50,6 +50,7 @@ export default function OwnerJobDetail() {
   const [client, setClient] = useState<any>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [updates, setUpdates] = useState<Update[]>([]);
+  const [scopeAcks, setScopeAcks] = useState<{ employee_id: string; acked_at: string; acked_scope_updated_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -73,11 +74,13 @@ export default function OwnerJobDetail() {
     try {
       const data = await mobileGet<{
         job: Job; client: any; assignments: Assignment[]; updates: Update[]; photoCount: number;
+        scope_acks?: { employee_id: string; acked_at: string; acked_scope_updated_at: string }[];
       }>(`/api/mobile/owner/jobs/${id}`);
       setJob(data.job);
       setClient(data.client);
       setAssignments(data.assignments || []);
       setUpdates(data.updates || []);
+      setScopeAcks(data.scope_acks || []);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not load job');
     } finally {
@@ -441,31 +444,47 @@ export default function OwnerJobDetail() {
                 <Text style={{ color: '#666' }}>No crew assigned yet.</Text>
               </View>
             ) : (
-              assignments.map(a => (
-                <View key={a.id} style={[styles.card, { marginBottom: 8 }]}>
-                  <View style={styles.cardRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.crewName}>{a.employees?.name || 'Unknown'}</Text>
-                      {a.employees?.phone && (
-                        <TouchableOpacity onPress={() => a.employees?.phone && Linking.openURL(`tel:${a.employees.phone}`)}>
-                          <Text style={styles.crewPhone}>{a.employees.phone}</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    <View style={[
-                      styles.crewStatus,
-                      { backgroundColor: a.checked_in_at && !a.checked_out_at ? '#052e16' : '#0c1a2e' },
-                    ]}>
-                      <Text style={{
-                        color: a.checked_in_at && !a.checked_out_at ? '#4ade80' : '#3b82f6',
-                        fontSize: 11, fontWeight: '700',
-                      }}>
-                        {a.checked_in_at && !a.checked_out_at ? 'On site' : a.checked_out_at ? 'Checked out' : 'Assigned'}
-                      </Text>
+              assignments.map(a => {
+                const latestScope = (job as any)?.scope_updated_at as string | null;
+                const ack = scopeAcks.find(x => x.employee_id === a.employee_id);
+                const hasUnreadScope =
+                  !!latestScope && (!ack || ack.acked_scope_updated_at < latestScope);
+                return (
+                  <View key={a.id} style={[styles.card, { marginBottom: 8 }]}>
+                    <View style={styles.cardRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.crewName}>{a.employees?.name || 'Unknown'}</Text>
+                        {a.employees?.phone && (
+                          <TouchableOpacity onPress={() => a.employees?.phone && Linking.openURL(`tel:${a.employees.phone}`)}>
+                            <Text style={styles.crewPhone}>{a.employees.phone}</Text>
+                          </TouchableOpacity>
+                        )}
+                        {latestScope && (
+                          <Text style={[
+                            { fontSize: 11, marginTop: 6, fontWeight: '700' },
+                            hasUnreadScope ? { color: '#f59e0b' } : { color: '#4ade80' },
+                          ]}>
+                            {hasUnreadScope
+                              ? '⚠ Hasn\'t acknowledged latest instructions'
+                              : `✓ Acknowledged ${ack?.acked_at ? new Date(ack.acked_at).toLocaleString() : ''}`}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={[
+                        styles.crewStatus,
+                        { backgroundColor: a.checked_in_at && !a.checked_out_at ? '#052e16' : '#0c1a2e' },
+                      ]}>
+                        <Text style={{
+                          color: a.checked_in_at && !a.checked_out_at ? '#4ade80' : '#3b82f6',
+                          fontSize: 11, fontWeight: '700',
+                        }}>
+                          {a.checked_in_at && !a.checked_out_at ? 'On site' : a.checked_out_at ? 'Checked out' : 'Assigned'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
           </>
         )}
