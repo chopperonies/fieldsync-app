@@ -4,7 +4,8 @@ import { router } from 'expo-router';
 import { clearUser } from '../../lib/storage';
 
 const ITEMS = [
-  { label: 'Invoices',  icon: 'cash',         route: '/(owner)/invoices'  },
+  { label: 'Crew',      icon: 'person-circle', route: '/(owner)/crew'      },
+  { label: 'Invoices',  icon: 'cash',          route: '/(owner)/invoices'  },
   { label: 'Photos',    icon: 'camera',        route: '/(owner)/photos'    },
   { label: 'Supplies',  icon: 'layers',        route: '/(owner)/supplies'  },
   { label: 'Dashboard', icon: 'stats-chart',   route: '/(owner)/dashboard' },

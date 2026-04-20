@@ -109,9 +109,18 @@ export default function OwnerLayout() {
       <Tabs.Screen
         name="jobs"
         options={{
-          title: 'Jobs',
+          title: 'Schedule',
           tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'hammer' : 'hammer-outline'} size={size} color={color} />,
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={size} color={color} />,
+          headerTitle: 'Schedule',
+        }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: 'Search',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'search' : 'search-outline'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -123,14 +132,6 @@ export default function OwnerLayout() {
         }}
       />
       <Tabs.Screen
-        name="crew"
-        options={{
-          title: 'Crew',
-          tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="more"
         options={{
           title: 'More',
@@ -139,7 +140,8 @@ export default function OwnerLayout() {
           headerTitle: 'More',
         }}
       />
-      {/* Hidden from tab bar — accessible via More screen */}
+      {/* Hidden from tab bar — accessible via More screen or deep links */}
+      <Tabs.Screen name="crew"      options={{ href: null }} />
       <Tabs.Screen name="invoices"  options={{ href: null }} />
       <Tabs.Screen name="photos"    options={{ href: null }} />
       <Tabs.Screen name="supplies"  options={{ href: null }} />
