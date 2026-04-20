@@ -47,6 +47,9 @@ export default function OwnerInvoices() {
   const [amount, setAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const [actionJob, setActionJob] = useState<InvoiceJob | null>(null);
+  const [markingPaid, setMarkingPaid] = useState(false);
+
   const loadData = useCallback(async () => {
     try {
       const data = await mobileGet<InvoiceJob[]>('/api/mobile/owner/invoices');
@@ -96,6 +99,28 @@ export default function OwnerInvoices() {
       setSubmitting(false);
     }
   }, [selectedJob, amount, loadData]);
+
+  const markPaid = useCallback(async (withEmail: boolean) => {
+    if (!actionJob) return;
+    setMarkingPaid(true);
+    try {
+      const body = withEmail ? { notify: 'email' } : {};
+      const resp: any = await mobilePost(`/api/mobile/owner/jobs/${actionJob.id}/mark-paid`, body);
+      setActionJob(null);
+      await loadData();
+      if (withEmail) {
+        if (resp?.receipt_email_sent) {
+          Alert.alert('Marked paid', `Receipt emailed to ${actionJob.clients?.email}`);
+        } else {
+          Alert.alert('Marked paid', 'No client email on file — no receipt sent.');
+        }
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to mark paid');
+    } finally {
+      setMarkingPaid(false);
+    }
+  }, [actionJob, loadData]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -149,7 +174,7 @@ export default function OwnerInvoices() {
         ListEmptyComponent={<Text style={styles.empty}>No invoices yet.</Text>}
         renderItem={({ item }) => {
           const paid = isPaid(item);
-          return (
+          const Row = (
             <View style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={{ flex: 1 }}>
@@ -172,9 +197,13 @@ export default function OwnerInvoices() {
                   Invoiced {new Date(item.updated_at || item.created_at).toLocaleDateString()}
                 </Text>
                 {item.address ? <Text style={styles.metaText} numberOfLines={1}>{item.address}</Text> : null}
+                {!paid && <Text style={styles.tapHint}>Tap to record payment</Text>}
               </View>
             </View>
           );
+          return paid
+            ? Row
+            : <TouchableOpacity activeOpacity={0.7} onPress={() => setActionJob(item)}>{Row}</TouchableOpacity>;
         }}
       />
 
@@ -236,6 +265,39 @@ export default function OwnerInvoices() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={!!actionJob} animationType="fade" transparent onRequestClose={() => setActionJob(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.actionSheet}>
+            <Text style={styles.actionTitle}>{actionJob?.name}</Text>
+            <Text style={styles.actionSubtitle}>
+              ${(Number(actionJob?.invoice_amount) || 0).toLocaleString()} · {actionJob?.clients?.name || 'No client'}
+            </Text>
+
+            {actionJob?.clients?.email && (
+              <TouchableOpacity
+                style={[styles.submit, markingPaid && { opacity: 0.4 }]}
+                onPress={() => markPaid(true)}
+                disabled={markingPaid}
+              >
+                {markingPaid ? <ActivityIndicator color="#000" /> : <Text style={styles.submitText}>Mark Paid + Email Receipt</Text>}
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.submitGhost, markingPaid && { opacity: 0.4 }]}
+              onPress={() => markPaid(false)}
+              disabled={markingPaid}
+            >
+              <Text style={styles.submitGhostText}>Mark Paid (no email)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setActionJob(null)} disabled={markingPaid}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -303,4 +365,19 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 20,
   },
   submitText: { color: '#000', fontWeight: '700', fontSize: 16 },
+  submitGhost: {
+    borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 10,
+    borderWidth: 1, borderColor: '#0ea5e9',
+  },
+  submitGhostText: { color: '#0ea5e9', fontWeight: '700', fontSize: 15 },
+  cancelBtn: { padding: 14, alignItems: 'center', marginTop: 8 },
+  cancelText: { color: '#888', fontSize: 14 },
+
+  actionSheet: {
+    backgroundColor: '#0f0f0f', borderRadius: 16, padding: 20,
+    margin: 20, marginTop: 'auto', marginBottom: 'auto',
+  },
+  actionTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  actionSubtitle: { color: '#888', fontSize: 14, marginTop: 6, marginBottom: 8 },
+  tapHint: { color: '#0ea5e9', fontSize: 11, fontWeight: '600', marginLeft: 'auto' },
 });
