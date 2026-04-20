@@ -8,7 +8,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Employee, Role } from '../../lib/supabase';
 import { getPlan } from '../../lib/storage';
-import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
+import { mobileGet, mobilePost, mobilePatch, mobileDelete } from '../../lib/mobileApi';
 
 const ROLES: Role[] = ['crew', 'manager', 'owner'];
 
@@ -21,6 +21,13 @@ export default function OwnerCrew() {
   const [newPhone, setNewPhone] = useState('');
   const [newRole, setNewRole] = useState<Role>('crew');
   const [saving, setSaving] = useState(false);
+
+  // Edit-member modal
+  const [editMember, setEditMember] = useState<Employee | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editStatus, setEditStatus] = useState<string>('active');
+  const [editSaving, setEditSaving] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -74,13 +81,83 @@ export default function OwnerCrew() {
     }
   }
 
-  async function changeRole(emp: Employee, role: Role) {
+  function changeRole(emp: Employee, role: Role) {
+    if (emp.role === role) return;
+    const warnsTo: Record<Role, string> = {
+      crew: 'Crew see only jobs they are assigned to.',
+      manager: 'Managers can see all jobs, clients, supplies, and photos.',
+      owner: 'Owners have full access including financials, billing, and crew controls.',
+    };
+    Alert.alert(
+      `Change ${emp.name} to ${role}?`,
+      warnsTo[role],
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Change',
+          style: role === 'owner' ? 'destructive' : 'default',
+          onPress: async () => {
+            try {
+              await mobilePatch(`/api/mobile/owner/crew/${emp.id}`, { role });
+              setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, role } : e));
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Could not change role.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  function openEdit(emp: Employee) {
+    setEditMember(emp);
+    setEditName(emp.name || '');
+    setEditPhone(emp.phone || '');
+    setEditStatus(String((emp as any).status || 'active'));
+  }
+
+  async function saveEdit() {
+    if (!editMember) return;
+    if (!editName.trim() || !editPhone.trim()) return Alert.alert('Name and phone are required');
+    setEditSaving(true);
     try {
-      await mobilePatch(`/api/mobile/owner/crew/${emp.id}`, { role });
-      setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, role } : e));
+      const updated = await mobilePatch<Employee>(`/api/mobile/owner/crew/${editMember.id}`, {
+        name: editName.trim(),
+        phone: editPhone.trim(),
+        status: editStatus,
+      });
+      setEmployees(prev => prev.map(e => e.id === editMember.id ? { ...e, ...updated } : e));
+      setEditMember(null);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not change role.');
+      Alert.alert('Error', e?.message || 'Could not save changes.');
+    } finally {
+      setEditSaving(false);
     }
+  }
+
+  function deleteMember() {
+    if (!editMember) return;
+    const emp = editMember;
+    Alert.alert(
+      `Remove ${emp.name}?`,
+      'Their job history stays intact, but they lose mobile app access immediately.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await mobileDelete(`/api/mobile/owner/crew/${emp.id}`);
+              setEmployees(prev => prev.filter(e => e.id !== emp.id));
+              setEditMember(null);
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Could not remove.');
+            }
+          },
+        },
+      ],
+    );
   }
 
   function revokeSession(emp: Employee) {
@@ -119,10 +196,10 @@ export default function OwnerCrew() {
         contentContainerStyle={{ padding: 16, gap: 10 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => openEdit(item)}>
             <View style={{ flex: 1 }}>
               <Text style={styles.empName}>{item.name}</Text>
-              <TouchableOpacity onPress={() => Linking.openURL(`tel:${item.phone}`)}>
+              <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); Linking.openURL(`tel:${item.phone}`); }}>
                 <Text style={styles.empPhone}>{item.phone}</Text>
               </TouchableOpacity>
             </View>
@@ -132,17 +209,15 @@ export default function OwnerCrew() {
                   <TouchableOpacity
                     key={r}
                     style={[styles.roleChip, item.role === r && { backgroundColor: ROLE_COLORS[r] + '22', borderColor: ROLE_COLORS[r] }]}
-                    onPress={() => changeRole(item, r)}
+                    onPress={(e) => { e.stopPropagation?.(); changeRole(item, r); }}
                   >
                     <Text style={[styles.roleText, item.role === r && { color: ROLE_COLORS[r] }]}>{r}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <TouchableOpacity onPress={() => revokeSession(item)} style={{ marginTop: 6 }}>
-                <Text style={styles.revokeLink}>Kick from mobile</Text>
-              </TouchableOpacity>
+              <Text style={styles.tapHint}>Tap card for more</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       />
 
@@ -178,6 +253,64 @@ export default function OwnerCrew() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Edit member modal — tap crew card */}
+      <Modal visible={!!editMember} transparent animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>
+            <Text style={styles.modalTitle}>Edit {editMember?.name || 'Member'}</Text>
+
+            <Text style={styles.fieldHint}>Personal details</Text>
+            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#555" value={editName} onChangeText={setEditName} />
+            <TextInput style={styles.input} placeholder="Phone number" placeholderTextColor="#555" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+
+            <Text style={styles.roleLabel}>Status</Text>
+            <View style={styles.roleSelector}>
+              {[
+                { value: 'active', label: 'Active' },
+                { value: 'vacation', label: 'Vacation' },
+                { value: 'suspended', label: 'Suspended' },
+              ].map(s => (
+                <TouchableOpacity
+                  key={s.value}
+                  style={[styles.roleSelectorChip, editStatus === s.value && { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' }]}
+                  onPress={() => setEditStatus(s.value)}
+                >
+                  <Text style={[styles.roleSelectorText, editStatus === s.value && { color: '#000' }]}>{s.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.fieldHint}>Suspended blocks their mobile login entirely.</Text>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, borderWidth: 1, borderColor: '#ef4444', borderRadius: 8, padding: 12, alignItems: 'center' }}
+                onPress={() => editMember && revokeSession(editMember)}
+              >
+                <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 13 }}>Kick from Mobile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, borderWidth: 1, borderColor: '#7f1d1d', borderRadius: 8, padding: 12, alignItems: 'center' }}
+                onPress={deleteMember}
+              >
+                <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 13 }}>Remove from Team</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.modalActions, { marginTop: 16 }]}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditMember(null)} disabled={editSaving}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={editSaving}>
+                {editSaving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Save Changes</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -198,6 +331,8 @@ const styles = StyleSheet.create({
   },
   roleText: { color: '#555', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
   revokeLink: { color: '#ef4444', fontSize: 11, fontWeight: '600' },
+  tapHint: { color: '#444', fontSize: 10, marginTop: 6, fontStyle: 'italic' },
+  fieldHint: { color: '#666', fontSize: 12, marginTop: 4, marginBottom: 10 },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
     backgroundColor: '#0ea5e9', borderRadius: 28,

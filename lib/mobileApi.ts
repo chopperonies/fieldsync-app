@@ -58,3 +58,15 @@ export async function mobilePatch<T = any>(path: string, body: any = {}): Promis
   }
   return res.json();
 }
+
+export async function mobileDelete<T = any>(path: string): Promise<T> {
+  const res = await timedFetch(path, {
+    method: 'DELETE',
+    headers: await headers(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `DELETE ${path} failed: ${res.status}`);
+  }
+  return res.json();
+}
