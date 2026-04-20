@@ -25,6 +25,9 @@ async function getGPS(): Promise<{ lat: number; lng: number } | null> {
 export default function CheckIn() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [history, setHistory] = useState<Job[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [view, setView] = useState<'active' | 'history'>('active');
   const [checkedInJob, setCheckedInJob] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -63,6 +66,16 @@ export default function CheckIn() {
     setPendingCount(remaining);
     if (synced > 0) {
       setIsOnline(true);
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const data = await mobileGet<Job[]>('/api/mobile/crew/jobs/history');
+      setHistory(data || []);
+      setHistoryLoaded(true);
+    } catch {
+      setHistory([]);
     }
   }
 
@@ -217,53 +230,100 @@ export default function CheckIn() {
         </View>
       )}
 
-      <Text style={styles.label}>
-        {checkedInJob ? '✅ Currently on site' : '📍 Select a job site'}
-      </Text>
+      <View style={styles.segmented}>
+        <TouchableOpacity
+          onPress={() => setView('active')}
+          style={[styles.segBtn, view === 'active' && styles.segBtnActive]}
+        >
+          <Text style={[styles.segText, view === 'active' && styles.segTextActive]}>Active ({jobs.length})</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => { setView('history'); if (!historyLoaded) loadHistory(); }}
+          style={[styles.segBtn, view === 'history' && styles.segBtnActive]}
+        >
+          <Text style={[styles.segText, view === 'history' && styles.segTextActive]}>History ({history.length})</Text>
+        </TouchableOpacity>
+      </View>
 
-      <FlatList
-        data={jobs}
-        keyExtractor={j => j.id}
-        contentContainerStyle={{ gap: 12, padding: 16 }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadJobs} tintColor="#0ea5e9" />}
-        ListEmptyComponent={
-          <View style={{ padding: 24, alignItems: 'center' }}>
-            <Text style={{ color: '#555', textAlign: 'center', marginBottom: 16 }}>
-              {fromCache ? 'No cached jobs available.' : 'No active jobs found.'}
-            </Text>
-            <TouchableOpacity onPress={loadJobs} style={{ backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 }}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Try again</Text>
-            </TouchableOpacity>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const isActive = checkedInJob === item.id;
-          return (
+      {view === 'active' ? (
+        <>
+          <Text style={styles.label}>
+            {checkedInJob ? '✅ Currently on site' : '📍 Select a job site'}
+          </Text>
+          <FlatList
+            data={jobs}
+            keyExtractor={j => j.id}
+            contentContainerStyle={{ gap: 12, padding: 16 }}
+            refreshControl={<RefreshControl refreshing={loading} onRefresh={loadJobs} tintColor="#0ea5e9" />}
+            ListEmptyComponent={
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Text style={{ color: '#555', textAlign: 'center', marginBottom: 16 }}>
+                  {fromCache ? 'No cached jobs available.' : 'No active jobs found.'}
+                </Text>
+                <TouchableOpacity onPress={loadJobs} style={{ backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 }}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>Try again</Text>
+                </TouchableOpacity>
+              </View>
+            }
+            renderItem={({ item }) => {
+              const isActive = checkedInJob === item.id;
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: item.id } } as any)}
+                  style={[styles.card, isActive && styles.cardActive]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.jobName}>{item.name}</Text>
+                    <Text style={styles.jobAddress}>{item.address}</Text>
+                    <Text style={styles.viewHint}>
+                      {item.workflow_id ? 'Tap to open workflow →' : 'Tap to view job →'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.btn, isActive ? styles.btnOut : styles.btnIn]}
+                    onPress={(e) => { e.stopPropagation?.(); isActive ? handleCheckOut(item) : handleCheckIn(item); }}
+                    disabled={actionLoading || (!!checkedInJob && !isActive)}
+                  >
+                    {actionLoading && isActive
+                      ? <ActivityIndicator size="small" color="#000" />
+                      : <Text style={styles.btnText}>{isActive ? 'Check Out' : 'Check In'}</Text>
+                    }
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </>
+      ) : (
+        <FlatList
+          data={history}
+          keyExtractor={j => j.id}
+          contentContainerStyle={{ gap: 10, padding: 16 }}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={loadHistory} tintColor="#0ea5e9" />}
+          ListEmptyComponent={
+            <View style={{ padding: 24, alignItems: 'center' }}>
+              <Text style={{ color: '#555', textAlign: 'center' }}>
+                {historyLoaded ? 'No past jobs yet.' : 'Loading history…'}
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => (
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: item.id } } as any)}
-              style={[styles.card, isActive && styles.cardActive]}>
+              style={styles.card}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.jobName}>{item.name}</Text>
                 <Text style={styles.jobAddress}>{item.address}</Text>
-                <Text style={styles.viewHint}>
-                  {item.workflow_id ? 'Tap to open workflow →' : 'Tap to view job →'}
+                <Text style={[styles.viewHint, { color: '#888' }]}>
+                  {String(item.status || '').replace(/_/g, ' ')}
                 </Text>
               </View>
-              <TouchableOpacity
-                style={[styles.btn, isActive ? styles.btnOut : styles.btnIn]}
-                onPress={(e) => { e.stopPropagation?.(); isActive ? handleCheckOut(item) : handleCheckIn(item); }}
-                disabled={actionLoading || (!!checkedInJob && !isActive)}
-              >
-                {actionLoading && isActive
-                  ? <ActivityIndicator size="small" color="#000" />
-                  : <Text style={styles.btnText}>{isActive ? 'Check Out' : 'Check In'}</Text>
-                }
-              </TouchableOpacity>
+              <Text style={{ color: '#555', fontSize: 22 }}>›</Text>
             </TouchableOpacity>
-          );
-        }}
-      />
+          )}
+        />
+      )}
     </View>
   );
 }
@@ -288,4 +348,15 @@ const styles = StyleSheet.create({
   btnIn: { backgroundColor: '#0ea5e9' },
   btnOut: { backgroundColor: '#ef4444' },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  segmented: {
+    flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingTop: 12,
+    borderBottomWidth: 1, borderBottomColor: '#1a1a1a', paddingBottom: 10,
+  },
+  segBtn: {
+    paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
+    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
+  },
+  segBtnActive: { backgroundColor: '#0ea5e91a', borderColor: '#0ea5e9' },
+  segText: { color: '#888', fontSize: 13, fontWeight: '600' },
+  segTextActive: { color: '#0ea5e9' },
 });
