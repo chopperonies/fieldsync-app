@@ -5,10 +5,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { supabase, Job } from '../../lib/supabase';
+import { Job } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
 import { enqueue, syncQueue, getQueueCount } from '../../lib/offlineQueue';
+import { mobileGet, mobilePost } from '../../lib/mobileApi';
 
 async function getGPS(): Promise<{ lat: number; lng: number } | null> {
   try {
@@ -68,10 +69,7 @@ export default function CheckIn() {
   async function loadJobs() {
     const user = await getUser();
     try {
-      let query = supabase.from('jobs').select('*').eq('status', 'active').order('name');
-      if (user?.tenant_id) query = query.eq('tenant_id', user.tenant_id);
-      const { data, error } = await query;
-      if (error) throw error;
+      const data = await mobileGet<Job[]>('/api/mobile/crew/jobs');
       const result = data || [];
       setJobs(result);
       setFromCache(false);
@@ -94,12 +92,7 @@ export default function CheckIn() {
     const user = await getUser();
     if (!user) return;
     try {
-      const { data } = await supabase
-        .from('job_assignments')
-        .select('job_id')
-        .eq('employee_id', user.id)
-        .is('checked_out_at', null)
-        .single();
+      const data = await mobileGet<{ job_id: string } | null>('/api/mobile/crew/assignment');
       if (data) setCheckedInJob(data.job_id);
     } catch {
       // Try from cache
@@ -127,19 +120,7 @@ export default function CheckIn() {
       };
 
       if (isOnline) {
-        const { error } = await supabase.from('job_assignments').upsert(
-          {
-            job_id: job.id, employee_id: user.id, tenant_id: user.tenant_id,
-            checked_in_at: checkedInAt, checked_out_at: null,
-            punch_in_lat: gps?.lat ?? null, punch_in_lng: gps?.lng ?? null,
-          },
-          { onConflict: 'job_id,employee_id' }
-        );
-        if (error) throw error;
-        await supabase.from('job_updates').insert({
-          job_id: job.id, employee_id: user.id, tenant_id: user.tenant_id,
-          type: 'checkin', message: `${user.name} checked in${gps ? ' 📍' : ''}`,
-        });
+        await mobilePost(`/api/mobile/crew/jobs/${job.id}/check-in`, { gps });
         Alert.alert('Checked in!', `You're now on site at ${job.name}${gps ? '\n📍 Location recorded' : ''}`);
       } else {
         await enqueue('checkin', payload);
@@ -177,15 +158,7 @@ export default function CheckIn() {
     const gps = await getGPS();
     try {
       if (isOnline) {
-        const { error } = await supabase.from('job_assignments')
-          .update({ checked_out_at: checkedOutAt, punch_out_lat: gps?.lat ?? null, punch_out_lng: gps?.lng ?? null })
-          .eq('job_id', job.id)
-          .eq('employee_id', user.id);
-        if (error) throw error;
-        await supabase.from('job_updates').insert({
-          job_id: job.id, employee_id: user.id, tenant_id: user.tenant_id,
-          type: 'checkout', message: `${user.name} checked out${gps ? ' 📍' : ''}`,
-        });
+        await mobilePost(`/api/mobile/crew/jobs/${job.id}/check-out`, { gps });
         Alert.alert('Checked out', `Good work at ${job.name}!${gps ? '\n📍 Location recorded' : ''}`);
       } else {
         await enqueue('checkout', {

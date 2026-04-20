@@ -4,8 +4,7 @@ import {
   ActivityIndicator, Alert, Linking
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import { supabase } from '../../../lib/supabase';
-import { apiGet, apiPatch } from '../../../lib/api';
+import { mobileGet, mobilePatch } from '../../../lib/mobileApi';
 
 type Step = { order: number; label: string; required?: boolean };
 type ActionButton = { label: string; action_type: string; style?: string; config?: any };
@@ -41,19 +40,17 @@ export default function JobDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  const [clientPhone, setClientPhone] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const { data: jobRow, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('id', id)
-        .single();
-      if (error) throw error;
-      setJob(jobRow as Job);
-      if (jobRow?.workflow_id) {
-        const workflows: Workflow[] = await apiGet('/api/service-pro/workflows');
-        const matched = workflows.find(w => w.id === jobRow.workflow_id) || null;
+      const payload = await mobileGet<{ job: Job; client: { phone?: string } | null }>(`/api/mobile/crew/jobs/${id}`);
+      setJob(payload.job);
+      setClientPhone(payload.client?.phone || null);
+      if (payload.job?.workflow_id) {
+        const workflows: Workflow[] = await mobileGet('/api/mobile/crew/workflows');
+        const matched = workflows.find(w => w.id === payload.job.workflow_id) || null;
         if (matched && matched.statuses) {
           matched.statuses = matched.statuses.slice().sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
         }
@@ -80,7 +77,7 @@ export default function JobDetailScreen() {
     if (!job) return;
     setBusy(true);
     try {
-      const updated = await apiPatch<Job>(`/api/jobs/${job.id}/workflow-progress`, {
+      const updated = await mobilePatch<Job>(`/api/mobile/crew/jobs/${job.id}/workflow-progress`, {
         workflow_progress: { current_status_id: statusId },
       });
       setJob(updated);
@@ -101,7 +98,7 @@ export default function JobDetailScreen() {
       completed_steps: { ...(job.workflow_progress?.completed_steps || {}), [statusId]: next },
     }});
     try {
-      const updated = await apiPatch<Job>(`/api/jobs/${job.id}/workflow-progress`, {
+      const updated = await mobilePatch<Job>(`/api/mobile/crew/jobs/${job.id}/workflow-progress`, {
         workflow_progress: { completed_steps: { [statusId]: next } },
       });
       setJob(updated);
@@ -121,13 +118,8 @@ export default function JobDetailScreen() {
         break;
       }
       case 'call_customer': {
-        // Fetch client phone on demand (mobile scope for now is brief).
-        if (!job.client_id) return Alert.alert('No client', 'No client linked to this job.');
-        supabase.from('clients').select('phone').eq('id', job.client_id).single().then(r => {
-          const phone = (r.data as any)?.phone;
-          if (!phone) return Alert.alert('No phone', 'Client has no phone on file.');
-          Linking.openURL(`tel:${String(phone).replace(/[^\d+]/g, '')}`);
-        });
+        if (!clientPhone) return Alert.alert('No phone', 'Client has no phone on file.');
+        Linking.openURL(`tel:${String(clientPhone).replace(/[^\d+]/g, '')}`);
         break;
       }
       default:

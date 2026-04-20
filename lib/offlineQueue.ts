@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
+import { mobilePost } from './mobileApi';
 
 const QUEUE_KEY = 'offline_action_queue';
 
@@ -37,7 +37,7 @@ async function removeFromQueue(id: string): Promise<void> {
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue.filter(a => a.id !== id)));
 }
 
-// Flushes all queued actions to Supabase — call this when network is restored
+// Flushes all queued actions through the mobile API when network is restored.
 export async function syncQueue(): Promise<number> {
   const queue = await getQueue();
   if (!queue.length) return 0;
@@ -45,27 +45,16 @@ export async function syncQueue(): Promise<number> {
   let synced = 0;
   for (const action of queue) {
     try {
+      const gps = action.payload.punch_in_lat != null || action.payload.punch_out_lat != null
+        ? {
+            lat: action.payload.punch_in_lat ?? action.payload.punch_out_lat,
+            lng: action.payload.punch_in_lng ?? action.payload.punch_out_lng,
+          }
+        : null;
       if (action.type === 'checkin') {
-        await supabase.from('job_assignments').upsert(action.payload, { onConflict: 'job_id,employee_id' });
-        await supabase.from('job_updates').insert({
-          job_id: action.payload.job_id,
-          employee_id: action.payload.employee_id,
-          tenant_id: action.payload.tenant_id,
-          type: 'checkin',
-          message: `${action.payload.employee_name} checked in (offline sync)`,
-        });
+        await mobilePost(`/api/mobile/crew/jobs/${action.payload.job_id}/check-in`, { gps });
       } else if (action.type === 'checkout') {
-        await supabase.from('job_assignments')
-          .update({ checked_out_at: action.payload.checked_out_at })
-          .eq('job_id', action.payload.job_id)
-          .eq('employee_id', action.payload.employee_id);
-        await supabase.from('job_updates').insert({
-          job_id: action.payload.job_id,
-          employee_id: action.payload.employee_id,
-          tenant_id: action.payload.tenant_id,
-          type: 'checkout',
-          message: `${action.payload.employee_name} checked out (offline sync)`,
-        });
+        await mobilePost(`/api/mobile/crew/jobs/${action.payload.job_id}/check-out`, { gps });
       }
       await removeFromQueue(action.id);
       synced++;

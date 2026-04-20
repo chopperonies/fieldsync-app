@@ -39,18 +39,19 @@ export default function Login() {
 
       // Fetch and store plan info for owners
       if (employee.role === 'owner' && employee.tenant_id) {
-        const { data: tenant } = await supabase
-          .from('tenants')
-          .select('plan, subscription_status, max_users')
-          .eq('id', employee.tenant_id)
-          .single();
-        if (tenant) {
-          await savePlan({
-            plan: tenant.plan ?? null,
-            subscription_status: tenant.subscription_status ?? null,
-            max_users: tenant.max_users ?? 1,
+        try {
+          const planRes = await fetch('https://linkcrew.io/api/mobile/tenant-plan', {
+            headers: { Authorization: `Bearer ${employee.mobile_session_token}` },
           });
-        }
+          if (planRes.ok) {
+            const tenant = await planRes.json();
+            await savePlan({
+              plan: tenant.plan ?? null,
+              subscription_status: tenant.subscription_status ?? null,
+              max_users: tenant.max_users ?? 1,
+            });
+          }
+        } catch {}
       }
 
       router.replace(`/(${employee.role as Role})` as any);
@@ -72,7 +73,14 @@ export default function Login() {
       // Register push token in background — don't block login
       registerPushToken().then(pushToken => {
         if (pushToken) {
-          supabase.from('employees').update({ push_token: pushToken }).eq('id', employee.id);
+          fetch('https://linkcrew.io/api/mobile/push-token', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${employee.mobile_session_token}`,
+            },
+            body: JSON.stringify({ push_token: pushToken }),
+          });
         }
       }).catch(() => {});
     } catch (e: any) {

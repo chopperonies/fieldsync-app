@@ -4,7 +4,7 @@ import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearUser, getPlan, getUser } from '../../lib/storage';
-import { supabase } from '../../lib/supabase';
+import { mobileGet } from '../../lib/mobileApi';
 
 async function logout() {
   await clearUser();
@@ -21,14 +21,16 @@ export default function OwnerLayout() {
     async function checkStatus() {
       const user = await getUser();
       if (user?.tenant_id) {
-        const { data } = await supabase.from('tenants')
-          .select('subscription_status, trial_ends_at, paused, blocked')
-          .eq('id', user.tenant_id).single();
-        if (data?.blocked) { setLockState('blocked'); return; }
-        if (data?.paused) { setLockState('paused'); return; }
-        const trialExpired = data?.subscription_status === 'trialing' && data?.trial_ends_at && new Date(data.trial_ends_at) < new Date();
-        if (trialExpired || data?.subscription_status === 'canceled' || data?.subscription_status === 'past_due') {
-          setLockState('subscription');
+        try {
+          const data: any = await mobileGet('/api/mobile/tenant-plan');
+          if (data?.blocked) { setLockState('blocked'); return; }
+          if (data?.paused) { setLockState('paused'); return; }
+          const trialExpired = data?.subscription_status === 'trialing' && data?.trial_ends_at && new Date(data.trial_ends_at) < new Date();
+          if (trialExpired || data?.subscription_status === 'canceled' || data?.subscription_status === 'past_due') {
+            setLockState('subscription');
+          }
+        } catch {
+          // Non-blocking — stay unlocked
         }
       }
     }
