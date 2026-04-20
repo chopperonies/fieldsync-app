@@ -3,8 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet,
   ActivityIndicator, RefreshControl, TouchableOpacity
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
-import { getUser, clearUser } from '../../lib/storage';
+import { mobileGet } from '../../lib/mobileApi';
 import { router } from 'expo-router';
 
 interface Stats {
@@ -12,7 +11,7 @@ interface Stats {
   crewOnSite: number;
   pendingSupplies: number;
   bottlenecksToday: number;
-  jobBreakdown: { name: string; crew: number; pendingSupplies: number }[];
+  jobBreakdown: { id: string; name: string; crew: number; pendingSupplies: number }[];
 }
 
 export default function OwnerOverview() {
@@ -21,77 +20,49 @@ export default function OwnerOverview() {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-
-    const user = await getUser();
-    const tid = user?.tenant_id;
-    const jobsQ = supabase.from('jobs').select('id, name').in('status', ['active', 'in_progress', 'scheduled']);
-    const onSiteQ = supabase.from('job_assignments').select('job_id').not('checked_in_at', 'is', null).is('checked_out_at', null);
-    const suppliesQ = supabase.from('supply_requests').select('job_id').eq('status', 'pending');
-    const bottlenecksQ = supabase.from('job_updates').select('job_id').eq('type', 'bottleneck').gte('created_at', today.toISOString());
-    const [{ data: jobs }, { data: onSite }, { data: supplies }, { data: bottlenecks }] = await Promise.all([
-      tid ? jobsQ.eq('tenant_id', tid) : jobsQ,
-      tid ? onSiteQ.eq('tenant_id', tid) : onSiteQ,
-      tid ? suppliesQ.eq('tenant_id', tid) : suppliesQ,
-      tid ? bottlenecksQ.eq('tenant_id', tid) : bottlenecksQ,
-    ]);
-
-    const jobBreakdown = (jobs || []).map(job => ({
-      name: job.name,
-      crew: (onSite || []).filter(a => a.job_id === job.id).length,
-      pendingSupplies: (supplies || []).filter(s => s.job_id === job.id).length,
-    }));
-
-    setStats({
-      activeJobs: (jobs || []).length,
-      crewOnSite: (onSite || []).length,
-      pendingSupplies: (supplies || []).length,
-      bottlenecksToday: (bottlenecks || []).length,
-      jobBreakdown,
-    });
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const data = await mobileGet<Stats>('/api/mobile/owner/home');
+      setStats(data);
+    } catch (e) {
+      // Keep last-good stats on failure
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  async function handleLogout() {
-    await clearUser();
-    router.replace('/login');
-  }
-
-  if (loading || !stats) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
-  }
+  const safe: Stats = stats || { activeJobs: 0, crewOnSite: 0, pendingSupplies: 0, bottlenecksToday: 0, jobBreakdown: [] };
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+      refreshControl={<RefreshControl refreshing={loading || refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
     >
       <Text style={styles.sectionLabel}>Today's Summary</Text>
       <View style={styles.statsGrid}>
-        <StatCard value={stats.activeJobs} label="Active Jobs" color="#3b82f6" onPress={() => router.push('/(owner)/dashboard' as any)} />
-        <StatCard value={stats.crewOnSite} label="Crew On Site" color="#4ade80" onPress={() => router.push('/(owner)/dashboard' as any)} />
-        <StatCard value={stats.pendingSupplies} label="Pending Supplies" color="#0ea5e9" onPress={() => router.push('/(owner)/supplies' as any)} />
-        <StatCard value={stats.bottlenecksToday} label="Bottlenecks Today" color="#ef4444" onPress={() => router.push('/(owner)/dashboard' as any)} />
+        <StatCard value={safe.activeJobs} label="Active Jobs" color="#3b82f6" onPress={() => router.push('/(owner)/dashboard' as any)} />
+        <StatCard value={safe.crewOnSite} label="Crew On Site" color="#4ade80" onPress={() => router.push('/(owner)/dashboard' as any)} />
+        <StatCard value={safe.pendingSupplies} label="Pending Supplies" color="#0ea5e9" onPress={() => router.push('/(owner)/supplies' as any)} />
+        <StatCard value={safe.bottlenecksToday} label="Bottlenecks Today" color="#ef4444" onPress={() => router.push('/(owner)/dashboard' as any)} />
       </View>
 
       <Text style={styles.sectionLabel}>Job Breakdown</Text>
-      {stats.jobBreakdown.map((job, i) => (
-        <TouchableOpacity key={i} style={styles.jobRow} onPress={() => router.push('/(owner)/dashboard' as any)}>
-          <Text style={styles.jobName}>{job.name}</Text>
-          <View style={styles.jobBadges}>
-            <Text style={styles.crewBadge}>👷 {job.crew}</Text>
-            {job.pendingSupplies > 0 && <Text style={styles.supplyBadge}>📦 {job.pendingSupplies}</Text>}
-          </View>
-        </TouchableOpacity>
-      ))}
-
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Sign Out</Text>
-      </TouchableOpacity>
+      {safe.jobBreakdown.length === 0 && !loading ? (
+        <Text style={{ color: '#555', paddingVertical: 12 }}>No active jobs.</Text>
+      ) : (
+        safe.jobBreakdown.map((job, i) => (
+          <TouchableOpacity key={job.id || i} style={styles.jobRow} onPress={() => router.push('/(owner)/dashboard' as any)}>
+            <Text style={styles.jobName}>{job.name}</Text>
+            <View style={styles.jobBadges}>
+              <Text style={styles.crewBadge}>👷 {job.crew}</Text>
+              {job.pendingSupplies > 0 && <Text style={styles.supplyBadge}>📦 {job.pendingSupplies}</Text>}
+            </View>
+          </TouchableOpacity>
+        ))
+      )}
     </ScrollView>
   );
 }
@@ -125,9 +96,4 @@ const styles = StyleSheet.create({
   jobBadges: { flexDirection: 'row', gap: 8 },
   crewBadge: { color: '#4ade80', fontSize: 13, fontWeight: '600' },
   supplyBadge: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
-  logoutBtn: {
-    marginTop: 24, borderRadius: 12, padding: 14,
-    alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  logoutText: { color: '#555', fontWeight: '600' },
 });

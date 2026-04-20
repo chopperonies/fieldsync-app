@@ -3,8 +3,9 @@ import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal, Linking
 } from 'react-native';
-import { supabase, Employee, Role } from '../../lib/supabase';
-import { getUser, getPlan } from '../../lib/storage';
+import { Employee, Role } from '../../lib/supabase';
+import { getPlan } from '../../lib/storage';
+import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 
 const ROLES: Role[] = ['crew', 'manager', 'owner'];
 
@@ -19,13 +20,15 @@ export default function OwnerCrew() {
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
-    const user = await getUser();
-    let q = supabase.from('employees').select('*').order('name');
-    if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-    const { data } = await q;
-    setEmployees(data || []);
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const data = await mobileGet<Employee[]>('/api/mobile/owner/crew');
+      setEmployees(data || []);
+    } catch {
+      setEmployees([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -47,21 +50,27 @@ export default function OwnerCrew() {
   async function addEmployee() {
     if (!newName.trim() || !newPhone.trim()) return Alert.alert('Fill in name and phone');
     setSaving(true);
-    const user = await getUser();
-    const { data, error } = await supabase
-      .from('employees')
-      .insert({ name: newName.trim(), phone: newPhone.trim(), role: newRole, tenant_id: user?.tenant_id })
-      .select().single();
-    if (error) { Alert.alert('Error', error.message); setSaving(false); return; }
-    setEmployees(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewName(''); setNewPhone(''); setNewRole('crew');
-    setShowAdd(false);
-    setSaving(false);
+    try {
+      const data = await mobilePost<Employee>('/api/mobile/owner/crew', {
+        name: newName.trim(), phone: newPhone.trim(), role: newRole,
+      });
+      setEmployees(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewName(''); setNewPhone(''); setNewRole('crew');
+      setShowAdd(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not add crew member.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function changeRole(emp: Employee, role: Role) {
-    await supabase.from('employees').update({ role }).eq('id', emp.id);
-    setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, role } : e));
+    try {
+      await mobilePatch(`/api/mobile/owner/crew/${emp.id}`, { role });
+      setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, role } : e));
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not change role.');
+    }
   }
 
   const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', manager: '#0ea5e9', owner: '#a855f7' };

@@ -4,9 +4,10 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
   Modal, ScrollView, Linking
 } from 'react-native';
-import { supabase, Client } from '../../lib/supabase';
+import { Client } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
+import { mobileGet, mobilePost } from '../../lib/mobileApi';
 
 export default function OwnerClients() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -28,32 +29,17 @@ export default function OwnerClients() {
   const loadData = useCallback(async () => {
     const user = await getUser();
     try {
-      let q = supabase.from('clients').select('*').order('name');
-      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-      const { data, error } = await q;
-      if (error) throw error;
-      const result = data || [];
-      setClients(result);
+      const result = await mobileGet<Client[]>('/api/mobile/owner/clients');
+      setClients(result || []);
       setIsOffline(false);
       await setCache('owner_clients_' + user?.tenant_id, result);
-
-      if (result.length > 0) {
-        const counts: Record<string, number> = {};
-        await Promise.all(result.map(async (c) => {
-          const { count } = await supabase
-            .from('jobs').select('id', { count: 'exact', head: true }).eq('client_id', c.id);
-          counts[c.id] = count || 0;
-        }));
-        setJobCounts(counts);
-        await setCache('owner_client_job_counts_' + user?.tenant_id, counts);
-      }
+      // Job counts would need another endpoint — leave as 0 for now.
+      setJobCounts({});
     } catch {
       const cached = await getStaleCache<Client[]>('owner_clients_' + user?.tenant_id);
       if (cached) {
         setClients(cached);
         setIsOffline(true);
-        const cachedCounts = await getStaleCache<Record<string, number>>('owner_client_job_counts_' + user?.tenant_id);
-        if (cachedCounts) setJobCounts(cachedCounts);
       }
     } finally {
       setLoading(false);
@@ -66,21 +52,22 @@ export default function OwnerClients() {
   async function addClient() {
     if (!newName.trim()) return Alert.alert('Name is required');
     setSaving(true);
-    const user = await getUser();
-    const { data, error } = await supabase.from('clients').insert({
-      name: newName.trim(),
-      email: newEmail.trim() || null,
-      phone: newPhone.trim() || null,
-      company: newCompany.trim() || null,
-      notes: newNotes.trim() || null,
-      tenant_id: user?.tenant_id,
-    }).select().single();
-    if (error) { Alert.alert('Error', error.message); setSaving(false); return; }
-    setClients(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    setJobCounts(prev => ({ ...prev, [data.id]: 0 }));
-    resetForm();
-    setShowAdd(false);
-    setSaving(false);
+    try {
+      const data = await mobilePost<Client>('/api/mobile/owner/clients', {
+        name: newName.trim(),
+        email: newEmail.trim() || null,
+        phone: newPhone.trim() || null,
+        address: null,
+      });
+      setClients(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setJobCounts(prev => ({ ...prev, [data.id]: 0 }));
+      resetForm();
+      setShowAdd(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not add client.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function resetForm() {

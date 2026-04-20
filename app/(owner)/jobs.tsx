@@ -4,9 +4,10 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
   Modal, ScrollView, Share, Linking
 } from 'react-native';
-import { supabase, Job, Employee } from '../../lib/supabase';
+import { Job, Employee } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
+import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 
 const PIPELINE = [
   { key: 'quoted',      label: 'Quoted',      color: '#6366f1' },
@@ -56,12 +57,8 @@ export default function OwnerJobs() {
   const loadData = useCallback(async () => {
     const user = await getUser();
     try {
-      let q = supabase.from('jobs').select('*').order('name');
-      if (user?.tenant_id) q = q.eq('tenant_id', user.tenant_id);
-      const { data, error } = await q;
-      if (error) throw error;
-      const result = data || [];
-      setJobs(result);
+      const result = await mobileGet<Job[]>('/api/mobile/owner/jobs');
+      setJobs(result || []);
       setIsOffline(false);
       await setCache('owner_jobs_' + user?.tenant_id, result);
     } catch {
@@ -76,12 +73,12 @@ export default function OwnerJobs() {
   useEffect(() => { loadData(); }, [loadData]);
 
   async function loadAssigned(jobId: string) {
-    const { data } = await supabase
-      .from('job_assignments')
-      .select('employee_id, checked_in_at, employees(name)')
-      .eq('job_id', jobId)
-      .is('checked_out_at', null);
-    setAssignedMap(prev => ({ ...prev, [jobId]: (data || []) as AssignedEmployee[] }));
+    try {
+      const data = await mobileGet<AssignedEmployee[]>(`/api/mobile/owner/jobs/${jobId}/assignments`);
+      setAssignedMap(prev => ({ ...prev, [jobId]: data || [] }));
+    } catch {
+      setAssignedMap(prev => ({ ...prev, [jobId]: [] }));
+    }
   }
 
   function toggleExpand(jobId: string) {
@@ -94,25 +91,31 @@ export default function OwnerJobs() {
   }
 
   async function updateStatus(jobId: string, status: string) {
-    await supabase.from('jobs').update({ status }).eq('id', jobId);
-    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: status as any } : j));
+    try {
+      await mobilePatch(`/api/mobile/owner/jobs/${jobId}`, { status });
+      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: status as any } : j));
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not update status.');
+    }
   }
 
   async function addJob() {
     if (!newName.trim() || !newAddress.trim()) return Alert.alert('Fill in both fields');
     setSaving(true);
-    const user = await getUser();
-    const { data } = await supabase.from('jobs')
-      .insert({
-        name: newName.trim(), address: newAddress.trim(), status: 'quoted',
-        tenant_id: user?.tenant_id,
+    try {
+      const data = await mobilePost<Job>('/api/mobile/owner/jobs', {
+        name: newName.trim(), address: newAddress.trim(),
         description: newDesc.trim() || null,
         estimate_amount: newEstimate ? parseFloat(newEstimate) : null,
-      })
-      .select().single();
-    if (data) setJobs(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
-    setShowAdd(false); setSaving(false);
+      });
+      if (data) setJobs(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
+      setShowAdd(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not create job.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function shareWorkOrder(jobId: string) {
@@ -121,12 +124,12 @@ export default function OwnerJobs() {
   }
 
   async function openAssignModal(jobId: string) {
-    const user = await getUser();
-    let crewQ = supabase.from('employees').select('*').in('role', ['crew', 'manager']).order('name');
-    if (user?.tenant_id) crewQ = crewQ.eq('tenant_id', user.tenant_id);
-    const { data: crew } = await crewQ;
-    setAllCrew(crew || []);
-
+    try {
+      const crew = await mobileGet<Employee[]>('/api/mobile/owner/crew');
+      setAllCrew((crew || []).filter(e => e.role === 'crew' || e.role === 'manager'));
+    } catch {
+      setAllCrew([]);
+    }
     const current = assignedMap[jobId] || [];
     setSelectedCrew(new Set(current.map(a => a.employee_id)));
     setAssignJobId(jobId);
@@ -135,32 +138,17 @@ export default function OwnerJobs() {
   async function saveAssignments() {
     if (!assignJobId) return;
     setAssigning(true);
-
-    const current = (assignedMap[assignJobId] || []).map(a => a.employee_id);
-    const toAdd = [...selected_crew].filter(id => !current.includes(id));
-    const toRemove = current.filter(id => !selected_crew.has(id));
-
-    if (toAdd.length > 0) {
-      await supabase.from('job_assignments').upsert(
-        toAdd.map(id => ({ job_id: assignJobId, employee_id: id })),
-        { onConflict: 'job_id,employee_id', ignoreDuplicates: true }
-      );
+    try {
+      await mobilePost(`/api/mobile/owner/jobs/${assignJobId}/assignments`, {
+        employee_ids: [...selected_crew],
+      });
+      await loadAssigned(assignJobId);
+      setAssignJobId(null);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not save assignments.');
+    } finally {
+      setAssigning(false);
     }
-
-    for (const id of toRemove) {
-      const entry = (assignedMap[assignJobId] || []).find(a => a.employee_id === id);
-      if (entry && !entry.checked_in_at) {
-        await supabase.from('job_assignments')
-          .delete()
-          .eq('job_id', assignJobId)
-          .eq('employee_id', id)
-          .is('checked_in_at', null);
-      }
-    }
-
-    await loadAssigned(assignJobId);
-    setAssignJobId(null);
-    setAssigning(false);
   }
 
   if (loading) {
