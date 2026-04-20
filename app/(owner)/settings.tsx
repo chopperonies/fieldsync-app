@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, Switch,
   StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl, Linking
 } from 'react-native';
-import { mobileGet, mobilePatch } from '../../lib/mobileApi';
+import { mobileGet, mobilePatch, mobilePost } from '../../lib/mobileApi';
 import { getPlan, getBiometricEnabled, setBiometricEnabled } from '../../lib/storage';
 import { isBiometricAvailable } from '../../lib/biometric';
 
@@ -19,6 +19,8 @@ export default function OwnerSettings() {
   const [hasPrioritySupport, setHasPrioritySupport] = useState(false);
   const [biometricEnabled, setBiometricEnabledState] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [stripeConnected, setStripeConnected] = useState<boolean | null>(null);
+  const [stripeBusy, setStripeBusy] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -27,14 +29,16 @@ export default function OwnerSettings() {
       const [enabled, available] = await Promise.all([getBiometricEnabled(), isBiometricAvailable()]);
       setBiometricEnabledState(enabled);
       setBiometricAvailable(available);
-      const data = await mobileGet<{ company_name?: string; phone?: string; address?: string }>(
-        '/api/mobile/owner/tenant'
-      );
+      const [data, stripe] = await Promise.all([
+        mobileGet<{ company_name?: string; phone?: string; address?: string }>('/api/mobile/owner/tenant'),
+        mobileGet<{ connected: boolean }>('/api/mobile/owner/stripe-connect/status').catch(() => null),
+      ]);
       if (data) {
         setCompanyName(data.company_name || '');
         setPhone(data.phone || '');
         setAddress(data.address || '');
       }
+      if (stripe) setStripeConnected(!!stripe.connected);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to load settings');
     } finally {
@@ -44,6 +48,49 @@ export default function OwnerSettings() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  async function connectStripe() {
+    setStripeBusy(true);
+    try {
+      const resp = await mobilePost<{ url: string }>('/api/mobile/owner/stripe-connect/start');
+      if (resp?.url) {
+        await Linking.openURL(resp.url);
+        Alert.alert(
+          'Complete in browser',
+          'Finish the Stripe connection in your browser, then pull to refresh when you return.',
+        );
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not start Stripe Connect');
+    } finally {
+      setStripeBusy(false);
+    }
+  }
+
+  async function disconnectStripe() {
+    Alert.alert(
+      'Disconnect Stripe?',
+      'Clients will no longer be able to pay invoices by card until you reconnect.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            setStripeBusy(true);
+            try {
+              await mobilePost('/api/mobile/owner/stripe-connect/disconnect');
+              setStripeConnected(false);
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Disconnect failed');
+            } finally {
+              setStripeBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  }
 
   async function save() {
     setSaving(true);
@@ -109,6 +156,32 @@ export default function OwnerSettings() {
           : <Text style={styles.saveBtnText}>Save Changes</Text>
         }
       </TouchableOpacity>
+
+      <View style={styles.divider} />
+
+      <Text style={styles.sectionLabel}>Payments</Text>
+      <Text style={styles.hint}>Connect Stripe to let clients pay invoices by card through their portal.</Text>
+      {stripeConnected === null ? (
+        <ActivityIndicator color="#0ea5e9" style={{ marginTop: 8 }} />
+      ) : stripeConnected ? (
+        <>
+          <View style={[styles.row, { marginBottom: 12 }]}>
+            <View style={styles.statusDot} />
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Stripe connected</Text>
+          </View>
+          <TouchableOpacity style={styles.outlineBtn} onPress={disconnectStripe} disabled={stripeBusy}>
+            {stripeBusy
+              ? <ActivityIndicator color="#ef4444" />
+              : <Text style={styles.outlineBtnTextDanger}>Disconnect Stripe</Text>}
+          </TouchableOpacity>
+        </>
+      ) : (
+        <TouchableOpacity style={styles.saveBtn} onPress={connectStripe} disabled={stripeBusy}>
+          {stripeBusy
+            ? <ActivityIndicator color="#000" />
+            : <Text style={styles.saveBtnText}>Connect Stripe</Text>}
+        </TouchableOpacity>
+      )}
 
       <View style={styles.divider} />
 
@@ -179,4 +252,10 @@ const styles = StyleSheet.create({
     padding: 16, alignItems: 'center', marginTop: 8,
   },
   supportBtnText: { color: '#0ea5e9', fontWeight: '700', fontSize: 15 },
+  statusDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4ade80', marginRight: 10 },
+  outlineBtn: {
+    borderWidth: 1, borderColor: '#ef4444', borderRadius: 12,
+    padding: 14, alignItems: 'center', marginTop: 4,
+  },
+  outlineBtnTextDanger: { color: '#ef4444', fontWeight: '700', fontSize: 15 },
 });
