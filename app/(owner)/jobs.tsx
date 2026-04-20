@@ -54,6 +54,11 @@ export default function OwnerJobs() {
   const [assigning, setAssigning] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
+  // Edit estimate modal
+  const [estimateJob, setEstimateJob] = useState<Job | null>(null);
+  const [estimateAmt, setEstimateAmt] = useState('');
+  const [savingEstimate, setSavingEstimate] = useState(false);
+
   const loadData = useCallback(async () => {
     const user = await getUser();
     try {
@@ -121,6 +126,37 @@ export default function OwnerJobs() {
   async function shareWorkOrder(jobId: string) {
     const url = `https://linkcrew.io/workorder?job_id=${jobId}`;
     await Share.share({ message: `View work order / estimate: ${url}`, url });
+  }
+
+  async function emailWorkOrder(jobId: string) {
+    try {
+      const resp = await mobilePost<{ ok: boolean; emailed_to?: string }>(`/api/mobile/owner/jobs/${jobId}/send-workorder`);
+      Alert.alert('Sent', `Work order emailed to ${resp?.emailed_to || 'client'}.`);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not send email');
+    }
+  }
+
+  function openEstimateModal(job: Job) {
+    setEstimateJob(job);
+    const current = (job as any).estimate_amount;
+    setEstimateAmt(current ? String(current) : '');
+  }
+
+  async function saveEstimate() {
+    if (!estimateJob) return;
+    const n = estimateAmt.trim() === '' ? null : parseFloat(estimateAmt);
+    if (n !== null && (isNaN(n) || n < 0)) return Alert.alert('Invalid amount');
+    setSavingEstimate(true);
+    try {
+      const updated = await mobilePatch<Job>(`/api/mobile/owner/jobs/${estimateJob.id}`, { estimate_amount: n });
+      setJobs(prev => prev.map(j => j.id === estimateJob.id ? { ...j, ...updated } : j));
+      setEstimateJob(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not update');
+    } finally {
+      setSavingEstimate(false);
+    }
   }
 
   async function openAssignModal(jobId: string) {
@@ -217,9 +253,24 @@ export default function OwnerJobs() {
                     </View>
                   ) : null}
 
-                  <TouchableOpacity style={styles.shareBtn} onPress={() => shareWorkOrder(item.id)}>
-                    <Text style={styles.shareBtnText}>📋 Share Work Order</Text>
-                  </TouchableOpacity>
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={styles.sectionLabel}>Estimate / Quote</Text>
+                    <TouchableOpacity style={styles.estimateRow} onPress={() => openEstimateModal(item)}>
+                      <Text style={styles.estimateAmount}>
+                        {(item as any).estimate_amount ? `$${Number((item as any).estimate_amount).toLocaleString()}` : 'Not set'}
+                      </Text>
+                      <Text style={styles.estimateEdit}>Edit</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity style={[styles.shareBtn, { flex: 1 }]} onPress={() => shareWorkOrder(item.id)}>
+                      <Text style={styles.shareBtnText}>Share</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.shareBtn, { flex: 1, backgroundColor: '#0ea5e9' }]} onPress={() => emailWorkOrder(item.id)}>
+                      <Text style={[styles.shareBtnText, { color: '#000' }]}>Email Client</Text>
+                    </TouchableOpacity>
+                  </View>
 
                   <View style={styles.crewHeader}>
                     <Text style={styles.sectionLabel}>Crew</Text>
@@ -266,6 +317,32 @@ export default function OwnerJobs() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={addJob} disabled={saving}>
                 {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Add Job</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Estimate Modal */}
+      <Modal visible={!!estimateJob} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Estimate for {estimateJob?.name}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 2500"
+              placeholderTextColor="#555"
+              value={estimateAmt}
+              onChangeText={setEstimateAmt}
+              keyboardType="decimal-pad"
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEstimateJob(null)} disabled={savingEstimate}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={saveEstimate} disabled={savingEstimate}>
+                {savingEstimate ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Save</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -370,4 +447,11 @@ const styles = StyleSheet.create({
   crewCheckRole: { color: '#666', fontSize: 12, marginTop: 1, textTransform: 'capitalize' },
   shareBtn: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center', marginBottom: 14 },
   shareBtnText: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
+  estimateRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
+    borderRadius: 8, padding: 12,
+  },
+  estimateAmount: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  estimateEdit: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
 });
