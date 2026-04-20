@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Linking } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearUser, getPlan, getUser } from '../../lib/storage';
 import { supabase } from '../../lib/supabase';
 
@@ -14,6 +15,7 @@ type LockState = 'subscription' | 'paused' | 'blocked' | null;
 
 export default function OwnerLayout() {
   const [lockState, setLockState] = useState<LockState>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     async function checkStatus() {
@@ -81,7 +83,7 @@ export default function OwnerLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1e1e1e', height: 60, paddingBottom: 8 },
+        tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1e1e1e', height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
         tabBarActiveTintColor: '#0ea5e9',
         tabBarInactiveTintColor: '#888',
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
