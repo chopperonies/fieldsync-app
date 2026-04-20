@@ -31,11 +31,12 @@ function pipelineFor(key: string) { return PIPELINE.find(p => p.key === normaliz
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function WeekStrip({
-  selectedDay, onSelect, onPickCalendar,
+  selectedDay, onSelect, onPickCalendar, counts,
 }: {
   selectedDay: string;
   onSelect: (day: string) => void;
   onPickCalendar?: () => void;
+  counts?: Record<string, number>;
 }) {
   const selDate = fromDateString(selectedDay) || new Date();
   const sunday = new Date(selDate);
@@ -71,6 +72,7 @@ function WeekStrip({
           const s = toDateString(d);
           const isToday = s === todayStr;
           const isSelected = s === selectedDay;
+          const count = counts?.[s] || 0;
           return (
             <TouchableOpacity key={i} style={weekStyles.cell} onPress={() => onSelect(s)}>
               <Text style={weekStyles.letter}>{DAY_LETTERS[i]}</Text>
@@ -85,6 +87,7 @@ function WeekStrip({
                   isSelected && { color: '#000', fontWeight: '800' },
                 ]}>{d.getDate()}</Text>
               </View>
+              <View style={[weekStyles.dot, count > 0 && weekStyles.dotActive]} />
             </TouchableOpacity>
           );
         })}
@@ -103,6 +106,8 @@ const weekStyles = StyleSheet.create({
   letter: { color: '#666', fontSize: 11, fontWeight: '700' },
   bubble: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   num: { color: '#ddd', fontSize: 14, fontWeight: '700' },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 4 },
+  dotActive: { backgroundColor: '#0ea5e9' },
 });
 
 const ACTIVE_STATUSES = ['active', 'in_progress', 'scheduled', 'on_hold', 'quoted', 'complete'];
@@ -178,6 +183,12 @@ export default function OwnerJobs() {
   const unscheduledActive = dayMode && selectedDay === toDateString(new Date())
     ? jobs.filter(j => !(j as any).scheduled_date && ACTIVE_STATUSES.includes(normalizeStatus(j.status || '')))
     : [];
+  // Count jobs per scheduled_date for the week-strip dots.
+  const scheduleCounts: Record<string, number> = jobs.reduce((acc, j) => {
+    const sd = (j as any).scheduled_date as string | null;
+    if (sd) acc[sd] = (acc[sd] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   async function addJob() {
     if (!newName.trim() || !newAddress.trim()) return Alert.alert('Fill in both fields');
@@ -218,6 +229,7 @@ export default function OwnerJobs() {
             selectedDay={selectedDay}
             onSelect={setSelectedDay}
             onPickCalendar={() => setPickerOpen('weekjump')}
+            counts={scheduleCounts}
           />
           <View style={styles.dayModeControls}>
             {selectedDay !== toDateString(new Date()) && (

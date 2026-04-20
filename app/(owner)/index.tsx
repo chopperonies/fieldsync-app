@@ -40,6 +40,7 @@ interface Stats {
   todayJobs?: HomeJob[];
   stuckJobs?: HomeJob[];
   recentActivity?: Activity[];
+  scheduleByDay?: Record<string, number>;
   jobBreakdown: { id: string; name: string; crew: number; pendingSupplies: number }[];
 }
 
@@ -113,8 +114,9 @@ export default function OwnerOverview() {
 
   const safe: Stats = stats || {
     activeJobs: 0, crewOnSite: 0, pendingSupplies: 0, bottlenecksToday: 0,
-    jobBreakdown: [], todayJobs: [], stuckJobs: [], recentActivity: [],
+    jobBreakdown: [], todayJobs: [], stuckJobs: [], recentActivity: [], scheduleByDay: {},
   };
+  const scheduleByDay = safe.scheduleByDay || {};
   const today = new Date();
   const dateLabel = today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const greeting = (() => {
@@ -220,6 +222,7 @@ export default function OwnerOverview() {
         {days.map((d, i) => {
           const isToday = i === todayIdx;
           const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const count = scheduleByDay[iso] || 0;
           return (
             <TouchableOpacity
               key={i}
@@ -231,6 +234,7 @@ export default function OwnerOverview() {
               <View style={[styles.dayBubble, isToday && styles.dayBubbleToday]}>
                 <Text style={[styles.dayNumber, isToday && styles.dayNumberToday]}>{d.getDate()}</Text>
               </View>
+              <View style={[styles.dayDot, count > 0 && styles.dayDotActive]} />
             </TouchableOpacity>
           );
         })}
@@ -412,6 +416,11 @@ const styles = StyleSheet.create({
   dayBubbleToday: { backgroundColor: '#0ea5e9' },
   dayNumber: { color: '#bbb', fontSize: 14, fontWeight: '700' },
   dayNumberToday: { color: '#000', fontWeight: '800' },
+  dayDot: {
+    width: 4, height: 4, borderRadius: 2,
+    backgroundColor: 'transparent', marginTop: 4,
+  },
+  dayDotActive: { backgroundColor: '#0ea5e9' },
 
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   sectionLabel: { color: '#ddd', fontSize: 14, fontWeight: '800', marginTop: 6 },
