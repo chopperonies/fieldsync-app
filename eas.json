@@ -17,6 +17,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       },
@@ -27,6 +28,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://hudgymvdurwelpqzowjv.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1ZGd5bXZkdXJ3ZWxwcXpvd2p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NDAyNDQsImV4cCI6MjA5MDMxNjI0NH0.N1QaFMA4XzP8CNIchJiZXqXs5OnsnwmMkiL7fmVM_Sg"
