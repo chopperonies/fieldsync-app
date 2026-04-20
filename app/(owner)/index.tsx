@@ -153,7 +153,7 @@ export default function OwnerOverview() {
     sub: `Stuck ${j.updated_at ? timeAgo(j.updated_at) : ''}${j.stage_name ? ` · ${j.stage_name}` : ''}`,
     icon: 'warning-outline',
     color: '#f59e0b',
-    onPress: () => router.push('/(owner)/jobs?filter=active' as any),
+    onPress: () => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any),
   }));
   if (safe.pendingSupplies > 0) todoItems.push({
     id: 'supplies',
@@ -229,7 +229,7 @@ export default function OwnerOverview() {
         <>
           <Text style={styles.sectionLabel}>To do</Text>
           {todoItems.map(t => (
-            <TouchableOpacity key={t.id} style={styles.todoRow} onPress={t.onPress} activeOpacity={0.75}>
+            <TouchableOpacity key={`${t.id}`} style={styles.todoRow} onPress={t.onPress} activeOpacity={0.75}>
               <View style={[styles.todoIcon, { backgroundColor: t.color + '22', borderColor: t.color + '55' }]}>
                 <Ionicons name={t.icon} size={18} color={t.color} />
               </View>
@@ -271,7 +271,7 @@ export default function OwnerOverview() {
           <TouchableOpacity
             key={j.id}
             style={styles.jobCard}
-            onPress={() => router.push('/(owner)/jobs' as any)}
+            onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
             activeOpacity={0.75}
           >
             <View style={styles.jobTop}>

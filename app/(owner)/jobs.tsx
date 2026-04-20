@@ -4,7 +4,7 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
   Modal, ScrollView, Share, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Job, Employee } from '../../lib/supabase';
@@ -435,7 +435,7 @@ export default function OwnerJobs() {
                   <TouchableOpacity
                     key={j.id}
                     style={[styles.card, { marginBottom: 10 }]}
-                    onPress={() => openDetailsModal(j)}
+                    onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
                     activeOpacity={0.75}
                   >
                     <View style={styles.cardRow}>
@@ -443,12 +443,9 @@ export default function OwnerJobs() {
                         <Text style={styles.jobName}>{j.name}</Text>
                         <Text style={styles.jobAddress}>{j.address}</Text>
                       </View>
-                      <TouchableOpacity
-                        onPress={(e) => { e.stopPropagation?.(); openDetailsModal(j); }}
-                        style={styles.dayBadge}
-                      >
+                      <View style={styles.dayBadge}>
                         <Text style={styles.dayBadgeText}>SCHEDULE</Text>
-                      </TouchableOpacity>
+                      </View>
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -457,117 +454,41 @@ export default function OwnerJobs() {
             : null
         }
         renderItem={({ item }) => {
-          const isOpen = selected === item.id;
           const stage = pipelineFor(item.status);
-          const assigned = assignedMap[item.id] || [];
-
+          const sd = (item as any).scheduled_date as string | null;
+          const amt = Number((item as any).invoice_amount) || Number((item as any).estimate_amount) || 0;
           return (
             <TouchableOpacity
               style={styles.card}
-              onPress={() => toggleExpand(item.id)}
+              onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: item.id } } as any)}
               activeOpacity={0.8}
             >
               <View style={styles.cardRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.jobName}>{item.name}</Text>
-                  <Text style={styles.jobAddress}>{item.address}</Text>
+                  {item.address ? <Text style={styles.jobAddress}>{item.address}</Text> : null}
+                  <View style={styles.cardMetaRow}>
+                    {sd ? (
+                      <View style={styles.metaChip}>
+                        <Ionicons name="calendar-outline" size={12} color="#0ea5e9" />
+                        <Text style={styles.metaChipText}>{prettyDate(sd)}</Text>
+                      </View>
+                    ) : null}
+                    {amt > 0 ? (
+                      <View style={styles.metaChip}>
+                        <Ionicons name="cash-outline" size={12} color="#4ade80" />
+                        <Text style={[styles.metaChipText, { color: '#4ade80' }]}>${amt.toLocaleString()}</Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
-                <View style={[styles.stageBadge, { backgroundColor: stage.color + '22' }]}>
-                  <Text style={[styles.stageText, { color: stage.color }]}>{stage.label}</Text>
+                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                  <View style={[styles.stageBadge, { backgroundColor: stage.color + '22' }]}>
+                    <Text style={[styles.stageText, { color: stage.color }]}>{stage.label}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#555" />
                 </View>
               </View>
-
-              {isOpen && (
-                <View style={styles.expanded}>
-                  <Text style={styles.sectionLabel}>Status</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                    <View style={styles.pipelineRow}>
-                      {PIPELINE.map(p => {
-                        const active = normalizeStatus(item.status) === p.key;
-                        return (
-                          <TouchableOpacity
-                            key={p.key}
-                            style={[styles.pipeChip, active && { backgroundColor: p.color + '33', borderColor: p.color }]}
-                            onPress={() => updateStatus(item.id, p.key)}
-                          >
-                            <Text style={[styles.pipeChipText, active && { color: p.color }]}>{p.label}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </ScrollView>
-
-                  <View style={{ marginBottom: 14 }}>
-                    <View style={styles.sectionHeaderRow}>
-                      <Text style={styles.sectionLabel}>Scope of Work</Text>
-                      <TouchableOpacity
-                        onPress={(e) => { e.stopPropagation?.(); openDetailsModal(item); }}
-                        style={styles.editInlineBtn}
-                      >
-                        <Text style={styles.editInlineBtnText}>
-                          {(item as any).description || ((item as any).checklist_items?.length ?? 0) > 0 ? 'Edit' : 'Add'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                    {(item as any).description ? (
-                      <Text style={{ color: '#ddd', fontSize: 13, lineHeight: 19, marginTop: 4 }}>{(item as any).description}</Text>
-                    ) : null}
-                    {Array.isArray((item as any).checklist_items) && (item as any).checklist_items.length > 0 && (
-                      <View style={{ marginTop: 8 }}>
-                        {(item as any).checklist_items.map((line: string, i: number) => (
-                          <View key={i} style={{ flexDirection: 'row', gap: 6, paddingVertical: 2 }}>
-                            <Text style={{ color: '#0ea5e9', fontWeight: '700' }}>•</Text>
-                            <Text style={{ color: '#ddd', fontSize: 13, flex: 1 }}>{line}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                    {!(item as any).description && !((item as any).checklist_items?.length) && (
-                      <Text style={{ color: '#666', fontSize: 12, marginTop: 4, fontStyle: 'italic' }}>
-                        No scope yet — tap Add to set the description and checklist. Crew on site will be pinged when you save.
-                      </Text>
-                    )}
-                  </View>
-                  <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionLabel}>Estimate / Quote</Text>
-                    <TouchableOpacity style={styles.estimateRow} onPress={() => openEstimateModal(item)}>
-                      <Text style={styles.estimateAmount}>
-                        {(item as any).estimate_amount ? `$${Number((item as any).estimate_amount).toLocaleString()}` : 'Not set'}
-                      </Text>
-                      <Text style={styles.estimateEdit}>Edit</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity style={[styles.shareBtn, { flex: 1 }]} onPress={() => shareWorkOrder(item.id)}>
-                      <Text style={styles.shareBtnText}>Share</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.shareBtn, { flex: 1, backgroundColor: '#0ea5e9' }]} onPress={() => emailWorkOrder(item.id)}>
-                      <Text style={[styles.shareBtnText, { color: '#000' }]}>Email Client</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.crewHeader}>
-                    <Text style={styles.sectionLabel}>Crew</Text>
-                    <TouchableOpacity onPress={() => openAssignModal(item.id)}>
-                      <Text style={styles.assignLink}>+ Assign</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {assigned.length === 0
-                    ? <Text style={styles.noCrewText}>No crew assigned</Text>
-                    : assigned.map(a => (
-                      <View key={a.employee_id} style={styles.crewRow}>
-                        <Text style={styles.crewName}>{(a.employees as any)?.name}</Text>
-                        <View style={[styles.crewBadge, a.checked_in_at ? styles.onSiteBadge : styles.assignedBadge]}>
-                          <Text style={[styles.crewBadgeText, { color: a.checked_in_at ? '#4ade80' : '#3b82f6' }]}>
-                            {a.checked_in_at ? 'On site' : 'Assigned'}
-                          </Text>
-                        </View>
-                      </View>
-                    ))
-                  }
-                </View>
-              )}
             </TouchableOpacity>
           );
         }}
@@ -854,4 +775,7 @@ const styles = StyleSheet.create({
     borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8,
   },
   dayBadgeText: { color: '#0ea5e9', fontSize: 10, fontWeight: '800' },
+  cardMetaRow: { flexDirection: 'row', gap: 10, marginTop: 8, flexWrap: 'wrap' },
+  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaChipText: { color: '#888', fontSize: 12, fontWeight: '600' },
 });
