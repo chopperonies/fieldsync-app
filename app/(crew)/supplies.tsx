@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, Image
+  ScrollView, Alert, ActivityIndicator, Image,
+  KeyboardAvoidingView, Platform
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase, Job } from '../../lib/supabase';
@@ -74,7 +75,15 @@ export default function Supplies() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: 120 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.sectionLabel}>Job Site</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.jobScroll}>
         {jobs.map(j => (
@@ -128,6 +137,7 @@ export default function Supplies() {
         }
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

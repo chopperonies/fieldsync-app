@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator
+  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { Job } from '../../lib/supabase';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
@@ -36,7 +36,15 @@ export default function Bottleneck() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: 120 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.banner}>
         <Text style={styles.bannerIcon}>🚧</Text>
         <Text style={styles.bannerText}>Flag something blocking your work — waiting on materials, inspection hold, safety issue, etc.</Text>
@@ -75,6 +83,7 @@ export default function Bottleneck() {
         }
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
