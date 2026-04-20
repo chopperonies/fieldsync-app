@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, Linking
+  ActivityIndicator, Alert, Linking, TextInput, Modal
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import { mobileGet, mobilePatch } from '../../../lib/mobileApi';
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../../../lib/supabase';
+import { mobileGet, mobilePatch, mobilePost } from '../../../lib/mobileApi';
 
 type Step = { order: number; label: string; required?: boolean };
 type ActionButton = { label: string; action_type: string; style?: string; config?: any };
@@ -108,6 +110,64 @@ export default function JobDetailScreen() {
     }
   }
 
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [cameraBusy, setCameraBusy] = useState(false);
+
+  async function uploadJobPhoto(base64: string): Promise<string | null> {
+    if (!job) return null;
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const fileName = `${job.id}/${Date.now()}.jpg`;
+    const { error } = await supabase.storage
+      .from('photos')
+      .upload(fileName, bytes, { contentType: 'image/jpeg' });
+    if (error) throw new Error(error.message);
+    const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
+    return data.publicUrl;
+  }
+
+  async function handleOpenCamera() {
+    if (!job) return;
+    setCameraBusy(true);
+    try {
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
+      if (result.canceled || !result.assets[0].base64) return;
+      const url = await uploadJobPhoto(result.assets[0].base64);
+      if (!url) return;
+      await mobilePost(`/api/mobile/crew/jobs/${job.id}/updates`, {
+        type: 'photo',
+        message: 'Site photo',
+        photo_url: url,
+      });
+      Alert.alert('Uploaded', 'Photo saved to this job.');
+    } catch (e: any) {
+      Alert.alert('Failed', e.message || 'Could not save photo.');
+    } finally {
+      setCameraBusy(false);
+    }
+  }
+
+  async function submitNoteFromModal() {
+    if (!job || !noteText.trim()) return;
+    setNoteSaving(true);
+    try {
+      await mobilePost(`/api/mobile/crew/jobs/${job.id}/updates`, {
+        type: 'note',
+        message: noteText.trim(),
+      });
+      setNoteText('');
+      setNoteModalOpen(false);
+      Alert.alert('Note saved');
+    } catch (e: any) {
+      Alert.alert('Failed', e.message || 'Could not save note.');
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
   function runAction(btn: ActionButton) {
     if (!job) return;
     switch (btn.action_type) {
@@ -120,6 +180,22 @@ export default function JobDetailScreen() {
       case 'call_customer': {
         if (!clientPhone) return Alert.alert('No phone', 'Client has no phone on file.');
         Linking.openURL(`tel:${String(clientPhone).replace(/[^\d+]/g, '')}`);
+        break;
+      }
+      case 'open_camera': {
+        handleOpenCamera();
+        break;
+      }
+      case 'add_note': {
+        setNoteModalOpen(true);
+        break;
+      }
+      case 'create_po': {
+        router.push('/(crew)/supplies' as any);
+        break;
+      }
+      case 'generate_estimate': {
+        Linking.openURL(`https://linkcrew.io/workorder?job_id=${encodeURIComponent(job.id)}`);
         break;
       }
       default:
@@ -227,6 +303,36 @@ export default function JobDetailScreen() {
           </>
         )}
       </ScrollView>
+      <Modal visible={noteModalOpen} transparent animationType="fade" onRequestClose={() => setNoteModalOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Add a note</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="What's happening on site?"
+              placeholderTextColor="#555"
+              value={noteText}
+              onChangeText={setNoteText}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => { setNoteText(''); setNoteModalOpen(false); }} style={styles.modalCancel}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={submitNoteFromModal} style={styles.modalSave} disabled={noteSaving || !noteText.trim()}>
+                {noteSaving ? <ActivityIndicator color="#000" /> : <Text style={styles.modalSaveText}>Save Note</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {cameraBusy && (
+        <View style={styles.busyOverlay}>
+          <ActivityIndicator size="large" color="#0ea5e9" />
+          <Text style={styles.busyText}>Uploading photo…</Text>
+        </View>
+      )}
     </>
   );
 }
@@ -265,4 +371,29 @@ const styles = StyleSheet.create({
   check: { color: '#fff', fontWeight: '800', fontSize: 14 },
   stepLabel: { color: '#e5e5e5', fontSize: 14, flex: 1 },
   stepLabelDone: { color: '#666', textDecorationLine: 'line-through' },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#1a1a1a', borderRadius: 16, padding: 18, gap: 12,
+    borderWidth: 1, borderColor: '#2a2a2a',
+  },
+  modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  modalInput: {
+    minHeight: 100, backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
+    borderRadius: 10, padding: 12, color: '#fff', fontSize: 15, textAlignVertical: 'top',
+  },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
+  modalCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
+  modalCancelText: { color: '#888', fontWeight: '600' },
+  modalSave: {
+    paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, backgroundColor: '#0ea5e9',
+    opacity: 1, minWidth: 100, alignItems: 'center',
+  },
+  modalSaveText: { color: '#000', fontWeight: '700' },
+  busyOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', gap: 12,
+  },
+  busyText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });
