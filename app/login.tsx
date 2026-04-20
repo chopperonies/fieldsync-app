@@ -12,18 +12,40 @@ import { registerPushToken } from '../lib/notifications';
 
 export default function Login() {
   const [role, setRole] = useState<LoginRole>('owner');
+  const [hasRemembered, setHasRemembered] = useState(false);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    (async () => setRole(await getLoginRole()))();
+    (async () => {
+      const remembered = await getLoginRole();
+      setRole(remembered);
+      setHasRemembered(true);
+    })();
   }, []);
 
-  async function onRoleChange(next: LoginRole) {
+  function switchRole(next: LoginRole) {
+    // Casual switch crew → crew is free. Switching to owner gets a warning
+    // when this device was previously signed in as crew.
+    if (next === 'owner' && hasRemembered && role === 'crew') {
+      Alert.alert(
+        'Sign in as Owner?',
+        'Only continue if you are the account owner. Failed owner sign-in attempts are logged.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Continue',
+            style: 'destructive',
+            onPress: () => { setRole('owner'); setLoginRole('owner'); },
+          },
+        ],
+      );
+      return;
+    }
     setRole(next);
-    await setLoginRole(next);
+    setLoginRole(next);
   }
 
   async function loginCrew() {
@@ -72,6 +94,8 @@ export default function Login() {
 
   async function finishLogin(employee: any) {
     await saveUser(employee);
+    // Remember the role on this device — next login screen defaults to it.
+    await setLoginRole(employee.role === 'owner' ? 'owner' : 'crew');
 
     if (employee.role === 'owner' && employee.tenant_id) {
       try {
@@ -116,20 +140,9 @@ export default function Login() {
         <Text style={styles.logo}>LinkCrew</Text>
         <Text style={styles.subtitle}>Field crew management</Text>
 
-        <View style={styles.toggle}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, role === 'owner' && styles.toggleBtnActive]}
-            onPress={() => onRoleChange('owner')}
-          >
-            <Text style={[styles.toggleText, role === 'owner' && styles.toggleTextActive]}>Owner</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleBtn, role === 'crew' && styles.toggleBtnActive]}
-            onPress={() => onRoleChange('crew')}
-          >
-            <Text style={[styles.toggleText, role === 'crew' && styles.toggleTextActive]}>Crew / Manager</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.roleHeader}>
+          {role === 'owner' ? 'Sign in as Owner' : 'Sign in as Crew / Manager'}
+        </Text>
 
         {role === 'owner' ? (
           <>
@@ -160,6 +173,9 @@ export default function Login() {
                 : <Text style={styles.buttonText}>Sign In</Text>}
             </TouchableOpacity>
             <Text style={styles.hint}>Use the same email and password you use at linkcrew.io/app.</Text>
+            <TouchableOpacity onPress={() => switchRole('crew')} style={styles.switchLink}>
+              <Text style={styles.switchText}>I'm crew / manager — sign in with phone instead</Text>
+            </TouchableOpacity>
           </>
         ) : (
           <>
@@ -178,6 +194,9 @@ export default function Login() {
                 : <Text style={styles.buttonText}>Sign In</Text>}
             </TouchableOpacity>
             <Text style={styles.hint}>Your manager adds you to the team by phone number. Contact them if you can't sign in.</Text>
+            <TouchableOpacity onPress={() => switchRole('owner')} style={styles.switchLink}>
+              <Text style={styles.switchText}>I'm the account owner — sign in with email</Text>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -190,14 +209,9 @@ const styles = StyleSheet.create({
   inner: { flexGrow: 1, justifyContent: 'center', padding: 28 },
   logo: { fontSize: 36, fontWeight: '800', color: '#0ea5e9', marginBottom: 6 },
   subtitle: { fontSize: 16, color: '#666', marginBottom: 32 },
-  toggle: {
-    flexDirection: 'row', backgroundColor: '#111', borderRadius: 12,
-    padding: 4, marginBottom: 18, borderWidth: 1, borderColor: '#1e1e1e',
-  },
-  toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 },
-  toggleBtnActive: { backgroundColor: '#0ea5e9' },
-  toggleText: { color: '#666', fontSize: 14, fontWeight: '700' },
-  toggleTextActive: { color: '#000' },
+  roleHeader: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 14 },
+  switchLink: { padding: 14, alignItems: 'center', marginTop: 4 },
+  switchText: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
   input: {
     backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
     borderRadius: 12, padding: 16, fontSize: 16, color: '#fff', marginBottom: 12,
