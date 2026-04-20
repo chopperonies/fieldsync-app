@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal, Linking
+  StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal, Linking,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Employee, Role } from '../../lib/supabase';
 import { getPlan } from '../../lib/storage';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
@@ -32,6 +35,13 @@ export default function OwnerCrew() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ open?: string }>();
+  useEffect(() => {
+    if (params.open === 'new') handleAddPress();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.open]);
 
   async function handleAddPress() {
     const plan = await getPlan();
@@ -136,13 +146,12 @@ export default function OwnerCrew() {
         )}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={handleAddPress}>
-        <Text style={styles.fabText}>+ Add Member</Text>
-      </TouchableOpacity>
-
       <Modal visible={showAdd} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom }]}>
             <Text style={styles.modalTitle}>Add Crew Member</Text>
             <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#555" value={newName} onChangeText={setNewName} />
             <TextInput style={styles.input} placeholder="Phone number" placeholderTextColor="#555" value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
@@ -167,7 +176,7 @@ export default function OwnerCrew() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

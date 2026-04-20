@@ -78,6 +78,12 @@ export default function OwnerFab() {
                 color="#facc15"
                 onPress={() => go('/(owner)/invoices?open=record_payment')}
               />
+              <ActionTile
+                icon="person-circle"
+                label="Crew"
+                color="#f472b6"
+                onPress={() => go('/(owner)/crew?open=new')}
+              />
             </View>
           </Pressable>
         </Pressable>

@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Modal, ScrollView, Linking
+  Modal, ScrollView, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Client } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
@@ -50,6 +51,7 @@ export default function OwnerClients() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ open?: string }>();
   useEffect(() => {
     if (params.open === 'new') setShowAdd(true);
@@ -152,9 +154,12 @@ export default function OwnerClients() {
       />
 
       <Modal visible={showAdd} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <ScrollView>
-            <View style={styles.modal}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
+            <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>New Client</Text>
               <TextInput style={styles.input} placeholder="Full name *" placeholderTextColor="#555" value={newName} onChangeText={setNewName} />
               <TextInput style={styles.input} placeholder="Company (optional)" placeholderTextColor="#555" value={newCompany} onChangeText={setNewCompany} />
@@ -176,9 +181,9 @@ export default function OwnerClients() {
                   {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Add Client</Text>}
                 </TouchableOpacity>
               </View>
-            </View>
-          </ScrollView>
-        </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

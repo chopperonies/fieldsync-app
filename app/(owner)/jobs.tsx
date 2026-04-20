@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Modal, ScrollView, Share, Linking
+  Modal, ScrollView, Share, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Job, Employee } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
@@ -78,6 +79,7 @@ export default function OwnerJobs() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ open?: string }>();
   useEffect(() => {
     if (params.open === 'new' || params.open === 'new_quote') setShowAdd(true);
@@ -307,8 +309,11 @@ export default function OwnerJobs() {
 
       {/* Add Job Modal */}
       <Modal visible={showAdd} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom }]}>
             <Text style={styles.modalTitle}>New Job Site</Text>
             <TextInput style={styles.input} placeholder="Job name" placeholderTextColor="#555" value={newName} onChangeText={setNewName} />
             <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#555" value={newAddress} onChangeText={setNewAddress} />
@@ -323,13 +328,16 @@ export default function OwnerJobs() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Edit Estimate Modal */}
       <Modal visible={!!estimateJob} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom }]}>
             <Text style={styles.modalTitle}>Estimate for {estimateJob?.name}</Text>
             <TextInput
               style={styles.input}
@@ -349,13 +357,13 @@ export default function OwnerJobs() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Assign Crew Modal */}
       <Modal visible={!!assignJobId} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modal, { maxHeight: '70%' }]}>
+          <View style={[styles.modal, { maxHeight: '70%', paddingBottom: 24 + insets.bottom }]}>
             <Text style={styles.modalTitle}>Assign Crew</Text>
             <ScrollView>
               {allCrew.map(emp => {
