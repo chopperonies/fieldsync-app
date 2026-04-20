@@ -21,6 +21,17 @@ type WorkflowStatus = {
   action_buttons: ActionButton[];
   legacy_status?: string | null;
 };
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 type Workflow = { id: string; name: string; statuses: WorkflowStatus[] };
 type Job = {
   id: string;
@@ -32,7 +43,12 @@ type Job = {
     current_status_id?: string;
     completed_steps?: Record<string, number[]>;
   };
+  description?: string | null;
+  checklist_items?: string[] | null;
+  scope_updated_at?: string | null;
+  scope_updated_by_name?: string | null;
 };
+type Ack = { acked_at: string; acked_scope_updated_at: string } | null;
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,6 +59,8 @@ export default function JobDetailScreen() {
   const [busy, setBusy] = useState(false);
 
   const [clientPhone, setClientPhone] = useState<string | null>(null);
+  const [ack, setAck] = useState<Ack>(null);
+  const [acking, setAcking] = useState(false);
 
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -51,9 +69,10 @@ export default function JobDetailScreen() {
     setLoadError(null);
     setLoading(true);
     try {
-      const payload = await mobileGet<{ job: Job; client: { phone?: string } | null }>(`/api/mobile/crew/jobs/${id}`);
+      const payload = await mobileGet<{ job: Job; client: { phone?: string } | null; ack: Ack }>(`/api/mobile/crew/jobs/${id}`);
       setJob(payload.job);
       setClientPhone(payload.client?.phone || null);
+      setAck(payload.ack || null);
       if (payload.job?.workflow_id) {
         const workflows: Workflow[] = await mobileGet('/api/mobile/crew/workflows');
         const matched = workflows.find(w => w.id === payload.job.workflow_id) || null;
@@ -172,6 +191,23 @@ export default function JobDetailScreen() {
     }
   }
 
+  async function ackScopeUpdate() {
+    if (!job || acking) return;
+    setAcking(true);
+    try {
+      const resp = await mobilePost<{ ok: boolean; acked_scope_updated_at: string | null }>(
+        `/api/mobile/crew/jobs/${job.id}/scope/ack`
+      );
+      if (resp?.acked_scope_updated_at) {
+        setAck({ acked_at: new Date().toISOString(), acked_scope_updated_at: resp.acked_scope_updated_at });
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not save acknowledgement');
+    } finally {
+      setAcking(false);
+    }
+  }
+
   function runAction(btn: ActionButton) {
     if (!job) return;
     switch (btn.action_type) {
@@ -245,10 +281,47 @@ export default function JobDetailScreen() {
         </TouchableOpacity>
       </View>
       <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, gap: 14 }}>
+        {job.scope_updated_at && (!ack || job.scope_updated_at > ack.acked_scope_updated_at) && (
+          <View style={styles.scopeBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.scopeBannerTitle}>Instructions updated</Text>
+              <Text style={styles.scopeBannerBody}>
+                {job.scope_updated_by_name || 'Your team'} changed this job {timeAgo(job.scope_updated_at)}. Review the latest scope before continuing.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.scopeBannerBtn, acking && { opacity: 0.5 }]}
+              onPress={ackScopeUpdate}
+              disabled={acking}
+            >
+              <Text style={styles.scopeBannerBtnText}>{acking ? '…' : 'Got it'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View>
           <Text style={styles.jobName}>{job.name}</Text>
           {job.address ? <Text style={styles.jobAddress}>{job.address}</Text> : null}
         </View>
+
+        {(job.description || (job.checklist_items && job.checklist_items.length > 0)) && (
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>Scope of work</Text>
+            {job.description ? (
+              <Text style={styles.scopeText}>{job.description}</Text>
+            ) : null}
+            {job.checklist_items && job.checklist_items.length > 0 && (
+              <View style={{ marginTop: job.description ? 12 : 0 }}>
+                {job.checklist_items.map((item, i) => (
+                  <View key={i} style={styles.scopeLineRow}>
+                    <Text style={styles.scopeBullet}>•</Text>
+                    <Text style={styles.scopeLine}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {!workflow ? (
           <View style={styles.card}>
@@ -389,6 +462,22 @@ const styles = StyleSheet.create({
   actionBtnSolid: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
   actionBtnText: { color: '#ccc', fontSize: 13, fontWeight: '700' },
   checklistHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  scopeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#422006', borderWidth: 1, borderColor: '#f59e0b',
+    borderRadius: 12, padding: 14,
+  },
+  scopeBannerTitle: { color: '#fef3c7', fontSize: 14, fontWeight: '800' },
+  scopeBannerBody: { color: '#fde68a', fontSize: 12, marginTop: 2, lineHeight: 17 },
+  scopeBannerBtn: {
+    backgroundColor: '#f59e0b', borderRadius: 8,
+    paddingVertical: 8, paddingHorizontal: 14,
+  },
+  scopeBannerBtnText: { color: '#000', fontWeight: '800', fontSize: 13 },
+  scopeText: { color: '#ddd', fontSize: 14, lineHeight: 20 },
+  scopeLineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
+  scopeBullet: { color: '#0ea5e9', fontSize: 16, fontWeight: '700', lineHeight: 20 },
+  scopeLine: { color: '#ddd', fontSize: 14, lineHeight: 20, flex: 1 },
   stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8 },
   checkbox: {
     width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#3a3a3a',

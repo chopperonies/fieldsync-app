@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AppState, AppStateStatus } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { getLockMethod, getLockPrompted, setLockPrompted, getUser, LockMethod } from '../lib/storage';
 import LockScreen from '../components/LockScreen';
 import LockSetup from '../components/LockSetup';
@@ -18,6 +19,20 @@ export default function RootLayout() {
     setLockMethodState(m);
     if (user && !prompted) setShowSetup(true);
     return { m, user };
+  }, []);
+
+  // Route notification taps to the right screen. Scope-update push opens
+  // the crew job detail so the tech sees the update + ack banner in one tap.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(resp => {
+      const data: any = resp?.notification?.request?.content?.data || {};
+      if (data.type === 'scope_updated' && data.job_id) {
+        router.push({ pathname: '/(crew)/job/[id]', params: { id: String(data.job_id) } } as any);
+      } else if (data.type === 'appointment' && data.job_id) {
+        router.push({ pathname: '/(crew)/job/[id]', params: { id: String(data.job_id) } } as any);
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
