@@ -203,24 +203,26 @@ export default function OwnerOverview() {
         ]}>{hero.cta} ›</Text>
       </TouchableOpacity>
 
-      {/* Week strip */}
-      <TouchableOpacity
-        style={styles.weekStrip}
-        onPress={() => router.push('/(owner)/dashboard' as any)}
-        activeOpacity={0.8}
-      >
+      {/* Week strip — taps through to Schedule on the chosen day */}
+      <View style={styles.weekStrip}>
         {days.map((d, i) => {
           const isToday = i === todayIdx;
+          const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           return (
-            <View key={i} style={styles.dayCell}>
+            <TouchableOpacity
+              key={i}
+              style={styles.dayCell}
+              onPress={() => router.push(`/(owner)/jobs?day=${iso}` as any)}
+              activeOpacity={0.7}
+            >
               <Text style={styles.dayLetter}>{DAY_LETTERS[i]}</Text>
               <View style={[styles.dayBubble, isToday && styles.dayBubbleToday]}>
                 <Text style={[styles.dayNumber, isToday && styles.dayNumberToday]}>{d.getDate()}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
-      </TouchableOpacity>
+      </View>
 
       {/* To do */}
       {todoItems.length > 0 && (

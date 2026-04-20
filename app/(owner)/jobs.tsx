@@ -6,10 +6,93 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Job, Employee } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
+import CalendarPicker, { toDateString, fromDateString, prettyDate } from '../../components/CalendarPicker';
+
+// Horizontal week strip used by the Schedule tab. Anchors off selectedDay
+// so prev/next shift the visible week by 7 days.
+const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+function WeekStrip({
+  selectedDay, onSelect, onPickCalendar,
+}: {
+  selectedDay: string;
+  onSelect: (day: string) => void;
+  onPickCalendar?: () => void;
+}) {
+  const selDate = fromDateString(selectedDay) || new Date();
+  const sunday = new Date(selDate);
+  sunday.setDate(selDate.getDate() - selDate.getDay());
+  sunday.setHours(0, 0, 0, 0);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday); d.setDate(sunday.getDate() + i); return d;
+  });
+  const todayStr = toDateString(new Date());
+  const endOfWeek = new Date(sunday); endOfWeek.setDate(sunday.getDate() + 6);
+  const monthLabel = `${days[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${endOfWeek.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+
+  function shift(delta: number) {
+    const next = new Date(sunday); next.setDate(sunday.getDate() + delta);
+    onSelect(toDateString(next));
+  }
+
+  return (
+    <View style={weekStyles.wrap}>
+      <View style={weekStyles.headerRow}>
+        <TouchableOpacity onPress={() => shift(-7)} style={weekStyles.navBtn}>
+          <Ionicons name="chevron-back" size={18} color="#ddd" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onPickCalendar} style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={weekStyles.label}>{monthLabel}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => shift(7)} style={weekStyles.navBtn}>
+          <Ionicons name="chevron-forward" size={18} color="#ddd" />
+        </TouchableOpacity>
+      </View>
+      <View style={weekStyles.row}>
+        {days.map((d, i) => {
+          const s = toDateString(d);
+          const isToday = s === todayStr;
+          const isSelected = s === selectedDay;
+          return (
+            <TouchableOpacity key={i} style={weekStyles.cell} onPress={() => onSelect(s)}>
+              <Text style={weekStyles.letter}>{DAY_LETTERS[i]}</Text>
+              <View style={[
+                weekStyles.bubble,
+                isToday && !isSelected && { borderWidth: 1, borderColor: '#0ea5e9' },
+                isSelected && { backgroundColor: '#0ea5e9' },
+              ]}>
+                <Text style={[
+                  weekStyles.num,
+                  isToday && !isSelected && { color: '#0ea5e9' },
+                  isSelected && { color: '#000', fontWeight: '800' },
+                ]}>{d.getDate()}</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const weekStyles = StyleSheet.create({
+  wrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, backgroundColor: '#0a0a0a' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  navBtn: { padding: 6 },
+  label: { color: '#ddd', fontSize: 13, fontWeight: '700' },
+  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  cell: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
+  letter: { color: '#666', fontSize: 11, fontWeight: '700' },
+  bubble: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  num: { color: '#ddd', fontSize: 14, fontWeight: '700' },
+});
 
 const PIPELINE = [
   { key: 'quoted',      label: 'Quoted',      color: '#6366f1' },
@@ -71,12 +154,29 @@ export default function OwnerJobs() {
   const [filter, setFilter] = useState<'active' | 'invoiced' | 'all'>('active');
   const ACTIVE_STATUSES = ['active', 'in_progress', 'scheduled', 'on_hold', 'quoted', 'complete'];
   const INVOICED_STATUSES = ['invoiced'];
+
+  // Schedule day view
+  const [selectedDay, setSelectedDay] = useState<string>(toDateString(new Date()));
+  const [dayMode, setDayMode] = useState<boolean>(true);
+
+  // Calendar picker state for create/edit
+  const [pickerOpen, setPickerOpen] = useState<null | 'new' | 'details' | 'weekjump'>(null);
+  const [newScheduledDate, setNewScheduledDate] = useState<string | null>(null);
+  const [detailsScheduledDate, setDetailsScheduledDate] = useState<string | null>(null);
+
   const filteredJobs = jobs.filter(j => {
+    if (dayMode) {
+      const sd = (j as any).scheduled_date as string | null;
+      return sd === selectedDay;
+    }
     const s = normalizeStatus(j.status || '');
     if (filter === 'active') return ACTIVE_STATUSES.includes(s);
     if (filter === 'invoiced') return INVOICED_STATUSES.includes(s) || (j as any).payment_status === 'paid';
     return true;
   });
+  const unscheduledActive = dayMode && selectedDay === toDateString(new Date())
+    ? jobs.filter(j => !(j as any).scheduled_date && ACTIVE_STATUSES.includes(normalizeStatus(j.status || '')))
+    : [];
 
   function openDetailsModal(job: Job) {
     setDetailsJob(job);
@@ -84,6 +184,7 @@ export default function OwnerJobs() {
     setDetailsChecklist(
       Array.isArray((job as any).checklist_items) ? [...(job as any).checklist_items] : []
     );
+    setDetailsScheduledDate((job as any).scheduled_date || null);
   }
 
   async function saveDetails() {
@@ -94,6 +195,7 @@ export default function OwnerJobs() {
       const updated = await mobilePatch<Job>(`/api/mobile/owner/jobs/${detailsJob.id}`, {
         description: detailsDescription.trim() || null,
         checklist_items: cleaned,
+        scheduled_date: detailsScheduledDate,
       });
       setJobs(prev => prev.map(j => j.id === detailsJob.id ? { ...j, ...updated } : j));
       setDetailsJob(null);
@@ -124,15 +226,21 @@ export default function OwnerJobs() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ open?: string; filter?: string }>();
+  const params = useLocalSearchParams<{ open?: string; filter?: string; day?: string }>();
   useEffect(() => {
     if (params.open === 'new' || params.open === 'new_quote') setShowAdd(true);
   }, [params.open]);
   useEffect(() => {
-    if (params.filter === 'active') setFilter('active');
-    else if (params.filter === 'invoiced') setFilter('invoiced');
-    else if (params.filter === 'all') setFilter('all');
+    if (params.filter === 'active') { setDayMode(false); setFilter('active'); }
+    else if (params.filter === 'invoiced') { setDayMode(false); setFilter('invoiced'); }
+    else if (params.filter === 'all') { setDayMode(false); setFilter('all'); }
   }, [params.filter]);
+  useEffect(() => {
+    if (params.day && /^\d{4}-\d{2}-\d{2}$/.test(params.day)) {
+      setDayMode(true);
+      setSelectedDay(params.day);
+    }
+  }, [params.day]);
 
   async function loadAssigned(jobId: string) {
     try {
@@ -169,9 +277,11 @@ export default function OwnerJobs() {
         name: newName.trim(), address: newAddress.trim(),
         description: newDesc.trim() || null,
         estimate_amount: newEstimate ? parseFloat(newEstimate) : null,
+        scheduled_date: newScheduledDate,
       });
       if (data) setJobs(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
       setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
+      setNewScheduledDate(null);
       setShowAdd(false);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not create job.');
@@ -257,26 +367,95 @@ export default function OwnerJobs() {
           </Text>
         </View>
       )}
-      <View style={styles.filterRow}>
-        {[
-          { key: 'active', label: `Active (${jobs.filter(j => ACTIVE_STATUSES.includes(normalizeStatus(j.status || ''))).length})` },
-          { key: 'invoiced', label: `Invoiced (${jobs.filter(j => INVOICED_STATUSES.includes(normalizeStatus(j.status || '')) || (j as any).payment_status === 'paid').length})` },
-          { key: 'all', label: `All (${jobs.length})` },
-        ].map(f => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
-            onPress={() => setFilter(f.key as any)}
-          >
-            <Text style={[styles.filterChipText, filter === f.key && styles.filterChipTextActive]}>{f.label}</Text>
+      {dayMode ? (
+        <View>
+          <WeekStrip
+            selectedDay={selectedDay}
+            onSelect={setSelectedDay}
+            onPickCalendar={() => setPickerOpen('weekjump')}
+          />
+          <View style={styles.dayModeControls}>
+            {selectedDay !== toDateString(new Date()) && (
+              <TouchableOpacity onPress={() => setSelectedDay(toDateString(new Date()))}>
+                <Text style={styles.dayModeLink}>Today</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => setDayMode(false)}>
+              <Text style={[styles.dayModeLink, { marginLeft: 'auto' }]}>Show all jobs ›</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.filterRow}>
+          <TouchableOpacity onPress={() => setDayMode(true)} style={{ marginRight: 8 }}>
+            <Text style={styles.dayModeLink}>‹ Schedule</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+          {[
+            { key: 'active', label: `Active (${jobs.filter(j => ACTIVE_STATUSES.includes(normalizeStatus(j.status || ''))).length})` },
+            { key: 'invoiced', label: `Invoiced (${jobs.filter(j => INVOICED_STATUSES.includes(normalizeStatus(j.status || '')) || (j as any).payment_status === 'paid').length})` },
+            { key: 'all', label: `All (${jobs.length})` },
+          ].map(f => (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
+              onPress={() => setFilter(f.key as any)}
+            >
+              <Text style={[styles.filterChipText, filter === f.key && styles.filterChipTextActive]}>{f.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
       <FlatList
         data={filteredJobs}
         keyExtractor={j => j.id}
-        contentContainerStyle={{ padding: 16, gap: 10 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 160 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+        ListEmptyComponent={
+          dayMode && !loading
+            ? (
+              <View style={{ backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: '#1e1e1e', padding: 20, alignItems: 'center', marginTop: 8 }}>
+                <Text style={{ color: '#888', fontSize: 14, marginBottom: 10 }}>
+                  Nothing scheduled for {prettyDate(selectedDay)}.
+                </Text>
+                <TouchableOpacity onPress={() => setShowAdd(true)}>
+                  <Text style={{ color: '#0ea5e9', fontSize: 13, fontWeight: '700' }}>+ Schedule a job</Text>
+                </TouchableOpacity>
+              </View>
+            )
+            : null
+        }
+        ListFooterComponent={
+          dayMode && unscheduledActive.length > 0
+            ? (
+              <View style={{ marginTop: 20 }}>
+                <Text style={{ color: '#888', fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Unscheduled active
+                </Text>
+                {unscheduledActive.map(j => (
+                  <TouchableOpacity
+                    key={j.id}
+                    style={[styles.card, { marginBottom: 10 }]}
+                    onPress={() => openDetailsModal(j)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.cardRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.jobName}>{j.name}</Text>
+                        <Text style={styles.jobAddress}>{j.address}</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={(e) => { e.stopPropagation?.(); openDetailsModal(j); }}
+                        style={styles.dayBadge}
+                      >
+                        <Text style={styles.dayBadgeText}>SCHEDULE</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )
+            : null
+        }
         renderItem={({ item }) => {
           const isOpen = selected === item.id;
           const stage = pipelineFor(item.status);
@@ -407,6 +586,13 @@ export default function OwnerJobs() {
             <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#555" value={newAddress} onChangeText={setNewAddress} />
             <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} placeholder="Scope of work / description" placeholderTextColor="#555" value={newDesc} onChangeText={setNewDesc} multiline />
             <TextInput style={styles.input} placeholder="Estimate amount (e.g. 2500)" placeholderTextColor="#555" value={newEstimate} onChangeText={setNewEstimate} keyboardType="decimal-pad" />
+            <TouchableOpacity style={styles.scheduleField} onPress={() => setPickerOpen('new')}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.scheduleLabel}>Schedule</Text>
+                <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
+              </View>
+              <Ionicons name="calendar-outline" size={20} color="#0ea5e9" />
+            </TouchableOpacity>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdd(false)}>
                 <Text style={styles.cancelText}>Cancel</Text>
@@ -431,6 +617,14 @@ export default function OwnerJobs() {
               <Text style={{ color: '#666', fontSize: 12, marginBottom: 12 }}>
                 Save pings any crew currently assigned to this job.
               </Text>
+
+              <TouchableOpacity style={[styles.scheduleField, { marginBottom: 12 }]} onPress={() => setPickerOpen('details')}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.scheduleLabel}>Schedule</Text>
+                  <Text style={styles.scheduleValue}>{prettyDate(detailsScheduledDate)}</Text>
+                </View>
+                <Ionicons name="calendar-outline" size={20} color="#0ea5e9" />
+              </TouchableOpacity>
 
               <Text style={{ color: '#888', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 }}>Description</Text>
               <TextInput
@@ -508,6 +702,18 @@ export default function OwnerJobs() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <CalendarPicker
+        visible={pickerOpen !== null}
+        value={pickerOpen === 'new' ? newScheduledDate : pickerOpen === 'details' ? detailsScheduledDate : selectedDay}
+        title={pickerOpen === 'weekjump' ? 'Jump to date' : 'Schedule date'}
+        onClose={() => setPickerOpen(null)}
+        onSelect={(v) => {
+          if (pickerOpen === 'new') setNewScheduledDate(v);
+          else if (pickerOpen === 'details') setDetailsScheduledDate(v);
+          else if (pickerOpen === 'weekjump' && v) setSelectedDay(v);
+        }}
+      />
 
       {/* Assign Crew Modal */}
       <Modal visible={!!assignJobId} transparent animationType="slide">
@@ -631,4 +837,21 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: '#0ea5e922', borderColor: '#0ea5e9' },
   filterChipText: { color: '#777', fontSize: 12, fontWeight: '700' },
   filterChipTextActive: { color: '#0ea5e9' },
+  scheduleField: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
+    borderRadius: 10, padding: 14, marginBottom: 12,
+  },
+  scheduleLabel: { color: '#888', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  scheduleValue: { color: '#fff', fontSize: 15, fontWeight: '600', marginTop: 2 },
+  dayModeControls: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 8,
+  },
+  dayModeLink: { color: '#0ea5e9', fontSize: 13, fontWeight: '700' },
+  dayBadge: {
+    backgroundColor: '#0ea5e922', borderWidth: 1, borderColor: '#0ea5e955',
+    borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8,
+  },
+  dayBadgeText: { color: '#0ea5e9', fontSize: 10, fontWeight: '800' },
 });
