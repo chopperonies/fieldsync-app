@@ -117,7 +117,7 @@ export default function OwnerOverview() {
           value={String(safe.activeJobs)}
           label="Active"
           color="#3b82f6"
-          onPress={() => router.push('/(owner)/jobs' as any)}
+          onPress={() => router.push('/(owner)/jobs?filter=active' as any)}
         />
         <KpiCell
           value={String(safe.crewOnSite)}

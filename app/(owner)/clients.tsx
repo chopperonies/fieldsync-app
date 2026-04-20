@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Client } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
-import { mobileGet, mobilePost } from '../../lib/mobileApi';
+import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 
 export default function OwnerClients() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -27,6 +27,48 @@ export default function OwnerClients() {
   const [newNotes, setNewNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+
+  // Edit client modal
+  const [editClient, setEditClient] = useState<Client | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCompany, setEditCompany] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(c: Client) {
+    setEditClient(c);
+    setEditName(c.name || '');
+    setEditCompany((c as any).company || '');
+    setEditEmail(c.email || '');
+    setEditPhone(c.phone || '');
+    setEditAddress((c as any).address || '');
+    setEditNotes((c as any).notes || '');
+  }
+
+  async function saveEdit() {
+    if (!editClient) return;
+    if (!editName.trim()) return Alert.alert('Name is required');
+    setEditSaving(true);
+    try {
+      const updated = await mobilePatch<Client>(`/api/mobile/owner/clients/${editClient.id}`, {
+        name: editName.trim(),
+        company: editCompany.trim(),
+        email: editEmail.trim(),
+        phone: editPhone.trim(),
+        address: editAddress.trim(),
+        notes: editNotes.trim(),
+      });
+      setClients(prev => prev.map(c => c.id === editClient.id ? { ...c, ...updated } : c));
+      setEditClient(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not save');
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   const loadData = useCallback(async () => {
     const user = await getUser();
@@ -134,9 +176,15 @@ export default function OwnerClients() {
                   {item.phone && (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Phone</Text>
-                      <TouchableOpacity onPress={() => Linking.openURL(`tel:${item.phone}`)}>
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); Linking.openURL(`tel:${item.phone}`); }}>
                         <Text style={[styles.detailValue, { color: '#0ea5e9' }]}>{item.phone}</Text>
                       </TouchableOpacity>
+                    </View>
+                  )}
+                  {(item as any).address && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Address</Text>
+                      <Text style={styles.detailValue}>{(item as any).address}</Text>
                     </View>
                   )}
                   {item.notes && (
@@ -145,7 +193,12 @@ export default function OwnerClients() {
                       <Text style={styles.detailValue}>{item.notes}</Text>
                     </View>
                   )}
-                  <Text style={styles.addedDate}>Added {new Date(item.created_at).toLocaleDateString()}</Text>
+                  <View style={styles.detailsFooter}>
+                    <Text style={styles.addedDate}>Added {new Date(item.created_at).toLocaleDateString()}</Text>
+                    <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); openEdit(item); }} style={styles.editBtn}>
+                      <Text style={styles.editBtnText}>Edit</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
             </TouchableOpacity>
@@ -185,6 +238,41 @@ export default function OwnerClients() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Edit Client modal */}
+      <Modal visible={!!editClient} transparent animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>Edit {editClient?.name || 'Client'}</Text>
+              <TextInput style={styles.input} placeholder="Full name *" placeholderTextColor="#555" value={editName} onChangeText={setEditName} />
+              <TextInput style={styles.input} placeholder="Company" placeholderTextColor="#555" value={editCompany} onChangeText={setEditCompany} />
+              <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#555" value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput style={styles.input} placeholder="Phone" placeholderTextColor="#555" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+              <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#555" value={editAddress} onChangeText={setEditAddress} />
+              <TextInput
+                style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                placeholder="Notes — preferences, access instructions, etc."
+                placeholderTextColor="#555"
+                value={editNotes}
+                onChangeText={setEditNotes}
+                multiline
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditClient(null)} disabled={editSaving}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={editSaving}>
+                  {editSaving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Save</Text>}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -208,7 +296,13 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', gap: 8 },
   detailLabel: { color: '#555', fontSize: 13, width: 50 },
   detailValue: { color: '#ccc', fontSize: 13, flex: 1 },
-  addedDate: { color: '#444', fontSize: 11, marginTop: 4 },
+  addedDate: { color: '#666', fontSize: 11 },
+  detailsFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  editBtn: {
+    borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 8,
+    paddingVertical: 6, paddingHorizontal: 14,
+  },
+  editBtnText: { color: '#0ea5e9', fontSize: 12, fontWeight: '700' },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
     backgroundColor: '#0ea5e9', borderRadius: 28,

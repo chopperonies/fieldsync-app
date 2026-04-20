@@ -215,7 +215,10 @@ export default function OwnerCrew() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.tapHint}>Tap card for more</Text>
+              <View style={styles.tapHintRow}>
+                <Text style={styles.tapHint}>Edit</Text>
+                <Text style={styles.tapHintArrow}>›</Text>
+              </View>
             </View>
           </TouchableOpacity>
         )}
@@ -331,7 +334,9 @@ const styles = StyleSheet.create({
   },
   roleText: { color: '#555', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
   revokeLink: { color: '#ef4444', fontSize: 11, fontWeight: '600' },
-  tapHint: { color: '#444', fontSize: 10, marginTop: 6, fontStyle: 'italic' },
+  tapHint: { color: '#0ea5e9', fontSize: 11, fontWeight: '700' },
+  tapHintRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  tapHintArrow: { color: '#0ea5e9', fontSize: 16, fontWeight: '700', lineHeight: 16 },
   fieldHint: { color: '#666', fontSize: 12, marginTop: 4, marginBottom: 10 },
   fab: {
     position: 'absolute', bottom: 24, right: 24,

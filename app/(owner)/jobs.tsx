@@ -61,6 +61,50 @@ export default function OwnerJobs() {
   const [estimateAmt, setEstimateAmt] = useState('');
   const [savingEstimate, setSavingEstimate] = useState(false);
 
+  // Edit details modal (description + checklist)
+  const [detailsJob, setDetailsJob] = useState<Job | null>(null);
+  const [detailsDescription, setDetailsDescription] = useState('');
+  const [detailsChecklist, setDetailsChecklist] = useState<string[]>([]);
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  // Filter
+  const [filter, setFilter] = useState<'active' | 'invoiced' | 'all'>('active');
+  const ACTIVE_STATUSES = ['active', 'in_progress', 'scheduled', 'on_hold', 'quoted', 'complete'];
+  const INVOICED_STATUSES = ['invoiced'];
+  const filteredJobs = jobs.filter(j => {
+    const s = normalizeStatus(j.status || '');
+    if (filter === 'active') return ACTIVE_STATUSES.includes(s);
+    if (filter === 'invoiced') return INVOICED_STATUSES.includes(s) || (j as any).payment_status === 'paid';
+    return true;
+  });
+
+  function openDetailsModal(job: Job) {
+    setDetailsJob(job);
+    setDetailsDescription((job as any).description || '');
+    setDetailsChecklist(
+      Array.isArray((job as any).checklist_items) ? [...(job as any).checklist_items] : []
+    );
+  }
+
+  async function saveDetails() {
+    if (!detailsJob) return;
+    setSavingDetails(true);
+    try {
+      const cleaned = detailsChecklist.map(s => s.trim()).filter(Boolean);
+      const updated = await mobilePatch<Job>(`/api/mobile/owner/jobs/${detailsJob.id}`, {
+        description: detailsDescription.trim() || null,
+        checklist_items: cleaned,
+      });
+      setJobs(prev => prev.map(j => j.id === detailsJob.id ? { ...j, ...updated } : j));
+      setDetailsJob(null);
+      Alert.alert('Saved', 'Job details updated. Crew on site will be notified.');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not save');
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
   const loadData = useCallback(async () => {
     const user = await getUser();
     try {
@@ -80,10 +124,15 @@ export default function OwnerJobs() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ open?: string }>();
+  const params = useLocalSearchParams<{ open?: string; filter?: string }>();
   useEffect(() => {
     if (params.open === 'new' || params.open === 'new_quote') setShowAdd(true);
   }, [params.open]);
+  useEffect(() => {
+    if (params.filter === 'active') setFilter('active');
+    else if (params.filter === 'invoiced') setFilter('invoiced');
+    else if (params.filter === 'all') setFilter('all');
+  }, [params.filter]);
 
   async function loadAssigned(jobId: string) {
     try {
@@ -208,8 +257,23 @@ export default function OwnerJobs() {
           </Text>
         </View>
       )}
+      <View style={styles.filterRow}>
+        {[
+          { key: 'active', label: `Active (${jobs.filter(j => ACTIVE_STATUSES.includes(normalizeStatus(j.status || ''))).length})` },
+          { key: 'invoiced', label: `Invoiced (${jobs.filter(j => INVOICED_STATUSES.includes(normalizeStatus(j.status || '')) || (j as any).payment_status === 'paid').length})` },
+          { key: 'all', label: `All (${jobs.length})` },
+        ].map(f => (
+          <TouchableOpacity
+            key={f.key}
+            style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
+            onPress={() => setFilter(f.key as any)}
+          >
+            <Text style={[styles.filterChipText, filter === f.key && styles.filterChipTextActive]}>{f.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <FlatList
-        data={jobs}
+        data={filteredJobs}
         keyExtractor={j => j.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
@@ -254,13 +318,37 @@ export default function OwnerJobs() {
                     </View>
                   </ScrollView>
 
-                  {(item as any).description ? (
-                    <View style={{ marginBottom: 14 }}>
+                  <View style={{ marginBottom: 14 }}>
+                    <View style={styles.sectionHeaderRow}>
                       <Text style={styles.sectionLabel}>Scope of Work</Text>
-                      <Text style={{ color: '#aaa', fontSize: 13, lineHeight: 19, marginTop: 4 }}>{(item as any).description}</Text>
+                      <TouchableOpacity
+                        onPress={(e) => { e.stopPropagation?.(); openDetailsModal(item); }}
+                        style={styles.editInlineBtn}
+                      >
+                        <Text style={styles.editInlineBtnText}>
+                          {(item as any).description || ((item as any).checklist_items?.length ?? 0) > 0 ? 'Edit' : 'Add'}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                  ) : null}
-
+                    {(item as any).description ? (
+                      <Text style={{ color: '#ddd', fontSize: 13, lineHeight: 19, marginTop: 4 }}>{(item as any).description}</Text>
+                    ) : null}
+                    {Array.isArray((item as any).checklist_items) && (item as any).checklist_items.length > 0 && (
+                      <View style={{ marginTop: 8 }}>
+                        {(item as any).checklist_items.map((line: string, i: number) => (
+                          <View key={i} style={{ flexDirection: 'row', gap: 6, paddingVertical: 2 }}>
+                            <Text style={{ color: '#0ea5e9', fontWeight: '700' }}>•</Text>
+                            <Text style={{ color: '#ddd', fontSize: 13, flex: 1 }}>{line}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    {!(item as any).description && !((item as any).checklist_items?.length) && (
+                      <Text style={{ color: '#666', fontSize: 12, marginTop: 4, fontStyle: 'italic' }}>
+                        No scope yet — tap Add to set the description and checklist. Crew on site will be pinged when you save.
+                      </Text>
+                    )}
+                  </View>
                   <View style={{ marginBottom: 14 }}>
                     <Text style={styles.sectionLabel}>Estimate / Quote</Text>
                     <TouchableOpacity style={styles.estimateRow} onPress={() => openEstimateModal(item)}>
@@ -327,6 +415,67 @@ export default function OwnerJobs() {
                 {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Add Job</Text>}
               </TouchableOpacity>
             </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Edit Details Modal */}
+      <Modal visible={!!detailsJob} transparent animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>Scope of Work</Text>
+              <Text style={{ color: '#666', fontSize: 12, marginBottom: 12 }}>
+                Save pings any crew currently assigned to this job.
+              </Text>
+
+              <Text style={{ color: '#888', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 }}>Description</Text>
+              <TextInput
+                style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                placeholder="Scope of work, special instructions…"
+                placeholderTextColor="#555"
+                value={detailsDescription}
+                onChangeText={setDetailsDescription}
+                multiline
+              />
+
+              <Text style={{ color: '#888', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginTop: 10, marginBottom: 6 }}>Checklist</Text>
+              {detailsChecklist.map((line, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder={`Item ${i + 1}`}
+                    placeholderTextColor="#555"
+                    value={line}
+                    onChangeText={(text) => setDetailsChecklist(arr => arr.map((v, idx) => idx === i ? text : v))}
+                  />
+                  <TouchableOpacity
+                    style={{ padding: 8 }}
+                    onPress={() => setDetailsChecklist(arr => arr.filter((_, idx) => idx !== i))}
+                  >
+                    <Text style={{ color: '#ef4444', fontSize: 18 }}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity
+                style={{ borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center' }}
+                onPress={() => setDetailsChecklist(arr => [...arr, ''])}
+              >
+                <Text style={{ color: '#0ea5e9', fontWeight: '700', fontSize: 13 }}>+ Add checklist item</Text>
+              </TouchableOpacity>
+
+              <View style={[styles.modalActions, { marginTop: 18 }]}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setDetailsJob(null)} disabled={savingDetails}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={saveDetails} disabled={savingDetails}>
+                  {savingDetails ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Save &amp; Notify</Text>}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -465,4 +614,21 @@ const styles = StyleSheet.create({
   },
   estimateAmount: { color: '#fff', fontSize: 15, fontWeight: '600' },
   estimateEdit: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  editInlineBtn: {
+    borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 8,
+    paddingVertical: 4, paddingHorizontal: 12,
+  },
+  editInlineBtnText: { color: '#0ea5e9', fontSize: 12, fontWeight: '700' },
+  filterRow: {
+    flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4,
+    flexWrap: 'wrap',
+  },
+  filterChip: {
+    borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#111',
+  },
+  filterChipActive: { backgroundColor: '#0ea5e922', borderColor: '#0ea5e9' },
+  filterChipText: { color: '#777', fontSize: 12, fontWeight: '700' },
+  filterChipTextActive: { color: '#0ea5e9' },
 });
