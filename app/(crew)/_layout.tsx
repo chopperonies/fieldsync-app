@@ -77,6 +77,8 @@ export default function CrewLayout() {
             <Ionicons name={focused ? 'alert-circle' : 'alert-circle-outline'} size={size} color={color} />,
         }}
       />
+      {/* Nested dynamic route — hidden from tab bar; reached via router.push from the jobs list */}
+      <Tabs.Screen name="job/[id]" options={{ href: null, title: 'Job' }} />
     </Tabs>
   );
 }
