@@ -21,6 +21,17 @@ type HomeJob = {
   stage_color?: string | null;
 };
 
+type Activity = {
+  id: string;
+  type: string | null;
+  message: string | null;
+  photo_url: string | null;
+  created_at: string;
+  job_id: string;
+  job_name: string | null;
+  employee_name: string | null;
+};
+
 interface Stats {
   activeJobs: number;
   crewOnSite: number;
@@ -28,6 +39,7 @@ interface Stats {
   bottlenecksToday: number;
   todayJobs?: HomeJob[];
   stuckJobs?: HomeJob[];
+  recentActivity?: Activity[];
   jobBreakdown: { id: string; name: string; crew: number; pendingSupplies: number }[];
 }
 
@@ -101,7 +113,7 @@ export default function OwnerOverview() {
 
   const safe: Stats = stats || {
     activeJobs: 0, crewOnSite: 0, pendingSupplies: 0, bottlenecksToday: 0,
-    jobBreakdown: [], todayJobs: [], stuckJobs: [],
+    jobBreakdown: [], todayJobs: [], stuckJobs: [], recentActivity: [],
   };
   const today = new Date();
   const dateLabel = today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -305,6 +317,52 @@ export default function OwnerOverview() {
           </TouchableOpacity>
         ))
       )}
+
+      {/* Recent activity across jobs */}
+      {safe.recentActivity && safe.recentActivity.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>Recent activity</Text>
+          {safe.recentActivity.slice(0, 8).map(a => {
+            const iconName =
+              a.type === 'photo'      ? 'camera-outline' :
+              a.type === 'note'       ? 'create-outline' :
+              a.type === 'check_in'   ? 'location-outline' :
+              a.type === 'check_out'  ? 'log-out-outline' :
+              a.type === 'bottleneck' ? 'alert-circle-outline' :
+                                        'ellipse-outline';
+            const iconColor =
+              a.type === 'bottleneck' ? '#ef4444' :
+              a.type === 'photo'      ? '#a78bfa' :
+              a.type === 'check_in'   ? '#4ade80' :
+                                        '#0ea5e9';
+            const label =
+              a.type === 'photo'      ? 'Photo uploaded' :
+              a.type === 'note'       ? (a.message || 'Note') :
+              a.type === 'check_in'   ? 'Checked in' :
+              a.type === 'check_out'  ? 'Checked out' :
+              a.type === 'bottleneck' ? 'Flagged a bottleneck' :
+                                        (a.message || 'Update');
+            return (
+              <TouchableOpacity
+                key={a.id}
+                style={styles.activityRow}
+                onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: a.job_id } } as any)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.activityIcon, { backgroundColor: iconColor + '22', borderColor: iconColor + '55' }]}>
+                  <Ionicons name={iconName as any} size={16} color={iconColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityLine} numberOfLines={2}>{label}</Text>
+                  <Text style={styles.activitySub}>
+                    {a.job_name || 'Job'} · {a.employee_name || 'Crew'} · {timeAgo(a.created_at)} ago
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -407,4 +465,16 @@ const styles = StyleSheet.create({
     padding: 18, alignItems: 'center',
   },
   emptyText: { color: '#666', fontSize: 14 },
+
+  activityRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
+    borderRadius: 12, padding: 12,
+  },
+  activityIcon: {
+    width: 32, height: 32, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  activityLine: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  activitySub: { color: '#888', fontSize: 11, marginTop: 2 },
 });
