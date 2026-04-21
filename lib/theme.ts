@@ -86,41 +86,41 @@ export const professionalTheme: Theme = {
   stageAmber: '#b45309',
 };
 
-// Soft — neutral whites + violet accent + diverse pastel status colors.
-// Only accent elements are violet; text + borders stay neutral for read.
+// Soft — warm cream bg, peach-tinted borders, coral accent. Distinctly
+// warm so it feels different from Professional's cool corporate tone.
 export const softTheme: Theme = {
   name: 'soft',
   label: 'Soft',
-  tagline: 'Neutral whites, violet accent, pastel status. Calm without overload.',
+  tagline: 'Warm cream + peach borders + coral accent. Pastel and welcoming.',
   isDark: false,
-  bg: '#fafafa',
+  bg: '#fefaf6',               // warm cream — noticeable but subtle
   surface: '#ffffff',
   surfaceElevated: '#ffffff',
-  surfaceInset: '#f4f4f5',
-  border: '#e4e4e7',           // neutral zinc — not violet
-  borderStrong: '#d4d4d8',
-  textPrimary: '#18181b',      // neutral near-black
-  textSecondary: '#52525b',    // neutral mid gray — the main readability fix
-  textMuted: '#a1a1aa',        // neutral light gray
-  accent: '#8b5cf6',           // soft violet — used sparingly as accent
-  accentMuted: '#8b5cf61f',
-  accentSoft: '#8b5cf60f',
+  surfaceInset: '#fdf4e7',     // peach inset for inputs
+  border: '#fbe3c5',           // peach border — distinct from neutral
+  borderStrong: '#f5b670',
+  textPrimary: '#1c1917',      // warm near-black (stone-900)
+  textSecondary: '#57534e',    // warm gray (stone-600)
+  textMuted: '#a8a29e',        // stone-400
+  accent: '#ea580c',           // coral / orange-600 — pastel-ready warm
+  accentMuted: '#ea580c20',
+  accentSoft: '#ea580c10',
   accentContrast: '#ffffff',
-  success: '#059669',          // emerald
-  successMuted: '#0596691a',
-  warning: '#d97706',          // amber
-  warningMuted: '#d977061a',
-  danger: '#e11d48',           // rose
-  dangerMuted: '#e11d481a',
-  info: '#0ea5e9',             // sky
-  infoMuted: '#0ea5e91a',
-  overlay: 'rgba(24,24,27,0.5)',
-  stageBlue: '#3b82f6',
-  stageCyan: '#06b6d4',
-  stageGreen: '#10b981',
-  stageIndigo: '#6366f1',
-  stagePurple: '#8b5cf6',
-  stageAmber: '#f59e0b',
+  success: '#15803d',          // emerald — reads well on cream
+  successMuted: '#15803d1a',
+  warning: '#b45309',          // amber
+  warningMuted: '#b453091a',
+  danger: '#b91c1c',           // deeper red so it doesn't clash with coral accent
+  dangerMuted: '#b91c1c1a',
+  info: '#0369a1',             // sky-700
+  infoMuted: '#0369a11a',
+  overlay: 'rgba(28,25,23,0.45)',
+  stageBlue: '#2563eb',
+  stageCyan: '#0891b2',
+  stageGreen: '#15803d',
+  stageIndigo: '#4f46e5',
+  stagePurple: '#7e22ce',
+  stageAmber: '#d97706',
 };
 
 // Midnight — slate-navy dark (not pure black) + bright cyan accent.
