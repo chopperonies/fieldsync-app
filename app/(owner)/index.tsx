@@ -265,9 +265,9 @@ export default function OwnerOverview() {
             activeOpacity={0.7}
           >
             <Text style={styles.sectionLabel}>Business health</Text>
-            <View style={styles.collapsibleRight}>
-              <Text style={styles.collapsibleHint}>{revealed ? 'Tap to hide' : 'Tap to reveal'}</Text>
-              <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={16} color={theme.textMuted} />
+            <View style={[styles.revealPill, { backgroundColor: theme.accentMuted, borderColor: theme.accent + '55' }]}>
+              <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={14} color={theme.accent} />
+              <Text style={[styles.revealPillText, { color: theme.accent }]}>{revealed ? 'Hide' : 'Reveal'}</Text>
             </View>
           </TouchableOpacity>
           <View style={styles.healthCard}>
@@ -449,6 +449,12 @@ function makeStyles(t: Theme) {
     },
     collapsibleRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     collapsibleHint: { color: t.textMuted, fontSize: 11, fontWeight: '600' },
+    revealPill: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      paddingVertical: 4, paddingHorizontal: 10,
+      borderWidth: 1, borderRadius: 999,
+    },
+    revealPillText: { fontSize: 12, fontWeight: '800' },
     sectionLink: { color: t.accent, fontSize: 13, fontWeight: '700' },
 
     todoRow: {
