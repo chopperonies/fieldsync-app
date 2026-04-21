@@ -300,7 +300,8 @@ export default function OwnerJobDetail() {
         {tab === 'overview' && (
           <>
             {/* Pipeline */}
-            <Text style={styles.sectionLabel}>Status</Text>
+            <Text style={styles.sectionLabel}>Lifecycle</Text>
+            <Text style={styles.sectionHint}>Tap to change. Crew phones and the dashboard update instantly.</Text>
             <View style={styles.pipeline}>
               {PIPELINE_KEYS.map(k => {
                 const p = STATUS_META.find(s => s.key === k)!;
@@ -326,6 +327,9 @@ export default function OwnerJobDetail() {
                 );
               })}
             </View>
+            <View style={[styles.stageNote, { borderLeftColor: stageColor }]}>
+              <Text style={styles.stageNoteText}>{stage.description}</Text>
+            </View>
 
             {/* Schedule + Estimate */}
             <View style={styles.rowTwo}>
@@ -333,9 +337,9 @@ export default function OwnerJobDetail() {
                 style={styles.fieldCard}
                 onPress={() => { setScheduledDate((job as any).scheduled_date || null); setPicker('schedule'); }}
               >
-                <Ionicons name="calendar-outline" size={18} color="#0ea5e9" />
+                <Ionicons name="calendar-outline" size={18} color={theme.accent} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Schedule</Text>
+                  <Text style={styles.fieldLabel}>Appointment</Text>
                   <Text style={styles.fieldValue}>{prettyDate((job as any).scheduled_date)}</Text>
                 </View>
               </TouchableOpacity>
@@ -773,7 +777,13 @@ function makeStyles(t: Theme) {
     tabText: { color: t.textSecondary, fontSize: 13, fontWeight: '700' },
     tabTextActive: { color: t.accent },
 
-    sectionLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 6 },
+    sectionLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '800', marginBottom: 4, marginTop: 6 },
+    sectionHint: { color: t.textMuted, fontSize: 11, marginBottom: 10, lineHeight: 15 },
+    stageNote: {
+      backgroundColor: t.surface, borderLeftWidth: 3, borderRadius: 6,
+      paddingVertical: 8, paddingHorizontal: 10, marginTop: -4, marginBottom: 8,
+    },
+    stageNoteText: { color: t.textSecondary, fontSize: 12, lineHeight: 17 },
     card: {
       backgroundColor: t.surface, borderRadius: 12, padding: 14,
       borderWidth: 1, borderColor: t.border, marginTop: 10,

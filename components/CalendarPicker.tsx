@@ -25,9 +25,9 @@ export function fromDateString(s: string): Date | null {
 }
 
 export function prettyDate(s: string | null | undefined): string {
-  if (!s) return 'Not scheduled';
+  if (!s) return 'No date picked';
   const d = fromDateString(s);
-  if (!d) return 'Not scheduled';
+  if (!d) return 'No date picked';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);

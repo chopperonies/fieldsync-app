@@ -18,18 +18,19 @@ type Meta = {
   label: string;
   icon: IoniconName;
   tone: keyof Pick<Theme, 'stageBlue' | 'stageCyan' | 'stageGreen' | 'stageIndigo' | 'stagePurple' | 'stageAmber' | 'danger'>;
+  description: string;
 };
 
 // Ordered roughly left-to-right for the pipeline strip.
 export const STATUS_META: Meta[] = [
-  { key: 'quoted',      label: 'Quoted',      icon: 'document-text-outline', tone: 'stageIndigo' },
-  { key: 'scheduled',   label: 'Scheduled',   icon: 'calendar-outline',      tone: 'stageBlue'   },
-  { key: 'on_the_way',  label: 'On the way',  icon: 'navigate-outline',      tone: 'stagePurple' },
-  { key: 'in_progress', label: 'In progress', icon: 'construct-outline',     tone: 'stageCyan'   },
-  { key: 'on_hold',     label: 'On hold',     icon: 'pause-circle-outline',  tone: 'stageAmber'  },
-  { key: 'complete',    label: 'Complete',    icon: 'checkmark-circle-outline', tone: 'stageGreen' },
-  { key: 'invoiced',    label: 'Invoiced',    icon: 'receipt-outline',       tone: 'stagePurple' },
-  { key: 'canceled',    label: 'Canceled',    icon: 'close-circle-outline',  tone: 'danger'      },
+  { key: 'quoted',      label: 'Quoted',      icon: 'document-text-outline',    tone: 'stageIndigo', description: 'Estimate sent. Not on the books yet.' },
+  { key: 'scheduled',   label: 'Booked',      icon: 'calendar-outline',         tone: 'stageBlue',   description: 'Sold. Pick an appointment date below.' },
+  { key: 'on_the_way',  label: 'On the way',  icon: 'navigate-outline',         tone: 'stagePurple', description: 'Crew is en route to the site.' },
+  { key: 'in_progress', label: 'In progress', icon: 'construct-outline',        tone: 'stageCyan',   description: 'Crew on site, clocked in.' },
+  { key: 'on_hold',     label: 'On hold',     icon: 'pause-circle-outline',     tone: 'stageAmber',  description: 'Paused. Crew sees a banner until you resume.' },
+  { key: 'complete',    label: 'Complete',    icon: 'checkmark-circle-outline', tone: 'stageGreen',  description: 'Work finished. Invoice next.' },
+  { key: 'invoiced',    label: 'Invoiced',    icon: 'receipt-outline',          tone: 'stagePurple', description: 'Bill sent. Waiting on payment.' },
+  { key: 'canceled',    label: 'Canceled',    icon: 'close-circle-outline',     tone: 'danger',      description: 'Job canceled — no further work scheduled.' },
 ];
 
 // Legacy aliases we've seen in the DB.
