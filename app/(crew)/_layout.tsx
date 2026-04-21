@@ -2,26 +2,38 @@ import { TouchableOpacity } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../lib/themeContext';
 
 export default function CrewLayout() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
-        tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1e1e1e', height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
-        tabBarActiveTintColor: '#0ea5e9',
-        tabBarInactiveTintColor: '#888',
+        tabBarStyle: { backgroundColor: theme.bg, borderTopColor: theme.border, height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
+        tabBarActiveTintColor: theme.accent,
+        tabBarInactiveTintColor: theme.textSecondary,
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-        headerStyle: { backgroundColor: '#0a0a0a' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '700' },
+        headerStyle: { backgroundColor: theme.bg },
+        headerTintColor: theme.textPrimary,
+        headerTitleStyle: { fontWeight: '700', color: theme.textPrimary },
         headerRight: () => (
           <TouchableOpacity onPress={() => router.push('/(crew)/settings' as any)} style={{ marginRight: 16 }}>
-            <Ionicons name="settings-outline" size={22} color="#888" />
+            <Ionicons name="settings-outline" size={22} color={theme.textSecondary} />
           </TouchableOpacity>
         ),
       }}
     >
+      <Tabs.Screen
+        name="schedule"
+        options={{
+          title: 'Schedule',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={size} color={color} />,
+          headerTitle: 'Schedule',
+        }}
+      />
       <Tabs.Screen
         name="index"
         options={{

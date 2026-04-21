@@ -34,6 +34,7 @@ export interface Job {
   status: 'quoted' | 'scheduled' | 'in_progress' | 'complete' | 'invoiced' | 'on_hold' | 'active';
   description?: string;
   estimate_amount?: number;
+  scheduled_date?: string | null;
   latitude?: number;
   longitude?: number;
   created_at: string;

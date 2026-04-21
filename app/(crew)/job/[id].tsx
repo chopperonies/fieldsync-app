@@ -9,6 +9,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../../lib/supabase';
 import { mobileGet, mobilePatch, mobilePost } from '../../../lib/mobileApi';
 import { statusMeta } from '../../../lib/jobStatus';
+import { useTheme } from '../../../lib/themeContext';
+import { Theme } from '../../../lib/theme';
 
 type Step = { order: number; label: string; required?: boolean };
 type ActionButton = { label: string; action_type: string; style?: string; config?: any };
@@ -55,6 +57,8 @@ type Ack = { acked_at: string; acked_scope_updated_at: string } | null;
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [job, setJob] = useState<Job | null>(null);
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,7 +260,7 @@ export default function JobDetailScreen() {
         <View style={styles.center}>
           {loading ? (
             <>
-              <ActivityIndicator size="large" color="#0ea5e9" />
+              <ActivityIndicator size="large" color={theme.accent} />
               <Text style={[styles.muted, { marginTop: 12 }]}>Loading job…</Text>
             </>
           ) : (
@@ -264,8 +268,8 @@ export default function JobDetailScreen() {
               <Text style={[styles.muted, { marginBottom: 14, textAlign: 'center', paddingHorizontal: 20 }]}>
                 {loadError || 'Job not found.'}
               </Text>
-              <TouchableOpacity onPress={load} style={{ backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 }}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Try again</Text>
+              <TouchableOpacity onPress={load} style={{ backgroundColor: theme.accent, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 }}>
+                <Text style={{ color: theme.accentContrast, fontWeight: '700' }}>Try again</Text>
               </TouchableOpacity>
             </>
           )}
@@ -356,10 +360,10 @@ export default function JobDetailScreen() {
                       onPress={() => advance(s.id)}
                       style={[
                         styles.pill,
-                        { borderColor: active ? s.color : '#2a2a2a', backgroundColor: active ? s.color : 'transparent' },
+                        { borderColor: active ? s.color : theme.border, backgroundColor: active ? s.color : 'transparent' },
                         busy && { opacity: 0.6 },
                       ]}>
-                      <Text style={[styles.pillText, { color: active ? '#fff' : '#bbb' }]}>
+                      <Text style={[styles.pillText, { color: active ? '#fff' : theme.textSecondary }]}>
                         {s.order_index}. {s.name}
                       </Text>
                     </TouchableOpacity>
@@ -377,7 +381,7 @@ export default function JobDetailScreen() {
                       key={`${btn.action_type}-${i}`}
                       style={[styles.actionBtn, btn.style === 'primary_solid' && styles.actionBtnSolid]}
                       onPress={() => runAction(btn)}>
-                      <Text style={[styles.actionBtnText, btn.style === 'primary_solid' && { color: '#fff' }]}>{btn.label}</Text>
+                      <Text style={[styles.actionBtnText, btn.style === 'primary_solid' && { color: theme.accentContrast }]}>{btn.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -423,7 +427,7 @@ export default function JobDetailScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder="What's happening on site?"
-              placeholderTextColor="#555"
+              placeholderTextColor={theme.textMuted}
               value={noteText}
               onChangeText={setNoteText}
               multiline
@@ -434,7 +438,7 @@ export default function JobDetailScreen() {
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={submitNoteFromModal} style={styles.modalSave} disabled={noteSaving || !noteText.trim()}>
-                {noteSaving ? <ActivityIndicator color="#000" /> : <Text style={styles.modalSaveText}>Save Note</Text>}
+                {noteSaving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.modalSaveText}>Save Note</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -442,7 +446,7 @@ export default function JobDetailScreen() {
       </Modal>
       {cameraBusy && (
         <View style={styles.busyOverlay}>
-          <ActivityIndicator size="large" color="#0ea5e9" />
+          <ActivityIndicator size="large" color={theme.accent} />
           <Text style={styles.busyText}>Uploading photo…</Text>
         </View>
       )}
@@ -450,91 +454,93 @@ export default function JobDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  muted: { color: '#777', fontSize: 13 },
-  jobName: { color: '#fff', fontSize: 22, fontWeight: '700' },
-  jobAddress: { color: '#888', fontSize: 14, marginTop: 4 },
-  heroStatus: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, borderRadius: 14, borderWidth: 1.5,
-    paddingVertical: 12, paddingHorizontal: 16,
-  },
-  heroStatusText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
-  card: {
-    backgroundColor: '#1a1a1a', borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  sectionLabel: {
-    color: '#888', fontSize: 11, fontWeight: '700', letterSpacing: 0.8,
-    textTransform: 'uppercase', marginBottom: 10,
-  },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  pill: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1.5 },
-  pillText: { fontSize: 12, fontWeight: '700' },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  actionBtn: {
-    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10,
-    borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#0f0f0f',
-  },
-  actionBtnSolid: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
-  actionBtnText: { color: '#ccc', fontSize: 13, fontWeight: '700' },
-  checklistHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  scopeBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#422006', borderWidth: 1, borderColor: '#f59e0b',
-    borderRadius: 12, padding: 14,
-  },
-  scopeBannerTitle: { color: '#fef3c7', fontSize: 14, fontWeight: '800' },
-  scopeBannerBody: { color: '#fde68a', fontSize: 12, marginTop: 2, lineHeight: 17 },
-  scopeBannerBtn: {
-    backgroundColor: '#f59e0b', borderRadius: 8,
-    paddingVertical: 8, paddingHorizontal: 14,
-  },
-  scopeBannerBtnText: { color: '#000', fontWeight: '800', fontSize: 13 },
-  scopeText: { color: '#ddd', fontSize: 14, lineHeight: 20 },
-  scopeLineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
-  scopeBullet: { color: '#0ea5e9', fontSize: 16, fontWeight: '700', lineHeight: 20 },
-  scopeLine: { color: '#ddd', fontSize: 14, lineHeight: 20, flex: 1 },
-  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8 },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#3a3a3a',
-    alignItems: 'center', justifyContent: 'center', marginTop: 2,
-  },
-  checkboxDone: { backgroundColor: '#22c55e', borderColor: '#22c55e' },
-  check: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  stepLabel: { color: '#e5e5e5', fontSize: 14, flex: 1 },
-  stepLabelDone: { color: '#666', textDecorationLine: 'line-through' },
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 20,
-  },
-  modalCard: {
-    backgroundColor: '#1a1a1a', borderRadius: 16, padding: 18, gap: 12,
-    borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  modalInput: {
-    minHeight: 100, backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 12, color: '#fff', fontSize: 15, textAlignVertical: 'top',
-  },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-  modalCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
-  modalCancelText: { color: '#888', fontWeight: '600' },
-  modalSave: {
-    paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, backgroundColor: '#0ea5e9',
-    opacity: 1, minWidth: 100, alignItems: 'center',
-  },
-  modalSaveText: { color: '#000', fontWeight: '700' },
-  busyOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', gap: 12,
-  },
-  busyText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  backBar: {
-    backgroundColor: '#0a0a0a', borderBottomWidth: 1, borderBottomColor: '#1a1a1a',
-    paddingHorizontal: 14, paddingVertical: 10,
-  },
-  backBtn: { alignSelf: 'flex-start' },
-  backBtnText: { color: '#0ea5e9', fontSize: 15, fontWeight: '600' },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    muted: { color: t.textMuted, fontSize: 13 },
+    jobName: { color: t.textPrimary, fontSize: 22, fontWeight: '700' },
+    jobAddress: { color: t.textSecondary, fontSize: 14, marginTop: 4 },
+    heroStatus: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 8, borderRadius: 14, borderWidth: 1.5,
+      paddingVertical: 12, paddingHorizontal: 16,
+    },
+    heroStatusText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
+    card: {
+      backgroundColor: t.surface, borderRadius: 14, padding: 14,
+      borderWidth: 1, borderColor: t.border,
+    },
+    sectionLabel: {
+      color: t.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.8,
+      textTransform: 'uppercase', marginBottom: 10,
+    },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    pill: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1.5 },
+    pillText: { fontSize: 12, fontWeight: '700' },
+    actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    actionBtn: {
+      paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10,
+      borderWidth: 1, borderColor: t.border, backgroundColor: t.surfaceInset,
+    },
+    actionBtnSolid: { backgroundColor: t.accent, borderColor: t.accent },
+    actionBtnText: { color: t.textSecondary, fontSize: 13, fontWeight: '700' },
+    checklistHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    scopeBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: t.warningMuted, borderWidth: 1, borderColor: t.warning,
+      borderRadius: 12, padding: 14,
+    },
+    scopeBannerTitle: { color: t.warning, fontSize: 14, fontWeight: '800' },
+    scopeBannerBody: { color: t.textPrimary, fontSize: 12, marginTop: 2, lineHeight: 17 },
+    scopeBannerBtn: {
+      backgroundColor: t.warning, borderRadius: 8,
+      paddingVertical: 8, paddingHorizontal: 14,
+    },
+    scopeBannerBtnText: { color: t.accentContrast, fontWeight: '800', fontSize: 13 },
+    scopeText: { color: t.textPrimary, fontSize: 14, lineHeight: 20 },
+    scopeLineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
+    scopeBullet: { color: t.accent, fontSize: 16, fontWeight: '700', lineHeight: 20 },
+    scopeLine: { color: t.textPrimary, fontSize: 14, lineHeight: 20, flex: 1 },
+    stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8 },
+    checkbox: {
+      width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: t.borderStrong,
+      alignItems: 'center', justifyContent: 'center', marginTop: 2,
+    },
+    checkboxDone: { backgroundColor: t.success, borderColor: t.success },
+    check: { color: '#fff', fontWeight: '800', fontSize: 14 },
+    stepLabel: { color: t.textPrimary, fontSize: 14, flex: 1 },
+    stepLabelDone: { color: t.textMuted, textDecorationLine: 'line-through' },
+    modalOverlay: {
+      flex: 1, backgroundColor: t.overlay, justifyContent: 'center', padding: 20,
+    },
+    modalCard: {
+      backgroundColor: t.surfaceElevated, borderRadius: 16, padding: 18, gap: 12,
+      borderWidth: 1, borderColor: t.border,
+    },
+    modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700' },
+    modalInput: {
+      minHeight: 100, backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 12, color: t.textPrimary, fontSize: 15, textAlignVertical: 'top',
+    },
+    modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
+    modalCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
+    modalCancelText: { color: t.textSecondary, fontWeight: '600' },
+    modalSave: {
+      paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, backgroundColor: t.accent,
+      opacity: 1, minWidth: 100, alignItems: 'center',
+    },
+    modalSaveText: { color: t.accentContrast, fontWeight: '700' },
+    busyOverlay: {
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: t.overlay, justifyContent: 'center', alignItems: 'center', gap: 12,
+    },
+    busyText: { color: t.textPrimary, fontSize: 14, fontWeight: '600' },
+    backBar: {
+      backgroundColor: t.bg, borderBottomWidth: 1, borderBottomColor: t.border,
+      paddingHorizontal: 14, paddingVertical: 10,
+    },
+    backBtn: { alignSelf: 'flex-start' },
+    backBtnText: { color: t.accent, fontSize: 15, fontWeight: '600' },
+  });
+}
