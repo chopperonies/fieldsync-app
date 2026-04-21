@@ -86,43 +86,43 @@ export const professionalTheme: Theme = {
   stageAmber: '#b45309',
 };
 
-// Soft — airy mint/sage. Near-white bg, very subtle mint borders,
-// bright mint-teal accent, deep forest text. Inspired by plant/nature
-// apps — feels calm, light, organic. Clearly distinct from Professional
-// (cool corporate) and Midnight (dark).
+// Soft — neumorphism-inspired cool lavender-gray. Background has a
+// distinctive cool cast (not neutral white), cards sit a shade
+// lighter to create a subtle lifted feel, periwinkle accent pops
+// against the cool base. Deep navy text reinforces the cool mood.
 export const softTheme: Theme = {
   name: 'soft',
   label: 'Soft',
-  tagline: 'Airy mint and sage. Calm, organic, light.',
+  tagline: 'Cool lavender-gray + periwinkle accent. Quiet and modern.',
   isDark: false,
-  bg: '#f6faf8',               // near-white with faintest mint cast
-  surface: '#ffffff',
-  surfaceElevated: '#ffffff',
-  surfaceInset: '#eef5f1',     // light mint inset
-  border: '#dbeae3',           // subtle mint border
-  borderStrong: '#5ec9b8',
-  textPrimary: '#0c2e26',      // deep forest green-black (not neutral)
-  textSecondary: '#4e6b63',    // sage gray
-  textMuted: '#9cada6',        // pale sage
-  accent: '#14b8a6',           // teal-500 — bright mint, distinct from Professional
-  accentMuted: '#14b8a620',
-  accentSoft: '#14b8a60d',
+  bg: '#e8ebf2',               // cool light gray-lavender — the feature
+  surface: '#f3f5f9',           // slightly lighter for lifted cards
+  surfaceElevated: '#ffffff',  // pure white for modals
+  surfaceInset: '#dee2eb',     // deeper inset for inputs
+  border: '#d4d9e3',           // very subtle cool border
+  borderStrong: '#9fa8ba',
+  textPrimary: '#2a2e4a',      // deep navy — not pure black, warms the cool
+  textSecondary: '#6c7289',    // blue-gray secondary
+  textMuted: '#9ea3b5',        // pale blue-gray
+  accent: '#6366f1',           // indigo-500 periwinkle — soft but punchy
+  accentMuted: '#6366f122',
+  accentSoft: '#6366f10f',
   accentContrast: '#ffffff',
-  success: '#15803d',          // deeper emerald so it's distinct from accent mint
-  successMuted: '#15803d1a',
-  warning: '#c2410c',          // burnt orange — warm contrast to cool mint
-  warningMuted: '#c2410c1a',
-  danger: '#be123c',           // rose — readable on mint bg
-  dangerMuted: '#be123c1a',
-  info: '#1d4ed8',
-  infoMuted: '#1d4ed81a',
-  overlay: 'rgba(12,46,38,0.4)',
-  stageBlue: '#1d4ed8',
+  success: '#059669',          // emerald — reads well against cool bg
+  successMuted: '#0596691a',
+  warning: '#d97706',          // amber
+  warningMuted: '#d977061a',
+  danger: '#dc2626',           // red
+  dangerMuted: '#dc26261a',
+  info: '#2563eb',
+  infoMuted: '#2563eb1a',
+  overlay: 'rgba(42,46,74,0.45)',
+  stageBlue: '#2563eb',
   stageCyan: '#0891b2',
-  stageGreen: '#15803d',
-  stageIndigo: '#4338ca',
-  stagePurple: '#7e22ce',
-  stageAmber: '#c2410c',
+  stageGreen: '#059669',
+  stageIndigo: '#4f46e5',
+  stagePurple: '#7c3aed',
+  stageAmber: '#d97706',
 };
 
 // Midnight — slate-navy dark (not pure black) + bright cyan accent.
