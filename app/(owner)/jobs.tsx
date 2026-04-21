@@ -250,13 +250,24 @@ export default function OwnerJobs() {
                 <TouchableOpacity
                   onPress={async () => {
                     try {
-                      const resp = await mobilePost<{ sent: number }>('/api/mobile/owner/crew-reminder-test', { mode: pingMode });
-                      Alert.alert(
-                        'Reminder sent',
-                        resp?.sent
-                          ? `Pushed to ${resp.sent} crew member${resp.sent === 1 ? '' : 's'}.`
-                          : 'No one to ping yet. Make sure crew are assigned to the job and their push notifications are on.',
+                      const resp = await mobilePost<{ sent: number; jobsFound: number; assigned: number; noToken: number; noTokenNames: string[] }>(
+                        '/api/mobile/owner/crew-reminder-test', { mode: pingMode },
                       );
+                      if (resp?.sent && resp.sent > 0) {
+                        const extra = resp.noToken > 0
+                          ? `\n\n${resp.noToken} assigned crew member${resp.noToken === 1 ? '' : 's'} (${resp.noTokenNames.join(', ')}) couldn't be reached — they need to log in on the mobile app and allow notifications.`
+                          : '';
+                        Alert.alert('Reminder sent', `Pushed to ${resp.sent} crew member${resp.sent === 1 ? '' : 's'}.${extra}`);
+                      } else if (!resp?.jobsFound) {
+                        Alert.alert('Nothing to ping', `No jobs are scheduled for ${pingMode} yet.`);
+                      } else if (!resp?.assigned) {
+                        Alert.alert('No crew assigned', `${resp.jobsFound} job${resp.jobsFound === 1 ? '' : 's'} scheduled for ${pingMode}, but no crew assigned. Open the job and tap Crew → + Assign.`);
+                      } else {
+                        Alert.alert(
+                          'Crew not reachable',
+                          `${resp.assigned} crew member${resp.assigned === 1 ? ' is' : 's are'} assigned${resp.noTokenNames?.length ? ` (${resp.noTokenNames.join(', ')})` : ''}, but none have a push token. They need to log into the mobile app and allow notifications.`,
+                        );
+                      }
                     } catch (e: any) {
                       Alert.alert('Failed', e?.message || 'Could not send reminders.');
                     }
