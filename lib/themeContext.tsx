@@ -19,7 +19,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_PREF_KEY).then(raw => {
-      if (raw === 'professional' || raw === 'soft' || raw === 'midnight') {
+      if (raw === 'professional' || raw === 'soft' || raw === 'midnight' || raw === 'tech') {
         setPreferenceState(raw);
       }
       // Migrate legacy / retired values to an explicit theme.

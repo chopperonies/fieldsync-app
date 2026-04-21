@@ -2,7 +2,7 @@
 // Appearance in Settings. 'system' resolves to professional (OS light)
 // or midnight (OS dark).
 
-export type ThemeName = 'professional' | 'soft' | 'midnight';
+export type ThemeName = 'professional' | 'soft' | 'midnight' | 'tech';
 export type ThemePreference = ThemeName | 'system';
 
 export interface Theme {
@@ -164,7 +164,45 @@ export const midnightTheme: Theme = {
   stageAmber: '#fcd34d',
 };
 
-export const allThemes: Theme[] = [professionalTheme, softTheme, midnightTheme];
+// Tech — deep navy-blue base with bright cyan accent + vibrant status
+// colors. Inspired by a notification-widget reference — "Color My
+// Life". Tech console feel without being a pure dark theme.
+export const techTheme: Theme = {
+  name: 'tech',
+  label: 'Tech',
+  tagline: 'Deep navy + bright cyan + vibrant status colors.',
+  isDark: true,
+  bg: '#1a2332',               // deep navy blue-gray
+  surface: '#2d3748',          // lifted card navy
+  surfaceElevated: '#374151',  // modals
+  surfaceInset: '#111827',     // inputs
+  border: '#3d4a5c',           // visible but subtle
+  borderStrong: '#5b6b80',
+  textPrimary: '#f9fafb',      // near-white
+  textSecondary: '#cbd5e1',    // light slate
+  textMuted: '#94a3b8',
+  accent: '#0ea5e9',           // sky-500 — bright cyan
+  accentMuted: '#0ea5e922',
+  accentSoft: '#0ea5e911',
+  accentContrast: '#0f172a',
+  success: '#22c55e',          // vibrant green
+  successMuted: '#22c55e22',
+  warning: '#eab308',          // vibrant yellow
+  warningMuted: '#eab30822',
+  danger: '#ef4444',           // vibrant red
+  dangerMuted: '#ef444422',
+  info: '#3b82f6',
+  infoMuted: '#3b82f622',
+  overlay: 'rgba(15,23,42,0.65)',
+  stageBlue: '#3b82f6',
+  stageCyan: '#06b6d4',
+  stageGreen: '#22c55e',
+  stageIndigo: '#6366f1',
+  stagePurple: '#a855f7',
+  stageAmber: '#eab308',
+};
+
+export const allThemes: Theme[] = [professionalTheme, softTheme, midnightTheme, techTheme];
 
 export function resolveTheme(pref: ThemePreference, systemScheme: 'light' | 'dark' | null): Theme {
   if (pref === 'system') {
@@ -172,5 +210,6 @@ export function resolveTheme(pref: ThemePreference, systemScheme: 'light' | 'dar
   }
   if (pref === 'professional') return professionalTheme;
   if (pref === 'soft') return softTheme;
+  if (pref === 'tech') return techTheme;
   return midnightTheme;
 }
