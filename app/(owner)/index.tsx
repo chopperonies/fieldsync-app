@@ -94,6 +94,13 @@ export default function OwnerOverview() {
   const [refreshing, setRefreshing] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
 
+  // Collapsible section state. Closed-by-default each session:
+  // • Business health stays private unless owner opens it (shoulder-surfing)
+  // • Today + Recent Activity start closed to save vertical space
+  const [businessOpen, setBusinessOpen] = useState(false);
+  const [todayOpen, setTodayOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
+
   const loadData = useCallback(async () => {
     try {
       const [s, f] = await Promise.all([
@@ -255,22 +262,38 @@ export default function OwnerOverview() {
 
       {financials && (
         <>
-          <View style={styles.sectionHeaderRow}>
+          <TouchableOpacity
+            style={styles.collapsibleHeader}
+            onPress={() => setBusinessOpen(v => !v)}
+            activeOpacity={0.7}
+          >
             <Text style={styles.sectionLabel}>Business health</Text>
-            <TouchableOpacity onPress={() => router.push('/(owner)/invoices' as any)}>
-              <Text style={styles.sectionLink}>View all ›</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.healthCard}>
-            <HealthRow theme={theme} label="Revenue this month" sub="MTD" value={shortMoney(financials.revenueMtd)} />
-            <HealthRow theme={theme} label="Outstanding" sub="Awaiting payment" value={shortMoney(financials.outstanding)} valueColor={theme.warning} />
-            <HealthRow theme={theme} label="Paid in the last 7 days" sub="Cash collected" value={shortMoney(financials.paidThisWeek)} valueColor={theme.success} last />
-          </View>
+            <View style={styles.collapsibleRight}>
+              {!businessOpen && <Text style={styles.collapsibleHint}>Tap to reveal</Text>}
+              <Ionicons name={businessOpen ? 'chevron-down' : 'chevron-forward'} size={16} color={theme.textMuted} />
+            </View>
+          </TouchableOpacity>
+          {businessOpen && (
+            <View style={styles.healthCard}>
+              <HealthRow theme={theme} label="Revenue this month" sub="MTD" value={shortMoney(financials.revenueMtd)} />
+              <HealthRow theme={theme} label="Outstanding" sub="Awaiting payment" value={shortMoney(financials.outstanding)} valueColor={theme.warning} />
+              <HealthRow theme={theme} label="Paid in the last 7 days" sub="Cash collected" value={shortMoney(financials.paidThisWeek)} valueColor={theme.success} last />
+            </View>
+          )}
         </>
       )}
 
-      <Text style={styles.sectionLabel}>Today</Text>
-      {(safe.todayJobs?.length ?? 0) === 0 && !loading ? (
+      <TouchableOpacity
+        style={styles.collapsibleHeader}
+        onPress={() => setTodayOpen(v => !v)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.sectionLabel}>
+          Today{(safe.todayJobs?.length ?? 0) > 0 ? ` · ${safe.todayJobs!.length}` : ''}
+        </Text>
+        <Ionicons name={todayOpen ? 'chevron-down' : 'chevron-forward'} size={16} color={theme.textMuted} />
+      </TouchableOpacity>
+      {todayOpen && ((safe.todayJobs?.length ?? 0) === 0 && !loading ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyText}>No active jobs right now.</Text>
         </View>
@@ -312,12 +335,21 @@ export default function OwnerOverview() {
             </View>
           </TouchableOpacity>
         ))
-      )}
+      ))}
 
       {safe.recentActivity && safe.recentActivity.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Recent activity</Text>
-          {safe.recentActivity.slice(0, 8).map(a => {
+          <TouchableOpacity
+            style={styles.collapsibleHeader}
+            onPress={() => setActivityOpen(v => !v)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sectionLabel}>
+              Recent activity · {safe.recentActivity.length}
+            </Text>
+            <Ionicons name={activityOpen ? 'chevron-down' : 'chevron-forward'} size={16} color={theme.textMuted} />
+          </TouchableOpacity>
+          {activityOpen && safe.recentActivity.slice(0, 8).map(a => {
             const iconName =
               a.type === 'photo'      ? 'camera-outline' :
               a.type === 'note'       ? 'create-outline' :
@@ -416,6 +448,12 @@ function makeStyles(t: Theme) {
 
     sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
     sectionLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '800', marginTop: 6 },
+    collapsibleHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingVertical: 6,
+    },
+    collapsibleRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    collapsibleHint: { color: t.textMuted, fontSize: 11, fontWeight: '600' },
     sectionLink: { color: t.accent, fontSize: 13, fontWeight: '700' },
 
     todoRow: {
