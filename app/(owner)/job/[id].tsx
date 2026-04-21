@@ -12,7 +12,7 @@ import { Job, Employee } from '../../../lib/supabase';
 import CalendarPicker, { prettyDate } from '../../../components/CalendarPicker';
 import { useTheme } from '../../../lib/themeContext';
 import { Theme } from '../../../lib/theme';
-import { STATUS_META, statusMeta, normalizeStatusKey } from '../../../lib/jobStatus';
+import { STATUS_META, normalizeStatusKey, lifecycleIndex, LIFECYCLE_ORDER, JobStatusKey } from '../../../lib/jobStatus';
 
 type Assignment = {
   id: string;
@@ -241,9 +241,125 @@ export default function OwnerJobDetail() {
     );
   }
 
-  const stage = statusMeta(job.status);
-  const stageColor = theme[stage.tone];
   const statusKey = normalizeStatusKey(job.status);
+  const currentIndex = lifecycleIndex(job.status);
+
+  function handlePipePress(target: JobStatusKey) {
+    const targetIdx = LIFECYCLE_ORDER.indexOf(target);
+    // Revert confirm: only when moving backward on the linear path.
+    if (targetIdx !== -1 && currentIndex !== -1 && targetIdx < currentIndex) {
+      const label = STATUS_META.find(s => s.key === target)!.label;
+      Alert.alert(
+        `Revert to ${label}?`,
+        'This moves the job backward. Crew phones and the dashboard update instantly.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Revert', style: 'destructive', onPress: () => advance(target) },
+        ],
+      );
+      return;
+    }
+    advance(target);
+  }
+
+  // Next-step guidance card — replaces the redundant hero pill.
+  const invoiceAmtExisting = Number((job as any).invoice_amount) || 0;
+  const paid = String((job as any).payment_status || '').toLowerCase() === 'paid';
+  const hasDate = !!((job as any).scheduled_date);
+  type NextStep = {
+    tone: typeof STATUS_META[number]['tone'];
+    icon: typeof STATUS_META[number]['icon'];
+    title: string;
+    body: string;
+    ctaLabel?: string;
+    onCta?: () => void;
+  };
+  let nextStep: NextStep | null = null;
+  switch (statusKey) {
+    case 'quoted':
+      nextStep = {
+        tone: 'stageIndigo', icon: 'document-text-outline',
+        title: 'Quote is out',
+        body: 'Client hasn\'t accepted yet. Mark Booked once they say yes.',
+        ctaLabel: 'Mark as Booked', onCta: () => advance('scheduled'),
+      };
+      break;
+    case 'scheduled':
+      nextStep = hasDate
+        ? {
+            tone: 'stageCyan', icon: 'checkmark-circle-outline',
+            title: 'All set',
+            body: 'Appointment picked. Move to In progress when the crew is on site.',
+            ctaLabel: 'Mark In progress', onCta: () => advance('in_progress'),
+          }
+        : {
+            tone: 'stageBlue', icon: 'calendar-outline',
+            title: 'Pick an appointment',
+            body: 'Give the crew a date — they\'ll be notified.',
+            ctaLabel: 'Set date',
+            onCta: () => { setScheduledDate(null); setPicker('schedule'); },
+          };
+      break;
+    case 'on_the_way':
+      nextStep = {
+        tone: 'stagePurple', icon: 'navigate-outline',
+        title: 'Crew is en route',
+        body: 'They\'ll flip to In progress when they arrive. No action needed from you.',
+      };
+      break;
+    case 'in_progress':
+      nextStep = {
+        tone: 'stageGreen', icon: 'construct-outline',
+        title: 'Work is underway',
+        body: 'Crew on site. Mark Complete when the job is done.',
+        ctaLabel: 'Mark Complete', onCta: () => advance('complete'),
+      };
+      break;
+    case 'on_hold':
+      nextStep = {
+        tone: 'stageCyan', icon: 'play-circle-outline',
+        title: 'Paused',
+        body: 'Crew sees a hold banner. Resume to put them back on it.',
+        ctaLabel: 'Resume', onCta: () => advance('in_progress'),
+      };
+      break;
+    case 'complete':
+      nextStep = invoiceAmtExisting > 0
+        ? {
+            tone: 'stagePurple', icon: 'receipt-outline',
+            title: 'Time to send the bill',
+            body: `$${invoiceAmtExisting.toLocaleString()} invoice is ready. Mark Invoiced once sent.`,
+            ctaLabel: 'Mark Invoiced', onCta: () => advance('invoiced'),
+          }
+        : {
+            tone: 'stagePurple', icon: 'receipt-outline',
+            title: 'Send the bill',
+            body: 'Work is done. Create an invoice to close this out.',
+            ctaLabel: 'Send Invoice', onCta: () => setPicker('invoice'),
+          };
+      break;
+    case 'invoiced':
+      nextStep = paid
+        ? {
+            tone: 'stageGreen', icon: 'checkmark-done-circle-outline',
+            title: 'Paid in full',
+            body: 'Nothing left to do. Job closed out.',
+          }
+        : {
+            tone: 'stageAmber', icon: 'cash-outline',
+            title: 'Waiting on payment',
+            body: 'Invoice sent. Tap when the client pays.',
+            ctaLabel: 'Mark Paid', onCta: () => markPaid(true),
+          };
+      break;
+    case 'canceled':
+      nextStep = {
+        tone: 'danger', icon: 'close-circle-outline',
+        title: 'Job canceled',
+        body: 'No further work scheduled.',
+      };
+      break;
+  }
   const invoiceAmountExisting = Number((job as any).invoice_amount) || 0;
   const isPaid = String((job as any).payment_status || '').toLowerCase() === 'paid';
   const photoUpdates = updates.filter(u => u.type === 'photo' && u.photo_url);
@@ -268,11 +384,29 @@ export default function OwnerJobDetail() {
           {client?.name ? <Text style={styles.clientLine}>{client.name}</Text> : null}
         </View>
 
-        {/* Hero status pill */}
-        <View style={[styles.heroStatus, { backgroundColor: stageColor + '1f', borderColor: stageColor + '55' }]}>
-          <Ionicons name={stage.icon} size={18} color={stageColor} />
-          <Text style={[styles.heroStatusText, { color: stageColor }]}>{stage.label}</Text>
-        </View>
+        {/* Next step card (replaces the old hero status pill) */}
+        {nextStep && (() => {
+          const tint = theme[nextStep.tone];
+          return (
+            <View style={[styles.nextStep, { backgroundColor: tint + '14', borderColor: tint + '55' }]}>
+              <View style={styles.nextStepHead}>
+                <Ionicons name={nextStep.icon} size={16} color={tint} />
+                <Text style={[styles.nextStepLabel, { color: tint }]}>NEXT STEP</Text>
+              </View>
+              <Text style={styles.nextStepTitle}>{nextStep.title}</Text>
+              <Text style={styles.nextStepBody}>{nextStep.body}</Text>
+              {nextStep.ctaLabel && nextStep.onCta && (
+                <TouchableOpacity
+                  style={[styles.nextStepBtn, { backgroundColor: tint }]}
+                  onPress={nextStep.onCta}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.nextStepBtnText}>{nextStep.ctaLabel}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })()}
 
         {/* Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 14 }}>
@@ -301,24 +435,38 @@ export default function OwnerJobDetail() {
           <>
             {/* Pipeline */}
             <Text style={styles.sectionLabel}>Lifecycle</Text>
-            <Text style={styles.sectionHint}>Tap to change. Crew phones and the dashboard update instantly.</Text>
+            <Text style={styles.sectionHint}>Past steps show a check. Going backward asks for confirmation.</Text>
             <View style={styles.pipeline}>
               {PIPELINE_KEYS.map(k => {
                 const p = STATUS_META.find(s => s.key === k)!;
                 const color = theme[p.tone];
+                const targetIdx = LIFECYCLE_ORDER.indexOf(k);
                 const active = statusKey === p.key;
+                const isPast = targetIdx !== -1 && currentIndex !== -1 && targetIdx < currentIndex;
+                const isFuture = targetIdx !== -1 && currentIndex !== -1 && targetIdx > currentIndex;
                 return (
                   <TouchableOpacity
                     key={p.key}
                     style={[
                       styles.pipeChip,
                       active && { backgroundColor: color + '1f', borderColor: color },
+                      isPast && styles.pipeChipPast,
+                      isFuture && styles.pipeChipFuture,
                     ]}
-                    onPress={() => advance(p.key)}
+                    onPress={() => handlePipePress(p.key)}
                   >
-                    <Ionicons name={p.icon} size={14} color={active ? color : theme.textSecondary} />
+                    <Ionicons
+                      name={isPast ? 'checkmark-circle' : p.icon}
+                      size={14}
+                      color={isPast ? theme.success : active ? color : theme.textMuted}
+                    />
                     <Text
-                      style={[styles.pipeChipText, active && { color }]}
+                      style={[
+                        styles.pipeChipText,
+                        active && { color },
+                        isPast && styles.pipeChipTextPast,
+                        isFuture && { color: theme.textMuted },
+                      ]}
                       numberOfLines={1}
                     >
                       {p.label}
@@ -326,9 +474,6 @@ export default function OwnerJobDetail() {
                   </TouchableOpacity>
                 );
               })}
-            </View>
-            <View style={[styles.stageNote, { borderLeftColor: stageColor }]}>
-              <Text style={styles.stageNoteText}>{stage.description}</Text>
             </View>
 
             {/* Schedule + Estimate */}
@@ -760,13 +905,21 @@ function makeStyles(t: Theme) {
     title: { color: t.textPrimary, fontSize: 20, fontWeight: '800' },
     subtitle: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
     clientLine: { color: t.accent, fontSize: 13, marginTop: 4, fontWeight: '600' },
-    heroStatus: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 8, marginTop: 12,
-      borderRadius: 14, borderWidth: 1.5,
-      paddingVertical: 12, paddingHorizontal: 16,
+    nextStep: {
+      marginTop: 14,
+      borderWidth: 1, borderRadius: 14,
+      padding: 14,
     },
-    heroStatusText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
+    nextStepHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+    nextStepLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+    nextStepTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '800', marginTop: 2 },
+    nextStepBody: { color: t.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 4 },
+    nextStepBtn: {
+      marginTop: 12, borderRadius: 10,
+      paddingVertical: 12, paddingHorizontal: 16,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    nextStepBtnText: { color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.2 },
 
     tabs: { flexDirection: 'row', gap: 6 },
     tab: {
@@ -779,11 +932,6 @@ function makeStyles(t: Theme) {
 
     sectionLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '800', marginBottom: 4, marginTop: 6 },
     sectionHint: { color: t.textMuted, fontSize: 11, marginBottom: 10, lineHeight: 15 },
-    stageNote: {
-      backgroundColor: t.surface, borderLeftWidth: 3, borderRadius: 6,
-      paddingVertical: 8, paddingHorizontal: 10, marginTop: -4, marginBottom: 8,
-    },
-    stageNoteText: { color: t.textSecondary, fontSize: 12, lineHeight: 17 },
     card: {
       backgroundColor: t.surface, borderRadius: 12, padding: 14,
       borderWidth: 1, borderColor: t.border, marginTop: 10,
@@ -802,6 +950,9 @@ function makeStyles(t: Theme) {
       borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
     },
     pipeChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },
+    pipeChipPast: { backgroundColor: t.surface, borderColor: t.border, opacity: 0.7 },
+    pipeChipTextPast: { color: t.textMuted, textDecorationLine: 'line-through' },
+    pipeChipFuture: { backgroundColor: t.surface, borderStyle: 'dashed' },
 
     rowTwo: { flexDirection: 'row', gap: 8 },
     fieldCard: {

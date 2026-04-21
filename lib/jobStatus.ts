@@ -57,3 +57,13 @@ export function statusColor(theme: Theme, raw?: string | null): string {
   const m = statusMeta(raw);
   return theme[m.tone];
 }
+
+// Linear progression on the lifecycle. Returns -1 for branch states
+// (on_hold, canceled, on_the_way) that don't have a natural before/after.
+export const LIFECYCLE_ORDER: JobStatusKey[] = [
+  'quoted', 'scheduled', 'in_progress', 'complete', 'invoiced',
+];
+
+export function lifecycleIndex(raw?: string | null): number {
+  return LIFECYCLE_ORDER.indexOf(normalizeStatusKey(raw));
+}
