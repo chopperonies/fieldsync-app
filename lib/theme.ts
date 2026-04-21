@@ -125,40 +125,43 @@ export const softTheme: Theme = {
   stageAmber: '#d97706',
 };
 
-// Midnight — slate-navy dark (not pure black) + bright cyan accent.
+// Midnight — warm charcoal neumorphism + peach accent. Inspired by the
+// dark-neumorphism "power of teams" reference. Neutral warm-dark base
+// (not blue-tinted), surfaces barely lifted from bg for a monolithic
+// feel, warm peach accent pops against the dark.
 export const midnightTheme: Theme = {
   name: 'midnight',
   label: 'Midnight',
-  tagline: 'Rich slate navy, bright cyan. Kind to eyes at night.',
+  tagline: 'Warm charcoal + peach accent. Sophisticated dark.',
   isDark: true,
-  bg: '#0f172a',
-  surface: '#1e293b',
-  surfaceElevated: '#1e293b',
-  surfaceInset: '#0f172a',
-  border: '#334155',
-  borderStrong: '#475569',
-  textPrimary: '#f1f5f9',
-  textSecondary: '#cbd5e1',
-  textMuted: '#64748b',
-  accent: '#22d3ee',           // cyan-400
-  accentMuted: '#22d3ee22',
-  accentSoft: '#22d3ee11',
-  accentContrast: '#0f172a',
-  success: '#34d399',
-  successMuted: '#34d39922',
-  warning: '#fbbf24',
-  warningMuted: '#fbbf2422',
-  danger: '#f87171',
-  dangerMuted: '#f8717122',
-  info: '#60a5fa',
-  infoMuted: '#60a5fa22',
-  overlay: 'rgba(0,0,0,0.6)',
-  stageBlue: '#60a5fa',
-  stageCyan: '#22d3ee',
-  stageGreen: '#34d399',
-  stageIndigo: '#818cf8',
-  stagePurple: '#c084fc',
-  stageAmber: '#fbbf24',
+  bg: '#1c1c20',               // warm neutral dark charcoal
+  surface: '#26272b',          // subtle lift from bg
+  surfaceElevated: '#2d2e33',  // modals
+  surfaceInset: '#16171a',     // deeper inset for inputs
+  border: '#2f2f35',           // very subtle
+  borderStrong: '#4a4a52',
+  textPrimary: '#f5f5f5',      // off-white (not pure)
+  textSecondary: '#a8a8ac',    // neutral mid gray
+  textMuted: '#6e6e72',
+  accent: '#f2b37c',           // warm peach / apricot
+  accentMuted: '#f2b37c22',
+  accentSoft: '#f2b37c11',
+  accentContrast: '#1c1c20',   // dark text on peach fills
+  success: '#86efac',          // soft green
+  successMuted: '#86efac22',
+  warning: '#fcd34d',          // soft amber
+  warningMuted: '#fcd34d22',
+  danger: '#fca5a5',           // soft coral-red
+  dangerMuted: '#fca5a522',
+  info: '#93c5fd',             // soft blue
+  infoMuted: '#93c5fd22',
+  overlay: 'rgba(0,0,0,0.65)',
+  stageBlue: '#93c5fd',
+  stageCyan: '#67e8f9',
+  stageGreen: '#86efac',
+  stageIndigo: '#a5b4fc',
+  stagePurple: '#d8b4fe',
+  stageAmber: '#fcd34d',
 };
 
 export const allThemes: Theme[] = [professionalTheme, softTheme, midnightTheme];
