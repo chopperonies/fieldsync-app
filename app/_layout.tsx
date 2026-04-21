@@ -4,12 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import { AppState, AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { getLockMethod, getLockPrompted, setLockPrompted, getUser, LockMethod } from '../lib/storage';
+import { ThemeProvider, useTheme } from '../lib/themeContext';
 import LockScreen from '../components/LockScreen';
 import LockSetup from '../components/LockSetup';
 
 const LOCK_AFTER_MS = 5 * 60 * 1000; // re-lock after 5 minutes in background
 
-export default function RootLayout() {
+function ThemedRoot() {
+  const theme = useTheme();
   const [locked, setLocked] = useState(false);
   const [lockMethod, setLockMethodState] = useState<LockMethod>('none');
   const [showSetup, setShowSetup] = useState(false);
@@ -61,12 +63,12 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={theme.name === 'light' ? 'dark' : 'light'} />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#0a0a0a' },
-          headerTintColor: '#ffffff',
-          contentStyle: { backgroundColor: '#0a0a0a' },
+          headerStyle: { backgroundColor: theme.bg },
+          headerTintColor: theme.textPrimary,
+          contentStyle: { backgroundColor: theme.bg },
           headerTitleStyle: { fontWeight: '700' },
         }}
       >
@@ -85,5 +87,13 @@ export default function RootLayout() {
         <LockSetup onDone={onSetupDone} />
       )}
     </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <ThemedRoot />
+    </ThemeProvider>
   );
 }

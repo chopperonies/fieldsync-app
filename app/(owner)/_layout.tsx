@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearUser, getPlan, getUser } from '../../lib/storage';
 import { mobileGet } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
 import OwnerFab from '../../components/OwnerFab';
 
 async function logout() {
@@ -15,6 +16,7 @@ async function logout() {
 type LockState = 'subscription' | 'paused' | 'blocked' | null;
 
 export default function OwnerLayout() {
+  const theme = useTheme();
   const [lockState, setLockState] = useState<LockState>(null);
   const insets = useSafeAreaInsets();
 
@@ -84,16 +86,16 @@ export default function OwnerLayout() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
     <Tabs
       screenOptions={{
-        tabBarStyle: { backgroundColor: '#0a0a0a', borderTopColor: '#1e1e1e', height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
-        tabBarActiveTintColor: '#0ea5e9',
-        tabBarInactiveTintColor: '#888',
+        tabBarStyle: { backgroundColor: theme.bg, borderTopColor: theme.border, height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
+        tabBarActiveTintColor: theme.accent,
+        tabBarInactiveTintColor: theme.textSecondary,
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-        headerStyle: { backgroundColor: '#0a0a0a' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '700' },
+        headerStyle: { backgroundColor: theme.bg },
+        headerTintColor: theme.textPrimary,
+        headerTitleStyle: { fontWeight: '700', color: theme.textPrimary },
         headerRight: undefined,
       }}
     >

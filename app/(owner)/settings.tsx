@@ -5,11 +5,14 @@ import {
 } from 'react-native';
 import { mobileGet, mobilePatch, mobilePost } from '../../lib/mobileApi';
 import { getPlan } from '../../lib/storage';
+import { useTheme } from '../../lib/themeContext';
 import LockSettings from '../../components/LockSettings';
+import AppearanceSettings from '../../components/AppearanceSettings';
 
 const PRIORITY_PLANS = ['team', 'pro', 'business'];
 
 export default function OwnerSettings() {
+  const theme = useTheme();
   const [companyName, setCompanyName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -138,11 +141,11 @@ export default function OwnerSettings() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.bg }]}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
     >
-      <Text style={styles.sectionLabel}>Company Info</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Company Info</Text>
       <Text style={styles.hint}>This appears on invoices sent to your clients.</Text>
 
       <Text style={styles.fieldLabel}>Company Name</Text>
@@ -183,7 +186,7 @@ export default function OwnerSettings() {
 
       <View style={styles.divider} />
 
-      <Text style={styles.sectionLabel}>Subscription</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Subscription</Text>
       <View style={[styles.row, { marginBottom: 12 }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.rowLabel}>
@@ -209,7 +212,7 @@ export default function OwnerSettings() {
 
       <View style={styles.divider} />
 
-      <Text style={styles.sectionLabel}>Payments</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Payments</Text>
       <Text style={styles.hint}>Connect Stripe to let clients pay invoices by card through their portal.</Text>
       {stripeConnected === null ? (
         <ActivityIndicator color="#0ea5e9" style={{ marginTop: 8 }} />
@@ -235,18 +238,25 @@ export default function OwnerSettings() {
 
       <View style={styles.divider} />
 
-      <Text style={styles.sectionLabel}>Security</Text>
+      <View style={styles.divider} />
+
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Appearance</Text>
+      <AppearanceSettings />
+
+      <View style={styles.divider} />
+
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Security</Text>
       <LockSettings />
 
       <View style={styles.divider} />
 
-      <Text style={styles.sectionLabel}>Logo</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Logo</Text>
       <Text style={styles.hint}>To upload your company logo, visit the Settings page on the web dashboard at linkcrew.io.</Text>
 
       {hasPrioritySupport && (
         <>
           <View style={styles.divider} />
-          <Text style={styles.sectionLabel}>Support</Text>
+          <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Support</Text>
           <Text style={styles.hint}>As a Team+ member you have access to priority support.</Text>
           <TouchableOpacity
             style={styles.supportBtn}

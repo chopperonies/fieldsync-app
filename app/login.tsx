@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  Text, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -9,8 +9,10 @@ import {
   saveUser, savePlan, getLoginRole, setLoginRole, LoginRole,
 } from '../lib/storage';
 import { registerPushToken } from '../lib/notifications';
+import { useTheme } from '../lib/themeContext';
 
 export default function Login() {
+  const theme = useTheme();
   const [role, setRole] = useState<LoginRole>('owner');
   const [hasRemembered, setHasRemembered] = useState(false);
   const [phone, setPhone] = useState('');
@@ -130,26 +132,33 @@ export default function Login() {
     }).catch(() => {});
   }
 
+  const inputStyle = {
+    backgroundColor: theme.surfaceInset,
+    borderWidth: 1, borderColor: theme.border,
+    borderRadius: 12, padding: 16, fontSize: 16,
+    color: theme.textPrimary, marginBottom: 12,
+  };
+
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={{ flex: 1, backgroundColor: theme.bg }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
     >
-      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-        <Text style={styles.logo}>LinkCrew</Text>
-        <Text style={styles.subtitle}>Field crew management</Text>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 28 }} keyboardShouldPersistTaps="handled">
+        <Text style={{ fontSize: 36, fontWeight: '800', color: theme.accent, marginBottom: 6 }}>LinkCrew</Text>
+        <Text style={{ fontSize: 16, color: theme.textMuted, marginBottom: 32 }}>Field crew management</Text>
 
-        <Text style={styles.roleHeader}>
+        <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 14 }}>
           {role === 'owner' ? 'Sign in as Owner' : 'Sign in as Crew / Manager'}
         </Text>
 
         {role === 'owner' ? (
           <>
             <TextInput
-              style={styles.input}
+              style={inputStyle}
               placeholder="Email"
-              placeholderTextColor="#555"
+              placeholderTextColor={theme.textMuted}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -158,44 +167,52 @@ export default function Login() {
               autoComplete="email"
             />
             <TextInput
-              style={styles.input}
+              style={inputStyle}
               placeholder="Password"
-              placeholderTextColor="#555"
+              placeholderTextColor={theme.textMuted}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
               autoCapitalize="none"
               autoComplete="password"
             />
-            <TouchableOpacity style={styles.button} onPress={loginOwner} disabled={loading}>
+            <TouchableOpacity
+              style={{ backgroundColor: theme.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 }}
+              onPress={loginOwner}
+              disabled={loading}
+            >
               {loading
-                ? <ActivityIndicator color="#000" />
-                : <Text style={styles.buttonText}>Sign In</Text>}
+                ? <ActivityIndicator color={theme.accentContrast} />
+                : <Text style={{ fontSize: 16, fontWeight: '700', color: theme.accentContrast }}>Sign In</Text>}
             </TouchableOpacity>
-            <Text style={styles.hint}>Use the same email and password you use at linkcrew.io/app.</Text>
-            <TouchableOpacity onPress={() => switchRole('crew')} style={styles.switchLink}>
-              <Text style={styles.switchText}>I'm crew / manager — sign in with phone instead</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 18 }}>Use the same email and password you use at linkcrew.io/app.</Text>
+            <TouchableOpacity onPress={() => switchRole('crew')} style={{ padding: 14, alignItems: 'center', marginTop: 4 }}>
+              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>I'm crew / manager — sign in with phone instead</Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
             <TextInput
-              style={styles.input}
+              style={inputStyle}
               placeholder="Phone number"
-              placeholderTextColor="#555"
+              placeholderTextColor={theme.textMuted}
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
               autoComplete="tel"
             />
-            <TouchableOpacity style={styles.button} onPress={loginCrew} disabled={loading}>
+            <TouchableOpacity
+              style={{ backgroundColor: theme.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 }}
+              onPress={loginCrew}
+              disabled={loading}
+            >
               {loading
-                ? <ActivityIndicator color="#000" />
-                : <Text style={styles.buttonText}>Sign In</Text>}
+                ? <ActivityIndicator color={theme.accentContrast} />
+                : <Text style={{ fontSize: 16, fontWeight: '700', color: theme.accentContrast }}>Sign In</Text>}
             </TouchableOpacity>
-            <Text style={styles.hint}>Your manager adds you to the team by phone number. Contact them if you can't sign in.</Text>
-            <TouchableOpacity onPress={() => switchRole('owner')} style={styles.switchLink}>
-              <Text style={styles.switchText}>I'm the account owner — sign in with email</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 18 }}>Your manager adds you to the team by phone number. Contact them if you can't sign in.</Text>
+            <TouchableOpacity onPress={() => switchRole('owner')} style={{ padding: 14, alignItems: 'center', marginTop: 4 }}>
+              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>I'm the account owner — sign in with email</Text>
             </TouchableOpacity>
           </>
         )}
@@ -203,23 +220,3 @@ export default function Login() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  inner: { flexGrow: 1, justifyContent: 'center', padding: 28 },
-  logo: { fontSize: 36, fontWeight: '800', color: '#0ea5e9', marginBottom: 6 },
-  subtitle: { fontSize: 16, color: '#666', marginBottom: 32 },
-  roleHeader: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 14 },
-  switchLink: { padding: 14, alignItems: 'center', marginTop: 4 },
-  switchText: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
-  input: {
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 12, padding: 16, fontSize: 16, color: '#fff', marginBottom: 12,
-  },
-  button: {
-    backgroundColor: '#0ea5e9', borderRadius: 12,
-    padding: 16, alignItems: 'center', marginTop: 4,
-  },
-  buttonText: { fontSize: 16, fontWeight: '700', color: '#000' },
-  hint: { color: '#444', fontSize: 13, textAlign: 'center', marginTop: 18 },
-});

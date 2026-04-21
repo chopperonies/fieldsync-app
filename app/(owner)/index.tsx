@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileGet } from '../../lib/mobileApi';
 import { router } from 'expo-router';
 import { getUser } from '../../lib/storage';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
 
 type HomeJob = {
   id: string;
@@ -83,6 +85,9 @@ function weekStripDays(today: Date): Date[] {
 }
 
 export default function OwnerOverview() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+
   const [stats, setStats] = useState<Stats | null>(null);
   const [financials, setFinancials] = useState<Financials | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,7 +134,7 @@ export default function OwnerOverview() {
   const days = weekStripDays(today);
   const todayIdx = today.getDay();
 
-  // Smart hero card: stuck > 0 → attention; no active → new job CTA; else all-clear
+  // Hero variants keyed by state.
   const hero = (() => {
     const stuck = safe.stuckJobs || [];
     if (stuck.length > 0) {
@@ -159,14 +164,21 @@ export default function OwnerOverview() {
     };
   })();
 
-  // To-do: stuck jobs + pending supplies. Capped to keep it actionable.
+  // Hero color by kind
+  const heroColors = (() => {
+    if (hero.kind === 'attention') return { bg: theme.warningMuted, border: theme.warning, tint: theme.warning };
+    if (hero.kind === 'empty')     return { bg: theme.accentSoft,    border: theme.accent,  tint: theme.accent };
+    return                                { bg: theme.successMuted,  border: theme.success, tint: theme.success };
+  })();
+
+  // To-do items
   const todoItems: { id: string; label: string; sub: string; icon: any; color: string; onPress: () => void }[] = [];
   (safe.stuckJobs || []).slice(0, 3).forEach(j => todoItems.push({
     id: 'stuck-' + j.id,
     label: j.name,
     sub: `Stuck ${j.updated_at ? timeAgo(j.updated_at) : ''}${j.stage_name ? ` · ${j.stage_name}` : ''}`,
     icon: 'warning-outline',
-    color: '#f59e0b',
+    color: theme.warning,
     onPress: () => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any),
   }));
   if (safe.pendingSupplies > 0) todoItems.push({
@@ -174,7 +186,7 @@ export default function OwnerOverview() {
     label: `${safe.pendingSupplies} pending supply ${safe.pendingSupplies === 1 ? 'request' : 'requests'}`,
     sub: 'Mark ordered or delivered from Supplies',
     icon: 'cube-outline',
-    color: '#0ea5e9',
+    color: theme.accent,
     onPress: () => router.push('/(owner)/supplies' as any),
   });
 
@@ -182,42 +194,25 @@ export default function OwnerOverview() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={loading || refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+      refreshControl={<RefreshControl refreshing={loading || refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
     >
       <View style={styles.header}>
         <Text style={styles.date}>{dateLabel}</Text>
         <Text style={styles.greeting}>{greeting}{firstName ? `, ${firstName}` : ''}</Text>
       </View>
 
-      {/* Smart hero card */}
       <TouchableOpacity
-        style={[
-          styles.hero,
-          hero.kind === 'attention' && { backgroundColor: '#1a1006', borderColor: '#f59e0b55' },
-          hero.kind === 'empty' && { backgroundColor: '#0a1a2e', borderColor: '#0ea5e955' },
-          hero.kind === 'running' && { backgroundColor: '#062017', borderColor: '#16a34a55' },
-        ]}
+        style={[styles.hero, { backgroundColor: heroColors.bg, borderColor: heroColors.border + '55' }]}
         onPress={hero.onPress}
         activeOpacity={0.85}
       >
         <View style={{ flex: 1 }}>
-          <Text style={[
-            styles.heroTitle,
-            hero.kind === 'attention' && { color: '#fcd34d' },
-            hero.kind === 'running' && { color: '#86efac' },
-            hero.kind === 'empty' && { color: '#7dd3fc' },
-          ]}>{hero.title}</Text>
+          <Text style={[styles.heroTitle, { color: heroColors.tint }]}>{hero.title}</Text>
           <Text style={styles.heroBody}>{hero.body}</Text>
         </View>
-        <Text style={[
-          styles.heroCta,
-          hero.kind === 'attention' && { color: '#fcd34d' },
-          hero.kind === 'running' && { color: '#86efac' },
-          hero.kind === 'empty' && { color: '#7dd3fc' },
-        ]}>{hero.cta} ›</Text>
+        <Text style={[styles.heroCta, { color: heroColors.tint }]}>{hero.cta} ›</Text>
       </TouchableOpacity>
 
-      {/* Week strip — taps through to Schedule on the chosen day */}
       <View style={styles.weekStrip}>
         {days.map((d, i) => {
           const isToday = i === todayIdx;
@@ -231,16 +226,15 @@ export default function OwnerOverview() {
               activeOpacity={0.7}
             >
               <Text style={styles.dayLetter}>{DAY_LETTERS[i]}</Text>
-              <View style={[styles.dayBubble, isToday && styles.dayBubbleToday]}>
-                <Text style={[styles.dayNumber, isToday && styles.dayNumberToday]}>{d.getDate()}</Text>
+              <View style={[styles.dayBubble, isToday && { backgroundColor: theme.accent }]}>
+                <Text style={[styles.dayNumber, isToday && { color: theme.accentContrast, fontWeight: '800' }]}>{d.getDate()}</Text>
               </View>
-              <View style={[styles.dayDot, count > 0 && styles.dayDotActive]} />
+              <View style={[styles.dayDot, count > 0 && { backgroundColor: theme.accent }]} />
             </TouchableOpacity>
           );
         })}
       </View>
 
-      {/* To do */}
       {todoItems.length > 0 && (
         <>
           <Text style={styles.sectionLabel}>To do</Text>
@@ -253,13 +247,12 @@ export default function OwnerOverview() {
                 <Text style={styles.todoLabel}>{t.label}</Text>
                 <Text style={styles.todoSub}>{t.sub}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#555" />
+              <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
             </TouchableOpacity>
           ))}
         </>
       )}
 
-      {/* Business health */}
       {financials && (
         <>
           <View style={styles.sectionHeaderRow}>
@@ -269,14 +262,13 @@ export default function OwnerOverview() {
             </TouchableOpacity>
           </View>
           <View style={styles.healthCard}>
-            <HealthRow label="Revenue this month" sub="MTD" value={shortMoney(financials.revenueMtd)} />
-            <HealthRow label="Outstanding" sub="Awaiting payment" value={shortMoney(financials.outstanding)} valueColor="#facc15" />
-            <HealthRow label="Paid in the last 7 days" sub="Cash collected" value={shortMoney(financials.paidThisWeek)} valueColor="#4ade80" last />
+            <HealthRow theme={theme} label="Revenue this month" sub="MTD" value={shortMoney(financials.revenueMtd)} />
+            <HealthRow theme={theme} label="Outstanding" sub="Awaiting payment" value={shortMoney(financials.outstanding)} valueColor={theme.warning} />
+            <HealthRow theme={theme} label="Paid in the last 7 days" sub="Cash collected" value={shortMoney(financials.paidThisWeek)} valueColor={theme.success} last />
           </View>
         </>
       )}
 
-      {/* Today's active jobs */}
       <Text style={styles.sectionLabel}>Today</Text>
       {(safe.todayJobs?.length ?? 0) === 0 && !loading ? (
         <View style={styles.emptyCard}>
@@ -296,22 +288,22 @@ export default function OwnerOverview() {
                 {j.client_name ? <Text style={styles.clientLine}>{j.client_name}</Text> : null}
               </View>
               {j.stage_name && (
-                <View style={[styles.stagePill, { borderColor: (j.stage_color || '#0ea5e9') + '55', backgroundColor: (j.stage_color || '#0ea5e9') + '22' }]}>
-                  <Text style={[styles.stagePillText, { color: j.stage_color || '#0ea5e9' }]}>{j.stage_name}</Text>
+                <View style={[styles.stagePill, { borderColor: (j.stage_color || theme.accent) + '55', backgroundColor: (j.stage_color || theme.accent) + '22' }]}>
+                  <Text style={[styles.stagePillText, { color: j.stage_color || theme.accent }]}>{j.stage_name}</Text>
                 </View>
               )}
             </View>
             <View style={styles.jobMeta}>
               <View style={styles.metaChip}>
-                <Ionicons name="people-outline" size={12} color="#888" />
+                <Ionicons name="people-outline" size={12} color={theme.textSecondary} />
                 <Text style={styles.metaChipText}>
                   {j.crew.length > 0 ? j.crew.slice(0, 2).join(', ') + (j.crew.length > 2 ? ` +${j.crew.length - 2}` : '') : 'Unassigned'}
                 </Text>
               </View>
               {j.pendingSupplies > 0 && (
                 <View style={styles.metaChip}>
-                  <Ionicons name="cube-outline" size={12} color="#0ea5e9" />
-                  <Text style={[styles.metaChipText, { color: '#0ea5e9' }]}>{j.pendingSupplies} supplies</Text>
+                  <Ionicons name="cube-outline" size={12} color={theme.accent} />
+                  <Text style={[styles.metaChipText, { color: theme.accent }]}>{j.pendingSupplies} supplies</Text>
                 </View>
               )}
               {j.updated_at && (
@@ -322,7 +314,6 @@ export default function OwnerOverview() {
         ))
       )}
 
-      {/* Recent activity across jobs */}
       {safe.recentActivity && safe.recentActivity.length > 0 && (
         <>
           <Text style={styles.sectionLabel}>Recent activity</Text>
@@ -335,10 +326,10 @@ export default function OwnerOverview() {
               a.type === 'bottleneck' ? 'alert-circle-outline' :
                                         'ellipse-outline';
             const iconColor =
-              a.type === 'bottleneck' ? '#ef4444' :
-              a.type === 'photo'      ? '#a78bfa' :
-              a.type === 'check_in'   ? '#4ade80' :
-                                        '#0ea5e9';
+              a.type === 'bottleneck' ? theme.danger :
+              a.type === 'photo'      ? theme.stagePurple :
+              a.type === 'check_in'   ? theme.success :
+                                        theme.accent;
             const label =
               a.type === 'photo'      ? 'Photo uploaded' :
               a.type === 'note'       ? (a.message || 'Note') :
@@ -372,118 +363,108 @@ export default function OwnerOverview() {
 }
 
 function HealthRow({
-  label, sub, value, valueColor, last,
-}: { label: string; sub?: string; value: string; valueColor?: string; last?: boolean }) {
+  theme, label, sub, value, valueColor, last,
+}: { theme: Theme; label: string; sub?: string; value: string; valueColor?: string; last?: boolean }) {
   return (
-    <View style={[styles.healthRow, last && { borderBottomWidth: 0 }]}>
+    <View style={{
+      flexDirection: 'row', alignItems: 'center',
+      paddingVertical: 14,
+      borderBottomWidth: last ? 0 : 1, borderBottomColor: theme.border,
+    }}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.healthLabel}>{label}</Text>
-        {sub && <Text style={styles.healthSub}>{sub}</Text>}
+        <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+        {sub && <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>{sub}</Text>}
       </View>
-      <Text style={[styles.healthValue, { color: valueColor || '#fff' }]}>{value}</Text>
+      <Text style={{ fontSize: 20, fontWeight: '800', color: valueColor || theme.textPrimary }}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  content: { padding: 16, gap: 14, paddingBottom: 140 },
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    content: { padding: 16, gap: 14, paddingBottom: 140 },
 
-  header: { marginBottom: 4 },
-  date: { color: '#888', fontSize: 13, fontWeight: '600', marginBottom: 4 },
-  greeting: { color: '#fff', fontSize: 28, fontWeight: '800' },
+    header: { marginBottom: 4 },
+    date: { color: t.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 4 },
+    greeting: { color: t.textPrimary, fontSize: 28, fontWeight: '800' },
 
-  hero: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
-    borderRadius: 16, padding: 16,
-  },
-  heroTitle: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  heroBody: { color: '#bbb', fontSize: 13, marginTop: 4, lineHeight: 18 },
-  heroCta: { color: '#0ea5e9', fontSize: 13, fontWeight: '800' },
+    hero: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      borderWidth: 1,
+      borderRadius: 16, padding: 16,
+    },
+    heroTitle: { fontSize: 15, fontWeight: '800' },
+    heroBody: { color: t.textSecondary, fontSize: 13, marginTop: 4, lineHeight: 18 },
+    heroCta: { fontSize: 13, fontWeight: '800' },
 
-  weekStrip: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
-    borderRadius: 16, paddingVertical: 10, paddingHorizontal: 8,
-  },
-  dayCell: { flex: 1, alignItems: 'center', gap: 4 },
-  dayLetter: { color: '#666', fontSize: 11, fontWeight: '700' },
-  dayBubble: {
-    width: 30, height: 30, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  dayBubbleToday: { backgroundColor: '#0ea5e9' },
-  dayNumber: { color: '#bbb', fontSize: 14, fontWeight: '700' },
-  dayNumberToday: { color: '#000', fontWeight: '800' },
-  dayDot: {
-    width: 4, height: 4, borderRadius: 2,
-    backgroundColor: 'transparent', marginTop: 4,
-  },
-  dayDotActive: { backgroundColor: '#0ea5e9' },
+    weekStrip: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+      borderRadius: 16, paddingVertical: 10, paddingHorizontal: 8,
+    },
+    dayCell: { flex: 1, alignItems: 'center', gap: 4 },
+    dayLetter: { color: t.textMuted, fontSize: 11, fontWeight: '700' },
+    dayBubble: {
+      width: 30, height: 30, borderRadius: 15,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    dayNumber: { color: t.textSecondary, fontSize: 14, fontWeight: '700' },
+    dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 4 },
 
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  sectionLabel: { color: '#ddd', fontSize: 14, fontWeight: '800', marginTop: 6 },
-  sectionLink: { color: '#0ea5e9', fontSize: 13, fontWeight: '700' },
+    sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+    sectionLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '800', marginTop: 6 },
+    sectionLink: { color: t.accent, fontSize: 13, fontWeight: '700' },
 
-  todoRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
-    borderRadius: 12, padding: 12,
-  },
-  todoIcon: {
-    width: 34, height: 34, borderRadius: 10, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  todoLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  todoSub: { color: '#888', fontSize: 12, marginTop: 2 },
+    todoRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+      borderRadius: 12, padding: 12,
+    },
+    todoIcon: {
+      width: 34, height: 34, borderRadius: 10, borderWidth: 1,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    todoLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
+    todoSub: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
 
-  healthCard: {
-    backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: '#1e1e1e',
-    paddingHorizontal: 14,
-  },
-  healthRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#1e1e1e',
-  },
-  healthLabel: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  healthSub: { color: '#666', fontSize: 12, marginTop: 2 },
-  healthValue: { fontSize: 20, fontWeight: '800' },
+    healthCard: {
+      backgroundColor: t.surface, borderRadius: 16, borderWidth: 1, borderColor: t.border,
+      paddingHorizontal: 14,
+    },
 
-  jobCard: {
-    backgroundColor: '#111', borderRadius: 12,
-    padding: 12, borderWidth: 1, borderColor: '#1e1e1e',
-  },
-  jobTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  jobName: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  clientLine: { color: '#888', fontSize: 12, marginTop: 2 },
-  stagePill: {
-    borderWidth: 1, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 10,
-  },
-  stagePillText: { fontSize: 11, fontWeight: '700' },
-  jobMeta: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10,
-    flexWrap: 'wrap',
-  },
-  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaChipText: { color: '#888', fontSize: 12, fontWeight: '600' },
-  metaTime: { color: '#555', fontSize: 11, marginLeft: 'auto' },
+    jobCard: {
+      backgroundColor: t.surface, borderRadius: 12,
+      padding: 12, borderWidth: 1, borderColor: t.border,
+    },
+    jobTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    jobName: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
+    clientLine: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
+    stagePill: { borderWidth: 1, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 10 },
+    stagePillText: { fontSize: 11, fontWeight: '700' },
+    jobMeta: {
+      flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap',
+    },
+    metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    metaChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
+    metaTime: { color: t.textMuted, fontSize: 11, marginLeft: 'auto' },
 
-  emptyCard: {
-    backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: '#1e1e1e',
-    padding: 18, alignItems: 'center',
-  },
-  emptyText: { color: '#666', fontSize: 14 },
+    emptyCard: {
+      backgroundColor: t.surface, borderRadius: 12, borderWidth: 1, borderColor: t.border,
+      padding: 18, alignItems: 'center',
+    },
+    emptyText: { color: t.textSecondary, fontSize: 14 },
 
-  activityRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
-    borderRadius: 12, padding: 12,
-  },
-  activityIcon: {
-    width: 32, height: 32, borderRadius: 10, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  activityLine: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  activitySub: { color: '#888', fontSize: 11, marginTop: 2 },
-});
+    activityRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+      borderRadius: 12, padding: 12,
+    },
+    activityIcon: {
+      width: 32, height: 32, borderRadius: 10, borderWidth: 1,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    activityLine: { color: t.textPrimary, fontSize: 13, fontWeight: '600' },
+    activitySub: { color: t.textSecondary, fontSize: 11, marginTop: 2 },
+  });
+}

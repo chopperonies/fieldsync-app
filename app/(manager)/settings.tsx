@@ -1,7 +1,9 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { clearUser } from '../../lib/storage';
+import { useTheme } from '../../lib/themeContext';
 import LockSettings from '../../components/LockSettings';
+import AppearanceSettings from '../../components/AppearanceSettings';
 
 async function logout() {
   await clearUser();
@@ -9,27 +11,30 @@ async function logout() {
 }
 
 export default function ManagerSettings() {
+  const theme = useTheme();
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.sectionLabel}>Security</Text>
+    <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ padding: 20 }}>
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Appearance</Text>
+      <AppearanceSettings />
+
+      <View style={[styles.divider, { backgroundColor: theme.borderStrong }]} />
+
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Security</Text>
       <LockSettings />
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: theme.borderStrong }]} />
 
-      <TouchableOpacity style={styles.signOut} onPress={logout}>
-        <Text style={styles.signOutText}>Sign Out</Text>
+      <TouchableOpacity style={[styles.signOut, { borderColor: theme.danger }]} onPress={logout}>
+        <Text style={[styles.signOutText, { color: theme.danger }]}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  sectionLabel: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 4, marginTop: 8 },
-  divider: { height: 1, backgroundColor: '#2a2a2a', marginVertical: 24 },
-  signOut: {
-    borderWidth: 1, borderColor: '#ef4444', borderRadius: 12,
-    padding: 14, alignItems: 'center',
-  },
-  signOutText: { color: '#ef4444', fontWeight: '700', fontSize: 15 },
+  container: { flex: 1 },
+  sectionLabel: { fontSize: 17, fontWeight: '700', marginBottom: 8, marginTop: 8 },
+  divider: { height: 1, marginVertical: 24 },
+  signOut: { borderWidth: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
+  signOutText: { fontWeight: '700', fontSize: 15 },
 });
