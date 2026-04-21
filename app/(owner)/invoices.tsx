@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
 
 type InvoiceJob = {
   id: string;
@@ -35,6 +37,8 @@ function isPaid(j: InvoiceJob) {
 }
 
 export default function OwnerInvoices() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [jobs, setJobs] = useState<InvoiceJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -140,7 +144,7 @@ export default function OwnerInvoices() {
   const totalOwed = jobs.filter(j => !isPaid(j)).reduce((s, j) => s + (Number(j.invoice_amount) || 0), 0);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
@@ -150,8 +154,8 @@ export default function OwnerInvoices() {
           <Text style={styles.summaryValue}>${totalPaid.toLocaleString()}</Text>
           <Text style={styles.summaryLabel}>Collected</Text>
         </View>
-        <View style={[styles.summaryCard, { borderColor: '#0ea5e944' }]}>
-          <Text style={[styles.summaryValue, { color: '#0ea5e9' }]}>${totalOwed.toLocaleString()}</Text>
+        <View style={[styles.summaryCard, { borderColor: theme.accent + '44' }]}>
+          <Text style={[styles.summaryValue, { color: theme.accent }]}>${totalOwed.toLocaleString()}</Text>
           <Text style={styles.summaryLabel}>Outstanding</Text>
         </View>
       </View>
@@ -176,7 +180,7 @@ export default function OwnerInvoices() {
         data={filtered}
         keyExtractor={j => j.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
         ListEmptyComponent={<Text style={styles.empty}>No invoices yet.</Text>}
         renderItem={({ item }) => {
           const paid = isPaid(item);
@@ -191,8 +195,8 @@ export default function OwnerInvoices() {
                 </View>
                 <View>
                   <Text style={styles.amount}>${(Number(item.invoice_amount) || 0).toLocaleString()}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: paid ? '#4ade8022' : '#facc1522' }]}>
-                    <Text style={[styles.statusText, { color: paid ? '#4ade80' : '#facc15' }]}>
+                  <View style={[styles.statusBadge, { backgroundColor: paid ? theme.successMuted : theme.warningMuted }]}>
+                    <Text style={[styles.statusText, { color: paid ? theme.success : theme.warning }]}>
                       {paid ? 'Paid' : 'Unpaid'}
                     </Text>
                   </View>
@@ -229,7 +233,7 @@ export default function OwnerInvoices() {
 
             <Text style={styles.label}>Job</Text>
             {jobsLoading ? (
-              <ActivityIndicator color="#0ea5e9" style={{ marginVertical: 12 }} />
+              <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />
             ) : availableJobs.length === 0 ? (
               <Text style={styles.empty}>No jobs available to invoice.</Text>
             ) : (
@@ -251,7 +255,7 @@ export default function OwnerInvoices() {
             <TextInput
               style={styles.input}
               placeholder="0.00"
-              placeholderTextColor="#444"
+              placeholderTextColor={theme.textMuted}
               keyboardType="decimal-pad"
               value={amount}
               onChangeText={setAmount}
@@ -263,7 +267,7 @@ export default function OwnerInvoices() {
               disabled={!selectedJob || !amount || submitting}
             >
               {submitting
-                ? <ActivityIndicator color="#000" />
+                ? <ActivityIndicator color={theme.accentContrast} />
                 : <Text style={styles.submitText}>Send Invoice</Text>}
             </TouchableOpacity>
           </View>
@@ -284,7 +288,7 @@ export default function OwnerInvoices() {
                 onPress={() => markPaid(true)}
                 disabled={markingPaid}
               >
-                {markingPaid ? <ActivityIndicator color="#000" /> : <Text style={styles.submitText}>Mark Paid + Email Receipt</Text>}
+                {markingPaid ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.submitText}>Mark Paid + Email Receipt</Text>}
               </TouchableOpacity>
             )}
 
@@ -306,81 +310,83 @@ export default function OwnerInvoices() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  empty: { color: '#444', textAlign: 'center', marginTop: 40, fontSize: 15 },
-  err: { color: '#ef4444', textAlign: 'center', marginTop: 8, fontSize: 13 },
-  summary: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0 },
-  summaryCard: {
-    flex: 1, backgroundColor: '#1a1a1a', borderRadius: 12,
-    padding: 14, borderWidth: 1, borderColor: '#4ade8044',
-  },
-  summaryValue: { color: '#4ade80', fontSize: 22, fontWeight: '800' },
-  summaryLabel: { color: '#666', fontSize: 12, marginTop: 2 },
-  filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 12, flexWrap: 'wrap' },
-  filterChip: {
-    borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#111',
-  },
-  filterChipActive: { backgroundColor: '#0ea5e922', borderColor: '#0ea5e9' },
-  filterText: { color: '#555', fontSize: 12, fontWeight: '600' },
-  filterTextActive: { color: '#0ea5e9' },
-  card: { backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#2a2a2a' },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-  jobName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  clientName: { color: '#888', fontSize: 13, marginTop: 2 },
-  amount: { color: '#fff', fontSize: 18, fontWeight: '800', textAlign: 'right' },
-  statusBadge: { borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8, marginTop: 4, alignSelf: 'flex-end' },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  cardMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingTop: 10 },
-  metaText: { color: '#555', fontSize: 12 },
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    empty: { color: t.textMuted, textAlign: 'center', marginTop: 40, fontSize: 15 },
+    err: { color: t.danger, textAlign: 'center', marginTop: 8, fontSize: 13 },
+    summary: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0 },
+    summaryCard: {
+      flex: 1, backgroundColor: t.surface, borderRadius: 12,
+      padding: 14, borderWidth: 1, borderColor: t.success + '44',
+    },
+    summaryValue: { color: t.success, fontSize: 22, fontWeight: '800' },
+    summaryLabel: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
+    filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 12, flexWrap: 'wrap' },
+    filterChip: {
+      borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
+      borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
+    },
+    filterChipActive: { backgroundColor: t.accentMuted, borderColor: t.accent },
+    filterText: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
+    filterTextActive: { color: t.accent },
+    card: { backgroundColor: t.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: t.border },
+    cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
+    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+    clientName: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    amount: { color: t.textPrimary, fontSize: 18, fontWeight: '800', textAlign: 'right' },
+    statusBadge: { borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8, marginTop: 4, alignSelf: 'flex-end' },
+    statusText: { fontSize: 11, fontWeight: '700' },
+    cardMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 10 },
+    metaText: { color: t.textMuted, fontSize: 12 },
 
-  fab: {
-    position: 'absolute', right: 20, bottom: 28, width: 56, height: 56,
-    borderRadius: 28, backgroundColor: '#0ea5e9',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
-  },
-  fabText: { color: '#000', fontSize: 28, fontWeight: '700', lineHeight: 30 },
+    fab: {
+      position: 'absolute', right: 20, bottom: 28, width: 56, height: 56,
+      borderRadius: 28, backgroundColor: t.accent,
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
+      elevation: 5,
+    },
+    fabText: { color: t.accentContrast, fontSize: 28, fontWeight: '700', lineHeight: 30 },
 
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: '#0f0f0f', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, paddingBottom: 32, maxHeight: '85%',
-  },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  modalClose: { color: '#0ea5e9', fontWeight: '600' },
-  label: { color: '#888', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
-  jobList: { maxHeight: 260, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 10 },
-  jobRow: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#1f1f1f' },
-  jobRowActive: { backgroundColor: '#0ea5e922' },
-  jobRowName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  jobRowClient: { color: '#666', fontSize: 12, marginTop: 2 },
-  input: {
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 14, color: '#fff', fontSize: 16,
-  },
-  submit: {
-    backgroundColor: '#0ea5e9', borderRadius: 12, padding: 16,
-    alignItems: 'center', marginTop: 20,
-  },
-  submitText: { color: '#000', fontWeight: '700', fontSize: 16 },
-  submitGhost: {
-    borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 10,
-    borderWidth: 1, borderColor: '#0ea5e9',
-  },
-  submitGhostText: { color: '#0ea5e9', fontWeight: '700', fontSize: 15 },
-  cancelBtn: { padding: 14, alignItems: 'center', marginTop: 8 },
-  cancelText: { color: '#888', fontSize: 14 },
+    modalBackdrop: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
+    modalSheet: {
+      backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+      padding: 20, paddingBottom: 32, maxHeight: '85%',
+    },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700' },
+    modalClose: { color: t.accent, fontWeight: '600' },
+    label: { color: t.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
+    jobList: { maxHeight: 260, borderWidth: 1, borderColor: t.border, borderRadius: 10 },
+    jobRow: { padding: 12, borderBottomWidth: 1, borderBottomColor: t.border },
+    jobRowActive: { backgroundColor: t.accentMuted },
+    jobRowName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+    jobRowClient: { color: t.textMuted, fontSize: 12, marginTop: 2 },
+    input: {
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 16,
+    },
+    submit: {
+      backgroundColor: t.accent, borderRadius: 12, padding: 16,
+      alignItems: 'center', marginTop: 20,
+    },
+    submitText: { color: t.accentContrast, fontWeight: '700', fontSize: 16 },
+    submitGhost: {
+      borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 10,
+      borderWidth: 1, borderColor: t.accent,
+    },
+    submitGhostText: { color: t.accent, fontWeight: '700', fontSize: 15 },
+    cancelBtn: { padding: 14, alignItems: 'center', marginTop: 8 },
+    cancelText: { color: t.textSecondary, fontSize: 14 },
 
-  actionSheet: {
-    backgroundColor: '#0f0f0f', borderRadius: 16, padding: 20,
-    margin: 20, marginTop: 'auto', marginBottom: 'auto',
-  },
-  actionTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  actionSubtitle: { color: '#888', fontSize: 14, marginTop: 6, marginBottom: 8 },
-  tapHint: { color: '#0ea5e9', fontSize: 11, fontWeight: '600', marginLeft: 'auto' },
-});
+    actionSheet: {
+      backgroundColor: t.surfaceElevated, borderRadius: 16, padding: 20,
+      margin: 20, marginTop: 'auto', marginBottom: 'auto',
+    },
+    actionTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700' },
+    actionSubtitle: { color: t.textSecondary, fontSize: 14, marginTop: 6, marginBottom: 8 },
+    tapHint: { color: t.accent, fontSize: 11, fontWeight: '600', marginLeft: 'auto' },
+  });
+}

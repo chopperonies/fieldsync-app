@@ -5,10 +5,14 @@ import { isBiometricAvailable, authenticate } from '../lib/biometric';
 import {
   getLockMethod, setLockMethod, setPin, clearPin, LockMethod,
 } from '../lib/storage';
+import { useTheme } from '../lib/themeContext';
+import { Theme } from '../lib/theme';
 
 // Shared "App lock" settings section — drop into owner / crew / manager
 // settings screens so every role can pick biometric / PIN / none.
 export default function LockSettings() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [method, setMethod] = useState<LockMethod | null>(null);
   const [bioAvailable, setBioAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -46,13 +50,15 @@ export default function LockSettings() {
     setShowPinCreate(true);
   }
 
-  if (method === null) return <ActivityIndicator color="#0ea5e9" style={{ marginVertical: 12 }} />;
+  if (method === null) return <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />;
 
   return (
     <View>
       <Text style={styles.hint}>Lock the app when you reopen it. Crew in gloves — PIN. Indoor owner — biometric is fastest.</Text>
 
       <OptionRow
+        theme={theme}
+        styles={styles}
         label="Face / Fingerprint"
         detail={bioAvailable ? 'Uses your device sensor.' : 'Not available on this device.'}
         selected={method === 'biometric'}
@@ -60,6 +66,8 @@ export default function LockSettings() {
         onPress={selectBiometric}
       />
       <OptionRow
+        theme={theme}
+        styles={styles}
         label="4-digit PIN"
         detail={method === 'pin' ? 'Tap to change your PIN.' : 'Works with gloves or wet hands.'}
         selected={method === 'pin'}
@@ -67,6 +75,8 @@ export default function LockSettings() {
         onPress={startPinChange}
       />
       <OptionRow
+        theme={theme}
+        styles={styles}
         label="Off"
         detail="No lock on reopen."
         selected={method === 'none'}
@@ -100,8 +110,10 @@ export default function LockSettings() {
 }
 
 function OptionRow({
-  label, detail, selected, disabled, onPress,
+  theme, styles, label, detail, selected, disabled, onPress,
 }: {
+  theme: Theme;
+  styles: any;
   label: string; detail: string; selected: boolean; disabled?: boolean; onPress: () => void;
 }) {
   return (
@@ -112,7 +124,7 @@ function OptionRow({
       activeOpacity={0.7}
     >
       <View style={{ flex: 1 }}>
-        <Text style={[styles.rowLabel, selected && { color: '#0ea5e9' }]}>{label}</Text>
+        <Text style={[styles.rowLabel, selected && { color: theme.accent }]}>{label}</Text>
         <Text style={styles.rowDetail}>{detail}</Text>
       </View>
       <View style={[styles.radio, selected && styles.radioSelected]}>
@@ -122,24 +134,26 @@ function OptionRow({
   );
 }
 
-const styles = StyleSheet.create({
-  hint: { color: '#666', fontSize: 13, lineHeight: 19, marginBottom: 14 },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#111', borderRadius: 12, padding: 14,
-    marginBottom: 8, borderWidth: 1, borderColor: '#1e1e1e',
-  },
-  rowSelected: { borderColor: '#0ea5e9', backgroundColor: '#0ea5e911' },
-  rowLabel: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  rowDetail: { color: '#666', fontSize: 12, marginTop: 2 },
-  radio: {
-    width: 20, height: 20, borderRadius: 10,
-    borderWidth: 2, borderColor: '#444',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  radioSelected: { borderColor: '#0ea5e9' },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#0ea5e9' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#0a0a0a', zIndex: 9999 },
-  cancelBtn: { marginTop: 22, padding: 12 },
-  cancelText: { color: '#888', fontSize: 14 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    hint: { color: t.textSecondary, fontSize: 13, lineHeight: 19, marginBottom: 14 },
+    row: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: t.surface, borderRadius: 12, padding: 14,
+      marginBottom: 8, borderWidth: 1, borderColor: t.border,
+    },
+    rowSelected: { borderColor: t.accent, backgroundColor: t.accentSoft },
+    rowLabel: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+    rowDetail: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
+    radio: {
+      width: 20, height: 20, borderRadius: 10,
+      borderWidth: 2, borderColor: t.textMuted,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    radioSelected: { borderColor: t.accent },
+    radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: t.accent },
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: t.bg, zIndex: 9999 },
+    cancelBtn: { marginTop: 22, padding: 12 },
+    cancelText: { color: t.textSecondary, fontSize: 14 },
+  });
+}

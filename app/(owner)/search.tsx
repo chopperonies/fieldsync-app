@@ -6,6 +6,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { mobileGet } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
 
 type Client = { id: string; name: string; company?: string | null; email?: string | null; phone?: string | null };
 type JobHit = {
@@ -22,6 +24,8 @@ type InvoiceHit = JobHit & { updated_at?: string | null; clients?: { name: strin
 type Kind = 'all' | 'clients' | 'jobs' | 'invoices';
 
 export default function OwnerSearch() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<Kind>('all');
   const [loading, setLoading] = useState(false);
@@ -76,11 +80,11 @@ export default function OwnerSearch() {
   return (
     <View style={styles.container}>
       <View style={styles.searchBox}>
-        <Ionicons name="search" size={18} color="#666" />
+        <Ionicons name="search" size={18} color={theme.textSecondary} />
         <TextInput
           style={styles.input}
           placeholder="Search clients, jobs, invoices…"
-          placeholderTextColor="#555"
+          placeholderTextColor={theme.textMuted}
           value={q}
           onChangeText={setQ}
           autoFocus
@@ -89,7 +93,7 @@ export default function OwnerSearch() {
         />
         {q.length > 0 && (
           <TouchableOpacity onPress={() => setQ('')}>
-            <Ionicons name="close-circle" size={18} color="#666" />
+            <Ionicons name="close-circle" size={18} color={theme.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -108,26 +112,26 @@ export default function OwnerSearch() {
         ))}
       </View>
 
-      {loading && <ActivityIndicator color="#0ea5e9" style={{ marginTop: 16 }} />}
+      {loading && <ActivityIndicator color={theme.accent} style={{ marginTop: 16 }} />}
 
       {showEmpty ? (
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           <Text style={styles.sectionLabel}>Quick jump</Text>
           <View style={styles.shortcutGrid}>
-            <Shortcut icon="calendar-outline" label="Today's schedule" color="#0ea5e9"
+            <Shortcut theme={theme} styles={styles} icon="calendar-outline" label="Today's schedule" color={theme.info}
               onPress={() => router.push(`/(owner)/jobs?day=${new Date().toISOString().slice(0, 10)}` as any)} />
-            <Shortcut icon="cash-outline" label="Unpaid invoices" color="#facc15"
+            <Shortcut theme={theme} styles={styles} icon="cash-outline" label="Unpaid invoices" color={theme.warning}
               onPress={() => router.push('/(owner)/invoices?open=record_payment' as any)} />
-            <Shortcut icon="location-outline" label="On-site crew" color="#4ade80"
+            <Shortcut theme={theme} styles={styles} icon="location-outline" label="On-site crew" color={theme.success}
               onPress={() => router.push('/(owner)/crew' as any)} />
-            <Shortcut icon="cube-outline" label="Pending supplies" color="#a78bfa"
+            <Shortcut theme={theme} styles={styles} icon="cube-outline" label="Pending supplies" color={theme.stagePurple}
               onPress={() => router.push('/(owner)/supplies' as any)} />
           </View>
           <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Recent clients</Text>
           {recentClients.length === 0 ? (
             <Text style={styles.empty}>Nothing yet. Clients you create show up here.</Text>
           ) : (
-            recentClients.map(c => <ClientRow key={c.id} c={c} />)
+            recentClients.map(c => <ClientRow key={c.id} theme={theme} styles={styles} c={c} />)
           )}
         </ScrollView>
       ) : (
@@ -137,18 +141,18 @@ export default function OwnerSearch() {
           ListHeaderComponent={
             <View style={{ padding: 16 }}>
               {(kind === 'all' || kind === 'clients') && clients.length > 0 && (
-                <Section label="Clients">
-                  {clients.map(c => <ClientRow key={c.id} c={c} />)}
+                <Section styles={styles} label="Clients">
+                  {clients.map(c => <ClientRow key={c.id} theme={theme} styles={styles} c={c} />)}
                 </Section>
               )}
               {(kind === 'all' || kind === 'jobs') && jobs.length > 0 && (
-                <Section label="Jobs">
-                  {jobs.map(j => <JobRow key={j.id} j={j} />)}
+                <Section styles={styles} label="Jobs">
+                  {jobs.map(j => <JobRow key={j.id} theme={theme} styles={styles} j={j} />)}
                 </Section>
               )}
               {(kind === 'all' || kind === 'invoices') && invoices.length > 0 && (
-                <Section label="Invoices">
-                  {invoices.map(inv => <InvoiceRow key={inv.id} inv={inv} />)}
+                <Section styles={styles} label="Invoices">
+                  {invoices.map(inv => <InvoiceRow key={inv.id} theme={theme} styles={styles} inv={inv} />)}
                 </Section>
               )}
               {!loading && q.trim() && clients.length + jobs.length + invoices.length === 0 && (
@@ -162,7 +166,7 @@ export default function OwnerSearch() {
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({ styles, label, children }: { styles: any; label: string; children: React.ReactNode }) {
   return (
     <View style={{ marginBottom: 16 }}>
       <Text style={styles.sectionLabel}>{label}</Text>
@@ -171,7 +175,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-function Shortcut({ icon, label, color, onPress }: { icon: any; label: string; color: string; onPress: () => void }) {
+function Shortcut({ theme, styles, icon, label, color, onPress }: { theme: Theme; styles: any; icon: any; label: string; color: string; onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.shortcut} onPress={onPress} activeOpacity={0.75}>
       <View style={[styles.shortcutIcon, { backgroundColor: color + '22', borderColor: color + '55' }]}>
@@ -182,7 +186,7 @@ function Shortcut({ icon, label, color, onPress }: { icon: any; label: string; c
   );
 }
 
-function ClientRow({ c }: { c: Client }) {
+function ClientRow({ theme, styles, c }: { theme: Theme; styles: any; c: Client }) {
   return (
     <TouchableOpacity
       style={styles.row}
@@ -200,22 +204,22 @@ function ClientRow({ c }: { c: Client }) {
       </View>
       {c.phone && (
         <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); Linking.openURL(`tel:${c.phone}`); }} style={{ padding: 8 }}>
-          <Ionicons name="call-outline" size={18} color="#0ea5e9" />
+          <Ionicons name="call-outline" size={18} color={theme.accent} />
         </TouchableOpacity>
       )}
     </TouchableOpacity>
   );
 }
 
-function JobRow({ j }: { j: JobHit }) {
+function JobRow({ theme, styles, j }: { theme: Theme; styles: any; j: JobHit }) {
   return (
     <TouchableOpacity
       style={styles.row}
       onPress={() => router.push('/(owner)/jobs' as any)}
       activeOpacity={0.75}
     >
-      <View style={[styles.avatar, { backgroundColor: '#0ea5e922' }]}>
-        <Ionicons name="hammer-outline" size={18} color="#0ea5e9" />
+      <View style={[styles.avatar, { backgroundColor: theme.accentMuted }]}>
+        <Ionicons name="hammer-outline" size={18} color={theme.accent} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle}>{j.name}</Text>
@@ -230,16 +234,17 @@ function JobRow({ j }: { j: JobHit }) {
   );
 }
 
-function InvoiceRow({ inv }: { inv: InvoiceHit }) {
+function InvoiceRow({ theme, styles, inv }: { theme: Theme; styles: any; inv: InvoiceHit }) {
   const paid = String(inv.payment_status || '').toLowerCase() === 'paid';
+  const statusColor = paid ? theme.success : theme.warning;
   return (
     <TouchableOpacity
       style={styles.row}
       onPress={() => router.push('/(owner)/invoices' as any)}
       activeOpacity={0.75}
     >
-      <View style={[styles.avatar, { backgroundColor: (paid ? '#4ade80' : '#facc15') + '22' }]}>
-        <Ionicons name="document-text-outline" size={18} color={paid ? '#4ade80' : '#facc15'} />
+      <View style={[styles.avatar, { backgroundColor: statusColor + '22' }]}>
+        <Ionicons name="document-text-outline" size={18} color={statusColor} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle}>{inv.name}</Text>
@@ -247,61 +252,63 @@ function InvoiceRow({ inv }: { inv: InvoiceHit }) {
           {inv.clients?.name || 'Unknown client'} · {paid ? 'Paid' : 'Unpaid'}
         </Text>
       </View>
-      <Text style={[styles.rowMeta, { color: paid ? '#4ade80' : '#facc15' }]}>
+      <Text style={[styles.rowMeta, { color: statusColor }]}>
         ${Number(inv.invoice_amount || 0).toLocaleString()}
       </Text>
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
 
-  searchBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    margin: 16, marginBottom: 8,
-    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8,
-  },
-  input: { flex: 1, color: '#fff', fontSize: 15, paddingVertical: 4 },
+    searchBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      margin: 16, marginBottom: 8,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+      borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8,
+    },
+    input: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 4 },
 
-  chips: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 10, flexWrap: 'wrap' },
-  chip: {
-    borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#111',
-  },
-  chipActive: { backgroundColor: '#0ea5e922', borderColor: '#0ea5e9' },
-  chipText: { color: '#777', fontSize: 12, fontWeight: '700' },
-  chipTextActive: { color: '#0ea5e9' },
+    chips: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 10, flexWrap: 'wrap' },
+    chip: {
+      borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
+      borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
+    },
+    chipActive: { backgroundColor: t.accentMuted, borderColor: t.accent },
+    chipText: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },
+    chipTextActive: { color: t.accent },
 
-  sectionLabel: { color: '#ddd', fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 2 },
-  empty: { color: '#666', fontSize: 13, marginTop: 14 },
+    sectionLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 2 },
+    empty: { color: t.textMuted, fontSize: 13, marginTop: 14 },
 
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
-    borderRadius: 12, padding: 12, marginBottom: 8,
-  },
-  avatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#a78bfa22', alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { color: '#a78bfa', fontSize: 14, fontWeight: '800' },
-  rowTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  rowSub: { color: '#888', fontSize: 12, marginTop: 2 },
-  rowMeta: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    row: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+      borderRadius: 12, padding: 12, marginBottom: 8,
+    },
+    avatar: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: t.stagePurple + '22', alignItems: 'center', justifyContent: 'center',
+    },
+    avatarText: { color: t.stagePurple, fontSize: 14, fontWeight: '800' },
+    rowTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
+    rowSub: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
+    rowMeta: { color: t.textPrimary, fontSize: 13, fontWeight: '700' },
 
-  shortcutGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  shortcut: {
-    width: '48%',
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#111', borderWidth: 1, borderColor: '#1e1e1e',
-    borderRadius: 12, padding: 12,
-  },
-  shortcutIcon: {
-    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  shortcutLabel: { color: '#fff', fontSize: 13, fontWeight: '700', flex: 1 },
-});
+    shortcutGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    shortcut: {
+      width: '48%',
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+      borderRadius: 12, padding: 12,
+    },
+    shortcutIcon: {
+      width: 36, height: 36, borderRadius: 10, borderWidth: 1,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    shortcutLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '700', flex: 1 },
+  });
+}
 

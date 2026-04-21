@@ -9,10 +9,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Employee, Role } from '../../lib/supabase';
 import { getPlan } from '../../lib/storage';
 import { mobileGet, mobilePost, mobilePatch, mobileDelete } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
 
 const ROLES: Role[] = ['crew', 'manager', 'owner'];
 
 export default function OwnerCrew() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -185,7 +189,7 @@ export default function OwnerCrew() {
   const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', manager: '#0ea5e9', owner: '#a855f7' };
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
@@ -194,7 +198,7 @@ export default function OwnerCrew() {
         data={employees}
         keyExtractor={e => e.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => openEdit(item)}>
             <View style={{ flex: 1 }}>
@@ -231,14 +235,14 @@ export default function OwnerCrew() {
         >
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom }]}>
             <Text style={styles.modalTitle}>Add Crew Member</Text>
-            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#555" value={newName} onChangeText={setNewName} />
-            <TextInput style={styles.input} placeholder="Phone number" placeholderTextColor="#555" value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
+            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+            <TextInput style={styles.input} placeholder="Phone number" placeholderTextColor={theme.textMuted} value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
             <Text style={styles.roleLabel}>Role</Text>
             <View style={styles.roleSelector}>
               {ROLES.map(r => (
                 <TouchableOpacity
                   key={r}
-                  style={[styles.roleSelectorChip, newRole === r && { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' }]}
+                  style={[styles.roleSelectorChip, newRole === r && { backgroundColor: theme.accent, borderColor: theme.accent }]}
                   onPress={() => setNewRole(r)}
                 >
                   <Text style={[styles.roleSelectorText, newRole === r && { color: '#000' }]}>{r}</Text>
@@ -250,7 +254,7 @@ export default function OwnerCrew() {
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={addEmployee} disabled={saving}>
-                {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Add</Text>}
+                {saving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Add</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -267,8 +271,8 @@ export default function OwnerCrew() {
             <Text style={styles.modalTitle}>Edit {editMember?.name || 'Member'}</Text>
 
             <Text style={styles.fieldHint}>Personal details</Text>
-            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#555" value={editName} onChangeText={setEditName} />
-            <TextInput style={styles.input} placeholder="Phone number" placeholderTextColor="#555" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor={theme.textMuted} value={editName} onChangeText={setEditName} />
+            <TextInput style={styles.input} placeholder="Phone number" placeholderTextColor={theme.textMuted} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
 
             <Text style={styles.roleLabel}>Status</Text>
             <View style={styles.roleSelector}>
@@ -279,7 +283,7 @@ export default function OwnerCrew() {
               ].map(s => (
                 <TouchableOpacity
                   key={s.value}
-                  style={[styles.roleSelectorChip, editStatus === s.value && { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' }]}
+                  style={[styles.roleSelectorChip, editStatus === s.value && { backgroundColor: theme.accent, borderColor: theme.accent }]}
                   onPress={() => setEditStatus(s.value)}
                 >
                   <Text style={[styles.roleSelectorText, editStatus === s.value && { color: '#000' }]}>{s.label}</Text>
@@ -308,7 +312,7 @@ export default function OwnerCrew() {
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={editSaving}>
-                {editSaving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Save Changes</Text>}
+                {editSaving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Save Changes</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -318,49 +322,51 @@ export default function OwnerCrew() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  card: {
-    backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16,
-    borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  empName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  empPhone: { color: '#0ea5e9', fontSize: 13, marginTop: 2, marginBottom: 10 },
-  roleRow: { flexDirection: 'row', gap: 6 },
-  roleChip: {
-    borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#1a1a1a',
-  },
-  roleText: { color: '#555', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
-  revokeLink: { color: '#ef4444', fontSize: 11, fontWeight: '600' },
-  tapHint: { color: '#0ea5e9', fontSize: 11, fontWeight: '700' },
-  tapHintRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  tapHintArrow: { color: '#0ea5e9', fontSize: 16, fontWeight: '700', lineHeight: 16 },
-  fieldHint: { color: '#666', fontSize: 12, marginTop: 4, marginBottom: 10 },
-  fab: {
-    position: 'absolute', bottom: 24, right: 24,
-    backgroundColor: '#0ea5e9', borderRadius: 28,
-    paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
-  },
-  fabText: { color: '#000', fontWeight: '700', fontSize: 15 },
-  modalOverlay: { flex: 1, backgroundColor: '#000000aa', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  input: {
-    backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 14, color: '#fff', fontSize: 15, marginBottom: 12,
-  },
-  roleLabel: { color: '#888', fontSize: 13, marginBottom: 8 },
-  roleSelector: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  roleSelectorChip: {
-    flex: 1, borderRadius: 8, padding: 10, alignItems: 'center',
-    borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#0a0a0a',
-  },
-  roleSelectorText: { color: '#888', fontWeight: '600', textTransform: 'capitalize' },
-  modalActions: { flexDirection: 'row', gap: 10 },
-  cancelBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a' },
-  cancelText: { color: '#888', fontWeight: '600' },
-  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0ea5e9' },
-  saveText: { color: '#000', fontWeight: '700' },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    card: {
+      backgroundColor: t.surface, borderRadius: 14, padding: 16,
+      borderWidth: 1, borderColor: t.border,
+    },
+    empName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+    empPhone: { color: t.accent, fontSize: 13, marginTop: 2, marginBottom: 10 },
+    roleRow: { flexDirection: 'row', gap: 6 },
+    roleChip: {
+      borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10,
+      borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
+    },
+    roleText: { color: t.textSecondary, fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+    revokeLink: { color: t.danger, fontSize: 11, fontWeight: '600' },
+    tapHint: { color: t.accent, fontSize: 11, fontWeight: '700' },
+    tapHintRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+    tapHintArrow: { color: t.accent, fontSize: 16, fontWeight: '700', lineHeight: 16 },
+    fieldHint: { color: t.textMuted, fontSize: 12, marginTop: 4, marginBottom: 10 },
+    fab: {
+      position: 'absolute', bottom: 24, right: 24,
+      backgroundColor: t.accent, borderRadius: 28,
+      paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
+    },
+    fabText: { color: t.accentContrast, fontWeight: '700', fontSize: 15 },
+    modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
+    modal: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+    modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+    input: {
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 12,
+    },
+    roleLabel: { color: t.textSecondary, fontSize: 13, marginBottom: 8 },
+    roleSelector: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    roleSelectorChip: {
+      flex: 1, borderRadius: 8, padding: 10, alignItems: 'center',
+      borderWidth: 1, borderColor: t.border, backgroundColor: t.surfaceInset,
+    },
+    roleSelectorText: { color: t.textSecondary, fontWeight: '600', textTransform: 'capitalize' },
+    modalActions: { flexDirection: 'row', gap: 10 },
+    cancelBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: t.border },
+    cancelText: { color: t.textSecondary, fontWeight: '600' },
+    saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: t.accent },
+    saveText: { color: t.accentContrast, fontWeight: '700' },
+  });
+}

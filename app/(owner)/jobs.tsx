@@ -11,6 +11,8 @@ import { Job } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
 import CalendarPicker, { toDateString, fromDateString, prettyDate } from '../../components/CalendarPicker';
 
 // Schedule tab. Day mode (default) filters jobs to scheduled_date = selectedDay.
@@ -31,8 +33,9 @@ function pipelineFor(key: string) { return PIPELINE.find(p => p.key === normaliz
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function WeekStrip({
-  selectedDay, onSelect, onPickCalendar, counts,
+  theme, selectedDay, onSelect, onPickCalendar, counts,
 }: {
+  theme: Theme;
   selectedDay: string;
   onSelect: (day: string) => void;
   onPickCalendar?: () => void;
@@ -55,39 +58,39 @@ function WeekStrip({
   }
 
   return (
-    <View style={weekStyles.wrap}>
-      <View style={weekStyles.headerRow}>
-        <TouchableOpacity onPress={() => shift(-7)} style={weekStyles.navBtn}>
-          <Ionicons name="chevron-back" size={18} color="#ddd" />
+    <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, backgroundColor: theme.bg }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <TouchableOpacity onPress={() => shift(-7)} style={{ padding: 6 }}>
+          <Ionicons name="chevron-back" size={18} color={theme.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity onPress={onPickCalendar} style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={weekStyles.label}>{label}</Text>
+          <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: '700' }}>{label}</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => shift(7)} style={weekStyles.navBtn}>
-          <Ionicons name="chevron-forward" size={18} color="#ddd" />
+        <TouchableOpacity onPress={() => shift(7)} style={{ padding: 6 }}>
+          <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
         </TouchableOpacity>
       </View>
-      <View style={weekStyles.row}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         {days.map((d, i) => {
           const s = toDateString(d);
           const isToday = s === todayStr;
           const isSelected = s === selectedDay;
           const count = counts?.[s] || 0;
           return (
-            <TouchableOpacity key={i} style={weekStyles.cell} onPress={() => onSelect(s)}>
-              <Text style={weekStyles.letter}>{DAY_LETTERS[i]}</Text>
+            <TouchableOpacity key={i} style={{ flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 }} onPress={() => onSelect(s)}>
+              <Text style={{ color: theme.textMuted, fontSize: 11, fontWeight: '700' }}>{DAY_LETTERS[i]}</Text>
               <View style={[
-                weekStyles.bubble,
-                isToday && !isSelected && { borderWidth: 1, borderColor: '#0ea5e9' },
-                isSelected && { backgroundColor: '#0ea5e9' },
+                { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+                isToday && !isSelected && { borderWidth: 1, borderColor: theme.accent },
+                isSelected && { backgroundColor: theme.accent },
               ]}>
                 <Text style={[
-                  weekStyles.num,
-                  isToday && !isSelected && { color: '#0ea5e9' },
-                  isSelected && { color: '#000', fontWeight: '800' },
+                  { color: theme.textSecondary, fontSize: 14, fontWeight: '700' },
+                  isToday && !isSelected && { color: theme.accent },
+                  isSelected && { color: theme.accentContrast, fontWeight: '800' },
                 ]}>{d.getDate()}</Text>
               </View>
-              <View style={[weekStyles.dot, count > 0 && weekStyles.dotActive]} />
+              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: count > 0 ? theme.accent : 'transparent', marginTop: 4 }} />
             </TouchableOpacity>
           );
         })}
@@ -96,16 +99,12 @@ function WeekStrip({
   );
 }
 
+// Retained for backwards-compat; WeekStrip now uses inline theme styles.
 const weekStyles = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, backgroundColor: '#0a0a0a' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  navBtn: { padding: 6 },
-  label: { color: '#ddd', fontSize: 13, fontWeight: '700' },
+  wrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   cell: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
-  letter: { color: '#666', fontSize: 11, fontWeight: '700' },
   bubble: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  num: { color: '#ddd', fontSize: 14, fontWeight: '700' },
   dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 4 },
   dotActive: { backgroundColor: '#0ea5e9' },
 });
@@ -114,6 +113,8 @@ const ACTIVE_STATUSES = ['active', 'in_progress', 'scheduled', 'on_hold', 'quote
 const INVOICED_STATUSES = ['invoiced'];
 
 export default function OwnerJobs() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const insets = useSafeAreaInsets();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,7 +213,7 @@ export default function OwnerJobs() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
@@ -226,6 +227,7 @@ export default function OwnerJobs() {
       {dayMode ? (
         <View>
           <WeekStrip
+            theme={theme}
             selectedDay={selectedDay}
             onSelect={setSelectedDay}
             onPickCalendar={() => setPickerOpen('weekjump')}
@@ -267,7 +269,7 @@ export default function OwnerJobs() {
         data={filteredJobs}
         keyExtractor={j => j.id}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 160 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
         ListEmptyComponent={
           dayMode && !loading
             ? (
@@ -324,13 +326,13 @@ export default function OwnerJobs() {
                   <View style={styles.cardMetaRow}>
                     {sd ? (
                       <View style={styles.metaChip}>
-                        <Ionicons name="calendar-outline" size={12} color="#0ea5e9" />
+                        <Ionicons name="calendar-outline" size={12} color={theme.accent} />
                         <Text style={styles.metaChipText}>{prettyDate(sd)}</Text>
                       </View>
                     ) : null}
                     {amt > 0 ? (
                       <View style={styles.metaChip}>
-                        <Ionicons name="cash-outline" size={12} color="#4ade80" />
+                        <Ionicons name="cash-outline" size={12} color={theme.success} />
                         <Text style={[styles.metaChipText, { color: '#4ade80' }]}>${amt.toLocaleString()}</Text>
                       </View>
                     ) : null}
@@ -340,7 +342,7 @@ export default function OwnerJobs() {
                   <View style={[styles.stageBadge, { backgroundColor: stage.color + '22' }]}>
                     <Text style={[styles.stageText, { color: stage.color }]}>{stage.label}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color="#555" />
+                  <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
                 </View>
               </View>
             </TouchableOpacity>
@@ -356,12 +358,12 @@ export default function OwnerJobs() {
         >
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom }]}>
             <Text style={styles.modalTitle}>New Job Site</Text>
-            <TextInput style={styles.input} placeholder="Job name" placeholderTextColor="#555" value={newName} onChangeText={setNewName} />
-            <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#555" value={newAddress} onChangeText={setNewAddress} />
+            <TextInput style={styles.input} placeholder="Job name" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+            <TextInput style={styles.input} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
             <TextInput
               style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
               placeholder="Scope of work / description"
-              placeholderTextColor="#555"
+              placeholderTextColor={theme.textMuted}
               value={newDesc}
               onChangeText={setNewDesc}
               multiline
@@ -369,7 +371,7 @@ export default function OwnerJobs() {
             <TextInput
               style={styles.input}
               placeholder="Estimate amount (e.g. 2500)"
-              placeholderTextColor="#555"
+              placeholderTextColor={theme.textMuted}
               value={newEstimate}
               onChangeText={setNewEstimate}
               keyboardType="decimal-pad"
@@ -379,14 +381,14 @@ export default function OwnerJobs() {
                 <Text style={styles.scheduleLabel}>Schedule</Text>
                 <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
               </View>
-              <Ionicons name="calendar-outline" size={20} color="#0ea5e9" />
+              <Ionicons name="calendar-outline" size={20} color={theme.accent} />
             </TouchableOpacity>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdd(false)}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={addJob} disabled={saving}>
-                {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Add Job</Text>}
+                {saving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Add Job</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -407,58 +409,60 @@ export default function OwnerJobs() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
 
-  offlineBar: { backgroundColor: '#7f1d1d', paddingVertical: 8, paddingHorizontal: 16 },
-  offlineText: { color: '#fca5a5', fontSize: 12, fontWeight: '600', textAlign: 'center' },
+    offlineBar: { backgroundColor: t.dangerMuted, paddingVertical: 8, paddingHorizontal: 16 },
+    offlineText: { color: t.danger, fontSize: 12, fontWeight: '600', textAlign: 'center' },
 
-  dayModeControls: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
-  dayModeLink: { color: '#0ea5e9', fontSize: 13, fontWeight: '700' },
+    dayModeControls: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
+    dayModeLink: { color: t.accent, fontSize: 13, fontWeight: '700' },
 
-  filterRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, flexWrap: 'wrap', alignItems: 'center' },
-  filterChip: { borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14, borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#111' },
-  filterChipActive: { backgroundColor: '#0ea5e922', borderColor: '#0ea5e9' },
-  filterChipText: { color: '#777', fontSize: 12, fontWeight: '700' },
-  filterChipTextActive: { color: '#0ea5e9' },
+    filterRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, flexWrap: 'wrap', alignItems: 'center' },
+    filterChip: { borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface },
+    filterChipActive: { backgroundColor: t.accentMuted, borderColor: t.accent },
+    filterChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },
+    filterChipTextActive: { color: t.accent },
 
-  card: { backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#2a2a2a' },
-  cardRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  jobName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  jobAddress: { color: '#666', fontSize: 13, marginTop: 2 },
-  stageBadge: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
-  stageText: { fontSize: 11, fontWeight: '700' },
-  cardMetaRow: { flexDirection: 'row', gap: 10, marginTop: 8, flexWrap: 'wrap' },
-  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaChipText: { color: '#888', fontSize: 12, fontWeight: '600' },
+    card: { backgroundColor: t.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: t.border },
+    cardRow: { flexDirection: 'row', alignItems: 'flex-start' },
+    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+    jobAddress: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    stageBadge: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
+    stageText: { fontSize: 11, fontWeight: '700' },
+    cardMetaRow: { flexDirection: 'row', gap: 10, marginTop: 8, flexWrap: 'wrap' },
+    metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    metaChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
 
-  footerLabel: { color: '#888', fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  dayBadge: { backgroundColor: '#0ea5e922', borderWidth: 1, borderColor: '#0ea5e955', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
-  dayBadgeText: { color: '#0ea5e9', fontSize: 10, fontWeight: '800' },
+    footerLabel: { color: t.textSecondary, fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    dayBadge: { backgroundColor: t.accentMuted, borderWidth: 1, borderColor: t.accent + '55', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
+    dayBadgeText: { color: t.accent, fontSize: 10, fontWeight: '800' },
 
-  emptyCard: { backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: '#1e1e1e', padding: 20, alignItems: 'center', marginTop: 8 },
-  emptyText: { color: '#888', fontSize: 14, marginBottom: 10 },
-  emptyAction: { color: '#0ea5e9', fontSize: 13, fontWeight: '700' },
+    emptyCard: { backgroundColor: t.surface, borderRadius: 12, borderWidth: 1, borderColor: t.border, padding: 20, alignItems: 'center', marginTop: 8 },
+    emptyText: { color: t.textSecondary, fontSize: 14, marginBottom: 10 },
+    emptyAction: { color: t.accent, fontSize: 13, fontWeight: '700' },
 
-  modalOverlay: { flex: 1, backgroundColor: '#000000aa', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  input: {
-    backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 14, color: '#fff', fontSize: 15, marginBottom: 12,
-  },
-  modalActions: { flexDirection: 'row', gap: 10 },
-  cancelBtn: { flex: 1, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 10, padding: 14, alignItems: 'center' },
-  cancelText: { color: '#aaa', fontWeight: '700' },
-  saveBtn: { flex: 1, backgroundColor: '#0ea5e9', borderRadius: 10, padding: 14, alignItems: 'center' },
-  saveText: { color: '#000', fontWeight: '800' },
+    modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
+    modal: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+    modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+    input: {
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 12,
+    },
+    modalActions: { flexDirection: 'row', gap: 10 },
+    cancelBtn: { flex: 1, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 14, alignItems: 'center' },
+    cancelText: { color: t.textSecondary, fontWeight: '700' },
+    saveBtn: { flex: 1, backgroundColor: t.accent, borderRadius: 10, padding: 14, alignItems: 'center' },
+    saveText: { color: t.accentContrast, fontWeight: '800' },
 
-  scheduleField: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 14, marginBottom: 12,
-  },
-  scheduleLabel: { color: '#888', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  scheduleValue: { color: '#fff', fontSize: 15, fontWeight: '600', marginTop: 2 },
-});
+    scheduleField: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 14, marginBottom: 12,
+    },
+    scheduleLabel: { color: t.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+    scheduleValue: { color: t.textPrimary, fontSize: 15, fontWeight: '600', marginTop: 2 },
+  });
+}

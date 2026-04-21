@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Vibration } from 'react-native';
+import { useTheme } from '../lib/themeContext';
+import { Theme } from '../lib/theme';
 
 type Props = {
   title: string;
@@ -14,6 +16,8 @@ const DIGITS = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
 const PIN_LENGTH = 4;
 
 export default function PinPad({ title, subtitle, confirm, onSubmit, error, extra }: Props) {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [pin, setPin] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [firstPin, setFirstPin] = useState('');
@@ -97,23 +101,25 @@ export default function PinPad({ title, subtitle, confirm, onSubmit, error, extr
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', paddingTop: 60, paddingHorizontal: 24 },
-  title: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  subtitle: { color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center' },
-  dots: { flexDirection: 'row', gap: 16, marginTop: 36, marginBottom: 12 },
-  dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#2a2a2a' },
-  dotFilled: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
-  err: { color: '#ef4444', fontSize: 13, marginTop: 6, marginBottom: 6, textAlign: 'center' },
-  grid: {
-    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center',
-    marginTop: 18, gap: 10, width: 260,
-  },
-  key: {
-    width: 76, height: 76, borderRadius: 38,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  keyGhost: { backgroundColor: 'transparent', borderColor: 'transparent' },
-  keyText: { color: '#fff', fontSize: 28, fontWeight: '600' },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, alignItems: 'center', paddingTop: 60, paddingHorizontal: 24 },
+    title: { color: t.textPrimary, fontSize: 22, fontWeight: '800' },
+    subtitle: { color: t.textSecondary, fontSize: 14, marginTop: 8, textAlign: 'center' },
+    dots: { flexDirection: 'row', gap: 16, marginTop: 36, marginBottom: 12 },
+    dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: t.border },
+    dotFilled: { backgroundColor: t.accent, borderColor: t.accent },
+    err: { color: t.danger, fontSize: 13, marginTop: 6, marginBottom: 6, textAlign: 'center' },
+    grid: {
+      flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center',
+      marginTop: 18, gap: 10, width: 260,
+    },
+    key: {
+      width: 76, height: 76, borderRadius: 38,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+    },
+    keyGhost: { backgroundColor: 'transparent', borderColor: 'transparent' },
+    keyText: { color: t.textPrimary, fontSize: 28, fontWeight: '600' },
+  });
+}

@@ -10,8 +10,12 @@ import { Client } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
 
 export default function OwnerClients() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,7 +130,7 @@ export default function OwnerClients() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
@@ -142,7 +146,7 @@ export default function OwnerClients() {
         data={clients}
         keyExtractor={c => c.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
         ListEmptyComponent={<Text style={styles.empty}>No clients yet. Add your first client.</Text>}
         renderItem={({ item }) => {
           const isOpen = selected === item.id;
@@ -177,7 +181,7 @@ export default function OwnerClients() {
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Phone</Text>
                       <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); Linking.openURL(`tel:${item.phone}`); }}>
-                        <Text style={[styles.detailValue, { color: '#0ea5e9' }]}>{item.phone}</Text>
+                        <Text style={[styles.detailValue, { color: theme.accent }]}>{item.phone}</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -214,14 +218,14 @@ export default function OwnerClients() {
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>New Client</Text>
-              <TextInput style={styles.input} placeholder="Full name *" placeholderTextColor="#555" value={newName} onChangeText={setNewName} />
-              <TextInput style={styles.input} placeholder="Company (optional)" placeholderTextColor="#555" value={newCompany} onChangeText={setNewCompany} />
-              <TextInput style={styles.input} placeholder="Email (optional)" placeholderTextColor="#555" value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" />
-              <TextInput style={styles.input} placeholder="Phone (optional)" placeholderTextColor="#555" value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
+              <TextInput style={styles.input} placeholder="Full name *" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+              <TextInput style={styles.input} placeholder="Company (optional)" placeholderTextColor={theme.textMuted} value={newCompany} onChangeText={setNewCompany} />
+              <TextInput style={styles.input} placeholder="Email (optional)" placeholderTextColor={theme.textMuted} value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput style={styles.input} placeholder="Phone (optional)" placeholderTextColor={theme.textMuted} value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
               <TextInput
                 style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
                 placeholder="Notes (optional)"
-                placeholderTextColor="#555"
+                placeholderTextColor={theme.textMuted}
                 value={newNotes}
                 onChangeText={setNewNotes}
                 multiline
@@ -231,7 +235,7 @@ export default function OwnerClients() {
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={addClient} disabled={saving}>
-                  {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Add Client</Text>}
+                  {saving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Add Client</Text>}
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -248,15 +252,15 @@ export default function OwnerClients() {
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>Edit {editClient?.name || 'Client'}</Text>
-              <TextInput style={styles.input} placeholder="Full name *" placeholderTextColor="#555" value={editName} onChangeText={setEditName} />
-              <TextInput style={styles.input} placeholder="Company" placeholderTextColor="#555" value={editCompany} onChangeText={setEditCompany} />
-              <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#555" value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
-              <TextInput style={styles.input} placeholder="Phone" placeholderTextColor="#555" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
-              <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#555" value={editAddress} onChangeText={setEditAddress} />
+              <TextInput style={styles.input} placeholder="Full name *" placeholderTextColor={theme.textMuted} value={editName} onChangeText={setEditName} />
+              <TextInput style={styles.input} placeholder="Company" placeholderTextColor={theme.textMuted} value={editCompany} onChangeText={setEditCompany} />
+              <TextInput style={styles.input} placeholder="Email" placeholderTextColor={theme.textMuted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput style={styles.input} placeholder="Phone" placeholderTextColor={theme.textMuted} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+              <TextInput style={styles.input} placeholder="Address" placeholderTextColor={theme.textMuted} value={editAddress} onChangeText={setEditAddress} />
               <TextInput
                 style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
                 placeholder="Notes — preferences, access instructions, etc."
-                placeholderTextColor="#555"
+                placeholderTextColor={theme.textMuted}
                 value={editNotes}
                 onChangeText={setEditNotes}
                 multiline
@@ -266,7 +270,7 @@ export default function OwnerClients() {
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={editSaving}>
-                  {editSaving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>Save</Text>}
+                  {editSaving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Save</Text>}
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -277,48 +281,50 @@ export default function OwnerClients() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  empty: { color: '#444', textAlign: 'center', marginTop: 60, fontSize: 15 },
-  card: { backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#2a2a2a' },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#0ea5e922', alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { color: '#0ea5e9', fontSize: 18, fontWeight: '700' },
-  clientName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  company: { color: '#666', fontSize: 13, marginTop: 1 },
-  jobBadge: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
-  jobBadgeText: { color: '#666', fontSize: 12, fontWeight: '600' },
-  details: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingTop: 12, gap: 8 },
-  detailRow: { flexDirection: 'row', gap: 8 },
-  detailLabel: { color: '#555', fontSize: 13, width: 50 },
-  detailValue: { color: '#ccc', fontSize: 13, flex: 1 },
-  addedDate: { color: '#666', fontSize: 11 },
-  detailsFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  editBtn: {
-    borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 8,
-    paddingVertical: 6, paddingHorizontal: 14,
-  },
-  editBtnText: { color: '#0ea5e9', fontSize: 12, fontWeight: '700' },
-  fab: {
-    position: 'absolute', bottom: 24, right: 24,
-    backgroundColor: '#0ea5e9', borderRadius: 28,
-    paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
-  },
-  fabText: { color: '#000', fontWeight: '700', fontSize: 15 },
-  modalOverlay: { flex: 1, backgroundColor: '#000000aa', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  input: {
-    backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 14, color: '#fff', fontSize: 15, marginBottom: 12,
-  },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  cancelBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a' },
-  cancelText: { color: '#888', fontWeight: '600' },
-  saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: '#0ea5e9' },
-  saveText: { color: '#000', fontWeight: '700' },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    empty: { color: t.textMuted, textAlign: 'center', marginTop: 60, fontSize: 15 },
+    card: { backgroundColor: t.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: t.border },
+    cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    avatar: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: t.accentMuted, alignItems: 'center', justifyContent: 'center',
+    },
+    avatarText: { color: t.accent, fontSize: 18, fontWeight: '700' },
+    clientName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+    company: { color: t.textSecondary, fontSize: 13, marginTop: 1 },
+    jobBadge: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
+    jobBadgeText: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
+    details: { marginTop: 14, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 12, gap: 8 },
+    detailRow: { flexDirection: 'row', gap: 8 },
+    detailLabel: { color: t.textMuted, fontSize: 13, width: 50 },
+    detailValue: { color: t.textPrimary, fontSize: 13, flex: 1 },
+    addedDate: { color: t.textMuted, fontSize: 11 },
+    detailsFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+    editBtn: {
+      borderWidth: 1, borderColor: t.accent, borderRadius: 8,
+      paddingVertical: 6, paddingHorizontal: 14,
+    },
+    editBtnText: { color: t.accent, fontSize: 12, fontWeight: '700' },
+    fab: {
+      position: 'absolute', bottom: 24, right: 24,
+      backgroundColor: t.accent, borderRadius: 28,
+      paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
+    },
+    fabText: { color: t.accentContrast, fontWeight: '700', fontSize: 15 },
+    modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
+    modal: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+    modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+    input: {
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 12,
+    },
+    modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+    cancelBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: t.border },
+    cancelText: { color: t.textSecondary, fontWeight: '600' },
+    saveBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', backgroundColor: t.accent },
+    saveText: { color: t.accentContrast, fontWeight: '700' },
+  });
+}

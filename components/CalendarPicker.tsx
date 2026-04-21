@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../lib/themeContext';
+import { Theme } from '../lib/theme';
 
 // Pure-JS month-grid calendar. No native module — OTA-able. Used in
 // Add/Edit Job modals to set scheduled_date.
@@ -43,6 +45,8 @@ type Props = {
 };
 
 export default function CalendarPicker({ visible, value, onClose, onSelect, title }: Props) {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const initial = value ? fromDateString(value) || new Date() : new Date();
   const [viewMonth, setViewMonth] = useState<Date>(() => {
     const d = new Date(initial);
@@ -108,8 +112,8 @@ export default function CalendarPicker({ visible, value, onClose, onSelect, titl
                 >
                   <Text style={[
                     styles.cellText,
-                    isToday && !isSelected && { color: '#0ea5e9' },
-                    isSelected && { color: '#000', fontWeight: '800' },
+                    isToday && !isSelected && { color: theme.accent },
+                    isSelected && { color: theme.accentContrast, fontWeight: '800' },
                   ]}>
                     {d.getDate()}
                   </Text>
@@ -140,46 +144,48 @@ export default function CalendarPicker({ visible, value, onClose, onSelect, titl
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  card: {
-    backgroundColor: '#0f0f0f',
-    borderRadius: 16, padding: 16, width: '100%', maxWidth: 380,
-    borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  title: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  close: { color: '#0ea5e9', fontSize: 13, fontWeight: '700' },
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    backdrop: { flex: 1, backgroundColor: t.overlay, alignItems: 'center', justifyContent: 'center', padding: 20 },
+    card: {
+      backgroundColor: t.surfaceElevated,
+      borderRadius: 16, padding: 16, width: '100%', maxWidth: 380,
+      borderWidth: 1, borderColor: t.border,
+    },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    title: { color: t.textPrimary, fontSize: 16, fontWeight: '800' },
+    close: { color: t.accent, fontSize: 13, fontWeight: '700' },
 
-  monthRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 8,
-  },
-  monthBtn: { padding: 6 },
-  monthLabel: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    monthRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingVertical: 8,
+    },
+    monthBtn: { padding: 6 },
+    monthLabel: { color: t.textPrimary, fontSize: 16, fontWeight: '700' },
 
-  weekHeader: { flexDirection: 'row', marginTop: 4 },
-  weekHeaderCell: { flex: 1, textAlign: 'center', color: '#666', fontSize: 11, fontWeight: '700', paddingVertical: 6 },
+    weekHeader: { flexDirection: 'row', marginTop: 4 },
+    weekHeaderCell: { flex: 1, textAlign: 'center', color: t.textMuted, fontSize: 11, fontWeight: '700', paddingVertical: 6 },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: {
-    width: `${100 / 7}%`, aspectRatio: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  cellEmpty: { width: `${100 / 7}%`, aspectRatio: 1 },
-  cellToday: { borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 20 },
-  cellSelected: { backgroundColor: '#0ea5e9', borderRadius: 20 },
-  cellText: { color: '#ddd', fontSize: 14, fontWeight: '600' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    cell: {
+      width: `${100 / 7}%`, aspectRatio: 1,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    cellEmpty: { width: `${100 / 7}%`, aspectRatio: 1 },
+    cellToday: { borderWidth: 1, borderColor: t.accent, borderRadius: 20 },
+    cellSelected: { backgroundColor: t.accent, borderRadius: 20 },
+    cellText: { color: t.textPrimary, fontSize: 14, fontWeight: '600' },
 
-  footer: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  quickBtn: {
-    flex: 1, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 10,
-    paddingVertical: 10, alignItems: 'center',
-  },
-  quickBtnText: { color: '#ddd', fontSize: 13, fontWeight: '700' },
-  clearBtn: {
-    flex: 1, borderWidth: 1, borderColor: '#ef4444', borderRadius: 10,
-    paddingVertical: 10, alignItems: 'center',
-  },
-  clearBtnText: { color: '#ef4444', fontSize: 13, fontWeight: '700' },
-});
+    footer: { flexDirection: 'row', gap: 8, marginTop: 12 },
+    quickBtn: {
+      flex: 1, borderWidth: 1, borderColor: t.border, borderRadius: 10,
+      paddingVertical: 10, alignItems: 'center',
+    },
+    quickBtnText: { color: t.textPrimary, fontSize: 13, fontWeight: '700' },
+    clearBtn: {
+      flex: 1, borderWidth: 1, borderColor: t.danger, borderRadius: 10,
+      paddingVertical: 10, alignItems: 'center',
+    },
+    clearBtnText: { color: t.danger, fontSize: 13, fontWeight: '700' },
+  });
+}

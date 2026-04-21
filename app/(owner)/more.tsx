@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { clearUser } from '../../lib/storage';
+import { useTheme } from '../../lib/themeContext';
 
 const ITEMS = [
   { label: 'Crew',      icon: 'person-circle', route: '/(owner)/crew'      },
@@ -13,49 +14,53 @@ const ITEMS = [
 ];
 
 export default function More() {
+  const theme = useTheme();
   async function handleLogout() {
     await clearUser();
     router.replace('/login');
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 20 }}>
       {ITEMS.map((item) => (
         <TouchableOpacity
           key={item.route}
-          style={styles.row}
+          style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={() => router.push(item.route as any)}
           activeOpacity={0.7}
         >
-          <View style={styles.iconWrap}>
-            <Ionicons name={item.icon as any} size={22} color="#0ea5e9" />
+          <View style={[styles.iconWrap, { backgroundColor: theme.accentMuted }]}>
+            <Ionicons name={item.icon as any} size={22} color={theme.accent} />
           </View>
-          <Text style={styles.label}>{item.label}</Text>
-          <Ionicons name="chevron-forward" size={18} color="#444" />
+          <Text style={[styles.label, { color: theme.textPrimary }]}>{item.label}</Text>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
         </TouchableOpacity>
       ))}
 
-      <TouchableOpacity style={[styles.row, styles.logoutRow]} onPress={handleLogout} activeOpacity={0.7}>
-        <View style={[styles.iconWrap, { backgroundColor: '#1a0a0a' }]}>
-          <Ionicons name="log-out-outline" size={22} color="#ef4444" />
+      <TouchableOpacity
+        style={[styles.row, styles.logoutRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        onPress={handleLogout}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.iconWrap, { backgroundColor: theme.dangerMuted }]}>
+          <Ionicons name="log-out-outline" size={22} color={theme.danger} />
         </View>
-        <Text style={[styles.label, { color: '#ef4444' }]}>Sign Out</Text>
+        <Text style={[styles.label, { color: theme.danger }]}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#111', borderRadius: 12, padding: 16,
-    marginBottom: 10, borderWidth: 1, borderColor: '#1e1e1e',
+    borderRadius: 12, padding: 16,
+    marginBottom: 10, borderWidth: 1,
   },
   iconWrap: {
     width: 40, height: 40, borderRadius: 10,
-    backgroundColor: '#0a1a2e', justifyContent: 'center', alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  label: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '600' },
+  label: { flex: 1, fontSize: 15, fontWeight: '600' },
   logoutRow: { marginTop: 10 },
 });
