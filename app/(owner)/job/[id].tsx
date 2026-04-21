@@ -12,6 +12,7 @@ import { Job, Employee } from '../../../lib/supabase';
 import CalendarPicker, { prettyDate } from '../../../components/CalendarPicker';
 import { useTheme } from '../../../lib/themeContext';
 import { Theme } from '../../../lib/theme';
+import { STATUS_META, statusMeta, normalizeStatusKey } from '../../../lib/jobStatus';
 
 type Assignment = {
   id: string;
@@ -29,17 +30,8 @@ type Update = {
   employees?: { name: string } | null;
 };
 
-const PIPELINE = [
-  { key: 'quoted',      label: 'Quoted',      color: '#6366f1' },
-  { key: 'scheduled',   label: 'Scheduled',   color: '#3b82f6' },
-  { key: 'in_progress', label: 'In Progress', color: '#0ea5e9' },
-  { key: 'complete',    label: 'Complete',    color: '#4ade80' },
-  { key: 'invoiced',    label: 'Invoiced',    color: '#a78bfa' },
-  { key: 'on_hold',     label: 'On Hold',     color: '#f59e0b' },
-];
-
-function normalizeStatus(s?: string) { return s === 'active' ? 'in_progress' : (s || 'in_progress'); }
-function pipelineFor(key?: string) { return PIPELINE.find(p => p.key === normalizeStatus(key)) ?? PIPELINE[2]; }
+// Owner-facing pipeline keys — subset of STATUS_META we let the owner advance through.
+const PIPELINE_KEYS = ['quoted', 'scheduled', 'in_progress', 'complete', 'invoiced', 'on_hold'] as const;
 
 type Tab = 'overview' | 'crew' | 'notes' | 'photos';
 
@@ -249,7 +241,9 @@ export default function OwnerJobDetail() {
     );
   }
 
-  const stage = pipelineFor(job.status);
+  const stage = statusMeta(job.status);
+  const stageColor = theme[stage.tone];
+  const statusKey = normalizeStatusKey(job.status);
   const invoiceAmountExisting = Number((job as any).invoice_amount) || 0;
   const isPaid = String((job as any).payment_status || '').toLowerCase() === 'paid';
   const photoUpdates = updates.filter(u => u.type === 'photo' && u.photo_url);
@@ -268,15 +262,16 @@ export default function OwnerJobDetail() {
 
       {/* Header card */}
       <View style={styles.headerCard}>
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{job.name}</Text>
-            {job.address ? <Text style={styles.subtitle}>{job.address}</Text> : null}
-            {client?.name ? <Text style={styles.clientLine}>{client.name}</Text> : null}
-          </View>
-          <View style={[styles.stageBadge, { backgroundColor: stage.color + '22', borderColor: stage.color + '55' }]}>
-            <Text style={[styles.stageText, { color: stage.color }]}>{stage.label}</Text>
-          </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{job.name}</Text>
+          {job.address ? <Text style={styles.subtitle}>{job.address}</Text> : null}
+          {client?.name ? <Text style={styles.clientLine}>{client.name}</Text> : null}
+        </View>
+
+        {/* Hero status pill */}
+        <View style={[styles.heroStatus, { backgroundColor: stageColor + '1f', borderColor: stageColor + '55' }]}>
+          <Ionicons name={stage.icon} size={18} color={stageColor} />
+          <Text style={[styles.heroStatusText, { color: stageColor }]}>{stage.label}</Text>
         </View>
 
         {/* Tabs */}
@@ -308,21 +303,27 @@ export default function OwnerJobDetail() {
             <Text style={styles.sectionLabel}>Status</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
               <View style={styles.pipeline}>
-                {PIPELINE.map(p => (
-                  <TouchableOpacity
-                    key={p.key}
-                    style={[
-                      styles.pipeChip,
-                      normalizeStatus(job.status) === p.key && { backgroundColor: p.color + '22', borderColor: p.color },
-                    ]}
-                    onPress={() => advance(p.key)}
-                  >
-                    <Text style={[
-                      styles.pipeChipText,
-                      normalizeStatus(job.status) === p.key && { color: p.color },
-                    ]}>{p.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                {PIPELINE_KEYS.map(k => {
+                  const p = STATUS_META.find(s => s.key === k)!;
+                  const color = theme[p.tone];
+                  const active = statusKey === p.key;
+                  return (
+                    <TouchableOpacity
+                      key={p.key}
+                      style={[
+                        styles.pipeChip,
+                        active && { backgroundColor: color + '1f', borderColor: color },
+                      ]}
+                      onPress={() => advance(p.key)}
+                    >
+                      <Ionicons name={p.icon} size={13} color={active ? color : theme.textSecondary} />
+                      <Text style={[
+                        styles.pipeChipText,
+                        active && { color },
+                      ]}>{p.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </ScrollView>
 
@@ -752,12 +753,16 @@ function makeStyles(t: Theme) {
       borderBottomWidth: 1, borderBottomColor: t.border,
       padding: 16, paddingBottom: 8,
     },
-    headerRow: { flexDirection: 'row', alignItems: 'flex-start' },
     title: { color: t.textPrimary, fontSize: 20, fontWeight: '800' },
     subtitle: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
     clientLine: { color: t.accent, fontSize: 13, marginTop: 4, fontWeight: '600' },
-    stageBadge: { borderRadius: 14, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, marginLeft: 8 },
-    stageText: { fontSize: 12, fontWeight: '700' },
+    heroStatus: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 8, marginTop: 12,
+      borderRadius: 14, borderWidth: 1.5,
+      paddingVertical: 12, paddingHorizontal: 16,
+    },
+    heroStatusText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
 
     tabs: { flexDirection: 'row', gap: 6 },
     tab: {
@@ -781,7 +786,8 @@ function makeStyles(t: Theme) {
 
     pipeline: { flexDirection: 'row', gap: 8 },
     pipeChip: {
-      borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: 20, paddingVertical: 7, paddingHorizontal: 12,
       borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
     },
     pipeChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },

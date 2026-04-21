@@ -4,9 +4,11 @@ import {
   ActivityIndicator, Alert, Linking, TextInput, Modal
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../../lib/supabase';
 import { mobileGet, mobilePatch, mobilePost } from '../../../lib/mobileApi';
+import { statusMeta } from '../../../lib/jobStatus';
 
 type Step = { order: number; label: string; required?: boolean };
 type ActionButton = { label: string; action_type: string; style?: string; config?: any };
@@ -304,6 +306,17 @@ export default function JobDetailScreen() {
           {job.address ? <Text style={styles.jobAddress}>{job.address}</Text> : null}
         </View>
 
+        {currentStatus && (() => {
+          const color = currentStatus.color || '#0ea5e9';
+          const icon = statusMeta(currentStatus.name || currentStatus.legacy_status || undefined).icon;
+          return (
+            <View style={[styles.heroStatus, { backgroundColor: color + '1f', borderColor: color + '66' }]}>
+              <Ionicons name={icon} size={18} color={color} />
+              <Text style={[styles.heroStatusText, { color }]}>{currentStatus.name}</Text>
+            </View>
+          );
+        })()}
+
         {(job.description || (job.checklist_items && job.checklist_items.length > 0)) && (
           <View style={styles.card}>
             <Text style={styles.sectionLabel}>Scope of work</Text>
@@ -443,6 +456,12 @@ const styles = StyleSheet.create({
   muted: { color: '#777', fontSize: 13 },
   jobName: { color: '#fff', fontSize: 22, fontWeight: '700' },
   jobAddress: { color: '#888', fontSize: 14, marginTop: 4 },
+  heroStatus: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, borderRadius: 14, borderWidth: 1.5,
+    paddingVertical: 12, paddingHorizontal: 16,
+  },
+  heroStatusText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
   card: {
     backgroundColor: '#1a1a1a', borderRadius: 14, padding: 14,
     borderWidth: 1, borderColor: '#2a2a2a',
