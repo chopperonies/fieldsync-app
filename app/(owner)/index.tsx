@@ -329,6 +329,8 @@ export default function OwnerOverview() {
               a.type === 'bottleneck' ? theme.danger :
               a.type === 'photo'      ? theme.stagePurple :
               a.type === 'check_in'   ? theme.success :
+              a.type === 'check_out'  ? theme.textMuted :
+              a.type === 'note'       ? theme.info :
                                         theme.accent;
             const label =
               a.type === 'photo'      ? 'Photo uploaded' :

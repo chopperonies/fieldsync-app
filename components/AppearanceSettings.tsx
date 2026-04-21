@@ -1,17 +1,19 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import { useTheme, useThemePreference } from '../lib/themeContext';
-import { ThemePreference, allThemes, Theme } from '../lib/theme';
+import { ThemePreference, allThemes, Theme, resolveTheme } from '../lib/theme';
 
 // Theme picker with live swatch previews. Drop into any settings screen.
 export default function AppearanceSettings() {
   const theme = useTheme();
+  const scheme = useColorScheme();
   const { preference, setPreference } = useThemePreference();
 
+  const systemResolved = resolveTheme('system', scheme ?? null);
   const systemOption = {
     value: 'system' as ThemePreference,
     label: 'Match device',
-    tagline: 'Follow your phone\'s dark/light setting automatically.',
-    theme: null as Theme | null,
+    tagline: `Follows your phone — currently ${systemResolved.label}.`,
+    theme: systemResolved,
   };
   const options = [
     systemOption,
@@ -38,11 +40,10 @@ export default function AppearanceSettings() {
             onPress={() => setPreference(o.value)}
             activeOpacity={0.75}
           >
-            {o.theme ? (
-              <ThemeSwatch t={o.theme} />
-            ) : (
-              <View style={styles.systemSwatch}>
-                <Text style={{ fontSize: 18 }}>🌓</Text>
+            <ThemeSwatch t={o.theme as Theme} />
+            {o.value === 'system' && (
+              <View style={{ position: 'absolute', left: 22, top: 14, width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 10 }}>🌓</Text>
               </View>
             )}
             <View style={{ flex: 1 }}>

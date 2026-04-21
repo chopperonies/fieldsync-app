@@ -86,34 +86,35 @@ export const professionalTheme: Theme = {
   stageAmber: '#b45309',
 };
 
-// Soft — lavender-tinted whites + violet accent. Calmer / creative.
+// Soft — neutral whites + violet accent + diverse pastel status colors.
+// Only accent elements are violet; text + borders stay neutral for read.
 export const softTheme: Theme = {
   name: 'soft',
   label: 'Soft',
-  tagline: 'Lavender pastels, violet accent. Calm and airy.',
+  tagline: 'Neutral whites, violet accent, pastel status. Calm without overload.',
   isDark: false,
-  bg: '#fbfaff',
+  bg: '#fafafa',
   surface: '#ffffff',
   surfaceElevated: '#ffffff',
-  surfaceInset: '#f5f3ff',
-  border: '#e9d5ff',
-  borderStrong: '#c4b5fd',
-  textPrimary: '#1e1b4b',
-  textSecondary: '#5b21b6',
-  textMuted: '#a78bfa',
-  accent: '#7c3aed',           // violet-600
-  accentMuted: '#7c3aed22',
-  accentSoft: '#7c3aed10',
+  surfaceInset: '#f4f4f5',
+  border: '#e4e4e7',           // neutral zinc — not violet
+  borderStrong: '#d4d4d8',
+  textPrimary: '#18181b',      // neutral near-black
+  textSecondary: '#52525b',    // neutral mid gray — the main readability fix
+  textMuted: '#a1a1aa',        // neutral light gray
+  accent: '#8b5cf6',           // soft violet — used sparingly as accent
+  accentMuted: '#8b5cf61f',
+  accentSoft: '#8b5cf60f',
   accentContrast: '#ffffff',
   success: '#059669',          // emerald
   successMuted: '#0596691a',
-  warning: '#d97706',
+  warning: '#d97706',          // amber
   warningMuted: '#d977061a',
   danger: '#e11d48',           // rose
   dangerMuted: '#e11d481a',
-  info: '#0ea5e9',
+  info: '#0ea5e9',             // sky
   infoMuted: '#0ea5e91a',
-  overlay: 'rgba(30,27,75,0.4)',
+  overlay: 'rgba(24,24,27,0.5)',
   stageBlue: '#3b82f6',
   stageCyan: '#06b6d4',
   stageGreen: '#10b981',
