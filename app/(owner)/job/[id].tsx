@@ -301,31 +301,31 @@ export default function OwnerJobDetail() {
           <>
             {/* Pipeline */}
             <Text style={styles.sectionLabel}>Status</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-              <View style={styles.pipeline}>
-                {PIPELINE_KEYS.map(k => {
-                  const p = STATUS_META.find(s => s.key === k)!;
-                  const color = theme[p.tone];
-                  const active = statusKey === p.key;
-                  return (
-                    <TouchableOpacity
-                      key={p.key}
-                      style={[
-                        styles.pipeChip,
-                        active && { backgroundColor: color + '1f', borderColor: color },
-                      ]}
-                      onPress={() => advance(p.key)}
+            <View style={styles.pipeline}>
+              {PIPELINE_KEYS.map(k => {
+                const p = STATUS_META.find(s => s.key === k)!;
+                const color = theme[p.tone];
+                const active = statusKey === p.key;
+                return (
+                  <TouchableOpacity
+                    key={p.key}
+                    style={[
+                      styles.pipeChip,
+                      active && { backgroundColor: color + '1f', borderColor: color },
+                    ]}
+                    onPress={() => advance(p.key)}
+                  >
+                    <Ionicons name={p.icon} size={14} color={active ? color : theme.textSecondary} />
+                    <Text
+                      style={[styles.pipeChipText, active && { color }]}
+                      numberOfLines={1}
                     >
-                      <Ionicons name={p.icon} size={13} color={active ? color : theme.textSecondary} />
-                      <Text style={[
-                        styles.pipeChipText,
-                        active && { color },
-                      ]}>{p.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             {/* Schedule + Estimate */}
             <View style={styles.rowTwo}>
@@ -784,10 +784,11 @@ function makeStyles(t: Theme) {
     cardEditText: { color: t.accent, fontSize: 12, fontWeight: '700' },
     cardRow: { flexDirection: 'row', alignItems: 'center' },
 
-    pipeline: { flexDirection: 'row', gap: 8 },
+    pipeline: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
     pipeChip: {
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      borderRadius: 20, paddingVertical: 7, paddingHorizontal: 12,
+      flexGrow: 1, flexBasis: '30%',
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      borderRadius: 20, paddingVertical: 9, paddingHorizontal: 10,
       borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
     },
     pipeChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },
