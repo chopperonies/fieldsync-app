@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, ScrollView, FlatList, Linking,
+  ActivityIndicator, ScrollView, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { mobileGet } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import { Pill, PillRow, Row, RowAvatar, SectionHeader, Divider } from '../../components/Flat';
 
 type Client = { id: string; name: string; company?: string | null; email?: string | null; phone?: string | null };
 type JobHit = {
@@ -63,7 +64,6 @@ export default function OwnerSearch() {
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [q, kind, run]);
 
-  // Recently active: fetch on mount.
   useEffect(() => {
     (async () => {
       try {
@@ -75,7 +75,17 @@ export default function OwnerSearch() {
     })();
   }, []);
 
+  const placeholder = (() => {
+    switch (kind) {
+      case 'clients':  return 'Search clients';
+      case 'jobs':     return 'Search jobs';
+      case 'invoices': return 'Search invoices';
+      default:         return 'Search';
+    }
+  })();
+
   const showEmpty = !q.trim();
+  const totalHits = clients.length + jobs.length + invoices.length;
 
   return (
     <View style={styles.container}>
@@ -83,179 +93,145 @@ export default function OwnerSearch() {
         <Ionicons name="search" size={18} color={theme.textSecondary} />
         <TextInput
           style={styles.input}
-          placeholder="Search clients, jobs, invoices…"
+          placeholder={placeholder}
           placeholderTextColor={theme.textMuted}
           value={q}
           onChangeText={setQ}
-          autoFocus
           autoCapitalize="none"
           autoCorrect={false}
         />
         {q.length > 0 && (
-          <TouchableOpacity onPress={() => setQ('')}>
+          <TouchableOpacity onPress={() => setQ('')} hitSlop={8}>
             <Ionicons name="close-circle" size={18} color={theme.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.chips}>
-        {(['all', 'clients', 'jobs', 'invoices'] as Kind[]).map(k => (
-          <TouchableOpacity
-            key={k}
-            style={[styles.chip, kind === k && styles.chipActive]}
-            onPress={() => setKind(k)}
-          >
-            <Text style={[styles.chipText, kind === k && styles.chipTextActive]}>
-              {k === 'all' ? 'All' : k.charAt(0).toUpperCase() + k.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <PillRow>
+        <Pill label="All"      active={kind === 'all'}      onPress={() => setKind('all')} />
+        <Pill label="Clients"  active={kind === 'clients'}  onPress={() => setKind('clients')}  icon="person-outline"         showIcon="active-only" tint={theme.stagePurple} />
+        <Pill label="Jobs"     active={kind === 'jobs'}     onPress={() => setKind('jobs')}     icon="hammer-outline"         showIcon="active-only" tint={theme.accent} />
+        <Pill label="Invoices" active={kind === 'invoices'} onPress={() => setKind('invoices')} icon="document-text-outline"  showIcon="active-only" tint={theme.warning} />
+      </PillRow>
 
       {loading && <ActivityIndicator color={theme.accent} style={{ marginTop: 16 }} />}
 
       {showEmpty ? (
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <Text style={styles.sectionLabel}>Quick jump</Text>
-          <View style={styles.shortcutGrid}>
-            <Shortcut theme={theme} styles={styles} icon="calendar-outline" label="Today's schedule" color={theme.info}
-              onPress={() => router.push(`/(owner)/jobs?day=${new Date().toISOString().slice(0, 10)}` as any)} />
-            <Shortcut theme={theme} styles={styles} icon="cash-outline" label="Unpaid invoices" color={theme.warning}
-              onPress={() => router.push('/(owner)/invoices?open=record_payment' as any)} />
-            <Shortcut theme={theme} styles={styles} icon="location-outline" label="On-site crew" color={theme.success}
-              onPress={() => router.push('/(owner)/crew' as any)} />
-            <Shortcut theme={theme} styles={styles} icon="cube-outline" label="Pending supplies" color={theme.stagePurple}
-              onPress={() => router.push('/(owner)/supplies' as any)} />
-          </View>
-          <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Recent clients</Text>
-          {recentClients.length === 0 ? (
-            <Text style={styles.empty}>Nothing yet. Clients you create show up here.</Text>
-          ) : (
-            recentClients.map(c => <ClientRow key={c.id} theme={theme} styles={styles} c={c} />)
+        <ScrollView>
+          {recentClients.length > 0 && (
+            <>
+              <SectionHeader label="Recently active" />
+              {recentClients.map((c, i) => (
+                <View key={c.id}>
+                  {i > 0 ? <Divider inset={64} /> : null}
+                  <ClientRow theme={theme} c={c} />
+                </View>
+              ))}
+            </>
+          )}
+          {recentClients.length === 0 && (
+            <View style={{ alignItems: 'center', marginTop: 80, paddingHorizontal: 32 }}>
+              <Text style={styles.emptyTitle}>Find anything</Text>
+              <Text style={styles.emptySub}>Search clients, jobs, and invoices.</Text>
+            </View>
           )}
         </ScrollView>
       ) : (
-        <FlatList
-          data={[]}
-          renderItem={null as any}
-          ListHeaderComponent={
-            <View style={{ padding: 16 }}>
-              {(kind === 'all' || kind === 'clients') && clients.length > 0 && (
-                <Section styles={styles} label="Clients">
-                  {clients.map(c => <ClientRow key={c.id} theme={theme} styles={styles} c={c} />)}
-                </Section>
-              )}
-              {(kind === 'all' || kind === 'jobs') && jobs.length > 0 && (
-                <Section styles={styles} label="Jobs">
-                  {jobs.map(j => <JobRow key={j.id} theme={theme} styles={styles} j={j} />)}
-                </Section>
-              )}
-              {(kind === 'all' || kind === 'invoices') && invoices.length > 0 && (
-                <Section styles={styles} label="Invoices">
-                  {invoices.map(inv => <InvoiceRow key={inv.id} theme={theme} styles={styles} inv={inv} />)}
-                </Section>
-              )}
-              {!loading && q.trim() && clients.length + jobs.length + invoices.length === 0 && (
-                <Text style={styles.empty}>No matches for "{q}".</Text>
-              )}
+        <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+          {(kind === 'all' || kind === 'clients') && clients.length > 0 && (
+            <>
+              <SectionHeader label="Clients" hint={`${clients.length}`} />
+              {clients.map((c, i) => (
+                <View key={c.id}>
+                  {i > 0 ? <Divider inset={64} /> : null}
+                  <ClientRow theme={theme} c={c} />
+                </View>
+              ))}
+            </>
+          )}
+          {(kind === 'all' || kind === 'jobs') && jobs.length > 0 && (
+            <>
+              <SectionHeader label="Jobs" hint={`${jobs.length}`} />
+              {jobs.map((j, i) => (
+                <View key={j.id}>
+                  {i > 0 ? <Divider inset={64} /> : null}
+                  <JobRow theme={theme} j={j} />
+                </View>
+              ))}
+            </>
+          )}
+          {(kind === 'all' || kind === 'invoices') && invoices.length > 0 && (
+            <>
+              <SectionHeader label="Invoices" hint={`${invoices.length}`} />
+              {invoices.map((inv, i) => (
+                <View key={inv.id}>
+                  {i > 0 ? <Divider inset={64} /> : null}
+                  <InvoiceRow theme={theme} inv={inv} />
+                </View>
+              ))}
+            </>
+          )}
+          {!loading && q.trim() && totalHits === 0 && (
+            <View style={{ alignItems: 'center', marginTop: 80, paddingHorizontal: 32 }}>
+              <Text style={styles.emptyTitle}>No matches</Text>
+              <Text style={styles.emptySub}>Nothing found for "{q}".</Text>
             </View>
-          }
-        />
+          )}
+        </ScrollView>
       )}
     </View>
   );
 }
 
-function Section({ styles, label, children }: { styles: any; label: string; children: React.ReactNode }) {
+function ClientRow({ theme, c }: { theme: Theme; c: Client }) {
   return (
-    <View style={{ marginBottom: 16 }}>
-      <Text style={styles.sectionLabel}>{label}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Shortcut({ theme, styles, icon, label, color, onPress }: { theme: Theme; styles: any; icon: any; label: string; color: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={styles.shortcut} onPress={onPress} activeOpacity={0.75}>
-      <View style={[styles.shortcutIcon, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-        <Ionicons name={icon} size={22} color={color} />
-      </View>
-      <Text style={styles.shortcutLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function ClientRow({ theme, styles, c }: { theme: Theme; styles: any; c: Client }) {
-  return (
-    <TouchableOpacity
-      style={styles.row}
+    <Row
+      leading={<RowAvatar letter={c.name.charAt(0).toUpperCase()} tint={theme.stagePurple} />}
+      title={c.name}
+      subtitle={[c.company, c.email].filter(Boolean).join(' · ') || c.phone || 'Client'}
+      trailing={
+        c.phone ? (
+          <TouchableOpacity onPress={() => Linking.openURL(`tel:${c.phone}`)} hitSlop={8}>
+            <Ionicons name="call-outline" size={18} color={theme.accent} />
+          </TouchableOpacity>
+        ) : null
+      }
       onPress={() => router.push('/(owner)/clients' as any)}
-      activeOpacity={0.75}
-    >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{c.name.charAt(0).toUpperCase()}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{c.name}</Text>
-        <Text style={styles.rowSub} numberOfLines={1}>
-          {[c.company, c.email].filter(Boolean).join(' · ') || c.phone || 'Client'}
-        </Text>
-      </View>
-      {c.phone && (
-        <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); Linking.openURL(`tel:${c.phone}`); }} style={{ padding: 8 }}>
-          <Ionicons name="call-outline" size={18} color={theme.accent} />
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
+    />
   );
 }
 
-function JobRow({ theme, styles, j }: { theme: Theme; styles: any; j: JobHit }) {
+function JobRow({ theme, j }: { theme: Theme; j: JobHit }) {
   return (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={() => router.push('/(owner)/jobs' as any)}
-      activeOpacity={0.75}
-    >
-      <View style={[styles.avatar, { backgroundColor: theme.accentMuted }]}>
-        <Ionicons name="hammer-outline" size={18} color={theme.accent} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{j.name}</Text>
-        <Text style={styles.rowSub} numberOfLines={1}>
-          {j.address || j.clients?.name || j.status}
+    <Row
+      leading={<RowAvatar icon="hammer-outline" tint={theme.accent} />}
+      title={j.name}
+      subtitle={j.address || j.clients?.name || j.status}
+      trailing={Number(j.invoice_amount || 0) > 0 ? (
+        <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: '700' }}>
+          ${Number(j.invoice_amount).toLocaleString()}
         </Text>
-      </View>
-      {Number(j.invoice_amount || 0) > 0 && (
-        <Text style={styles.rowMeta}>${Number(j.invoice_amount).toLocaleString()}</Text>
-      )}
-    </TouchableOpacity>
+      ) : null}
+      onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
+    />
   );
 }
 
-function InvoiceRow({ theme, styles, inv }: { theme: Theme; styles: any; inv: InvoiceHit }) {
+function InvoiceRow({ theme, inv }: { theme: Theme; inv: InvoiceHit }) {
   const paid = String(inv.payment_status || '').toLowerCase() === 'paid';
   const statusColor = paid ? theme.success : theme.warning;
   return (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={() => router.push('/(owner)/invoices' as any)}
-      activeOpacity={0.75}
-    >
-      <View style={[styles.avatar, { backgroundColor: statusColor + '22' }]}>
-        <Ionicons name="document-text-outline" size={18} color={statusColor} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{inv.name}</Text>
-        <Text style={styles.rowSub} numberOfLines={1}>
-          {inv.clients?.name || 'Unknown client'} · {paid ? 'Paid' : 'Unpaid'}
+    <Row
+      leading={<RowAvatar icon="document-text-outline" tint={statusColor} />}
+      title={inv.name}
+      subtitle={`${inv.clients?.name || 'Unknown client'} · ${paid ? 'Paid' : 'Unpaid'}`}
+      trailing={
+        <Text style={{ color: statusColor, fontSize: 13, fontWeight: '700' }}>
+          ${Number(inv.invoice_amount || 0).toLocaleString()}
         </Text>
-      </View>
-      <Text style={[styles.rowMeta, { color: statusColor }]}>
-        ${Number(inv.invoice_amount || 0).toLocaleString()}
-      </Text>
-    </TouchableOpacity>
+      }
+      onPress={() => router.push('/(owner)/invoices' as any)}
+    />
   );
 }
 
@@ -265,50 +241,13 @@ function makeStyles(t: Theme) {
 
     searchBox: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
-      margin: 16, marginBottom: 8,
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
-      borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8,
+      marginHorizontal: 16, marginTop: 12,
+      backgroundColor: t.surfaceInset,
+      borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
     },
-    input: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 4 },
+    input: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 0 },
 
-    chips: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 10, flexWrap: 'wrap' },
-    chip: {
-      borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
-      borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
-    },
-    chipActive: { backgroundColor: t.accentMuted, borderColor: t.accent },
-    chipText: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },
-    chipTextActive: { color: t.accent },
-
-    sectionLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 2 },
-    empty: { color: t.textMuted, fontSize: 13, marginTop: 14 },
-
-    row: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
-      borderRadius: 12, padding: 12, marginBottom: 8,
-    },
-    avatar: {
-      width: 36, height: 36, borderRadius: 18,
-      backgroundColor: t.stagePurple + '22', alignItems: 'center', justifyContent: 'center',
-    },
-    avatarText: { color: t.stagePurple, fontSize: 14, fontWeight: '800' },
-    rowTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
-    rowSub: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
-    rowMeta: { color: t.textPrimary, fontSize: 13, fontWeight: '700' },
-
-    shortcutGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    shortcut: {
-      width: '48%',
-      flexDirection: 'row', alignItems: 'center', gap: 10,
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
-      borderRadius: 12, padding: 12,
-    },
-    shortcutIcon: {
-      width: 36, height: 36, borderRadius: 10, borderWidth: 1,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    shortcutLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '700', flex: 1 },
+    emptyTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '800', marginBottom: 6 },
+    emptySub: { color: t.textMuted, fontSize: 14, textAlign: 'center' },
   });
 }
-

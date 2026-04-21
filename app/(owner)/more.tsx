@@ -3,14 +3,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { clearUser } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
+import { Row, RowAvatar, Divider } from '../../components/Flat';
 
-const ITEMS = [
-  { label: 'Crew',      icon: 'person-circle', route: '/(owner)/crew'      },
-  { label: 'Invoices',  icon: 'cash',          route: '/(owner)/invoices'  },
-  { label: 'Photos',    icon: 'camera',        route: '/(owner)/photos'    },
-  { label: 'Supplies',  icon: 'layers',        route: '/(owner)/supplies'  },
-  { label: 'Dashboard', icon: 'stats-chart',   route: '/(owner)/dashboard' },
-  { label: 'Settings',  icon: 'settings',      route: '/(owner)/settings'  },
+const ITEMS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; route: string }> = [
+  { label: 'Crew',      icon: 'person-circle-outline', route: '/(owner)/crew'      },
+  { label: 'Invoices',  icon: 'cash-outline',          route: '/(owner)/invoices'  },
+  { label: 'Photos',    icon: 'camera-outline',        route: '/(owner)/photos'    },
+  { label: 'Supplies',  icon: 'layers-outline',        route: '/(owner)/supplies'  },
+  { label: 'Dashboard', icon: 'stats-chart-outline',   route: '/(owner)/dashboard' },
+  { label: 'Settings',  icon: 'settings-outline',      route: '/(owner)/settings'  },
 ];
 
 export default function More() {
@@ -21,46 +22,34 @@ export default function More() {
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 20 }}>
-      {ITEMS.map((item) => (
-        <TouchableOpacity
-          key={item.route}
-          style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={() => router.push(item.route as any)}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.iconWrap, { backgroundColor: theme.accentMuted }]}>
-            <Ionicons name={item.icon as any} size={22} color={theme.accent} />
-          </View>
-          <Text style={[styles.label, { color: theme.textPrimary }]}>{item.label}</Text>
-          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-        </TouchableOpacity>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ paddingBottom: 140 }}>
+      {ITEMS.map((item, i) => (
+        <View key={item.route}>
+          {i > 0 ? <Divider inset={64} /> : null}
+          <Row
+            leading={<RowAvatar icon={item.icon} tint={theme.accent} />}
+            title={item.label}
+            trailing={<Ionicons name="chevron-forward" size={16} color={theme.textMuted} />}
+            onPress={() => router.push(item.route as any)}
+          />
+        </View>
       ))}
-
+      <View style={{ height: 24 }} />
       <TouchableOpacity
-        style={[styles.row, styles.logoutRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        style={styles.logoutBar}
         onPress={handleLogout}
         activeOpacity={0.7}
       >
-        <View style={[styles.iconWrap, { backgroundColor: theme.dangerMuted }]}>
-          <Ionicons name="log-out-outline" size={22} color={theme.danger} />
-        </View>
-        <Text style={[styles.label, { color: theme.danger }]}>Sign Out</Text>
+        <RowAvatar icon="log-out-outline" tint={theme.danger} />
+        <Text style={{ color: theme.danger, fontSize: 15, fontWeight: '700' }}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderRadius: 12, padding: 16,
-    marginBottom: 10, borderWidth: 1,
+  logoutBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  iconWrap: {
-    width: 40, height: 40, borderRadius: 10,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  label: { flex: 1, fontSize: 15, fontWeight: '600' },
-  logoutRow: { marginTop: 10 },
 });

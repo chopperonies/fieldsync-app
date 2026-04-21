@@ -6,23 +6,25 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Client } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import { Row, RowAvatar, Divider, SectionHeader } from '../../components/Flat';
 
 export default function OwnerClients() {
   const theme = useTheme();
   const styles = makeStyles(theme);
   const [clients, setClients] = useState<Client[]>([]);
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [jobCounts, setJobCounts] = useState<Record<string, number>>({});
 
-  // Add client modal
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -32,7 +34,6 @@ export default function OwnerClients() {
   const [saving, setSaving] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
-  // Edit client modal
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [editName, setEditName] = useState('');
   const [editCompany, setEditCompany] = useState('');
@@ -81,7 +82,6 @@ export default function OwnerClients() {
       setClients(result || []);
       setIsOffline(false);
       await setCache('owner_clients_' + user?.tenant_id, result);
-      // Job counts would need another endpoint — leave as 0 for now.
       setJobCounts({});
     } catch {
       const cached = await getStaleCache<Client[]>('owner_clients_' + user?.tenant_id);
@@ -112,6 +112,8 @@ export default function OwnerClients() {
         email: newEmail.trim() || null,
         phone: newPhone.trim() || null,
         address: null,
+        company: newCompany.trim() || null,
+        notes: newNotes.trim() || null,
       });
       setClients(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
       setJobCounts(prev => ({ ...prev, [data.id]: 0 }));
@@ -129,6 +131,18 @@ export default function OwnerClients() {
     setNewCompany(''); setNewNotes('');
   }
 
+  const filtered = query.trim()
+    ? clients.filter(c => {
+        const needle = query.trim().toLowerCase();
+        return (
+          c.name.toLowerCase().includes(needle) ||
+          (c.email || '').toLowerCase().includes(needle) ||
+          (c.phone || '').toLowerCase().includes(needle) ||
+          ((c as any).company || '').toLowerCase().includes(needle)
+        );
+      })
+    : clients;
+
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
@@ -136,76 +150,103 @@ export default function OwnerClients() {
   return (
     <View style={styles.container}>
       {isOffline && (
-        <View style={{ backgroundColor: '#7f1d1d', paddingVertical: 8, paddingHorizontal: 16 }}>
-          <Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>
-            📵 No connection — showing cached clients
-          </Text>
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineText}>📵 No connection — showing cached clients</Text>
         </View>
       )}
+
+      <View style={styles.searchBox}>
+        <Ionicons name="search" size={18} color={theme.textSecondary} />
+        <TextInput
+          style={styles.input}
+          placeholder="Search clients"
+          placeholderTextColor={theme.textMuted}
+          value={query}
+          onChangeText={setQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {query.length > 0 && (
+          <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <TouchableOpacity style={styles.addBar} onPress={() => setShowAdd(true)} activeOpacity={0.75}>
+        <View style={[styles.addIcon, { backgroundColor: theme.accentMuted }]}>
+          <Ionicons name="person-add-outline" size={18} color={theme.accent} />
+        </View>
+        <Text style={[styles.addText, { color: theme.accent }]}>Add client</Text>
+      </TouchableOpacity>
+
       <FlatList
-        data={clients}
+        data={filtered}
         keyExtractor={c => c.id}
-        contentContainerStyle={{ padding: 16, gap: 10 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
-        ListEmptyComponent={<Text style={styles.empty}>No clients yet. Add your first client.</Text>}
+        ListHeaderComponent={
+          clients.length > 0 ? <SectionHeader label="Clients" hint={`${clients.length}`} /> : null
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No clients yet</Text>
+            <Text style={styles.emptySub}>Tap "Add client" above to create your first one.</Text>
+          </View>
+        }
+        ItemSeparatorComponent={() => <Divider inset={64} />}
         renderItem={({ item }) => {
           const isOpen = selected === item.id;
+          const sub = [
+            (item as any).company,
+            item.email,
+            item.phone,
+          ].filter(Boolean).join(' · ') || 'Client';
           return (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => setSelected(isOpen ? null : item.id)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.cardRow}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.clientName}>{item.name}</Text>
-                  {item.company && <Text style={styles.company}>{item.company}</Text>}
-                </View>
-                <View style={styles.jobBadge}>
-                  <Text style={styles.jobBadgeText}>{jobCounts[item.id] || 0} jobs</Text>
-                </View>
-              </View>
-
+            <View>
+              <Row
+                leading={<RowAvatar letter={item.name.charAt(0).toUpperCase()} tint={theme.stagePurple} />}
+                title={item.name}
+                subtitle={sub}
+                trailing={
+                  <Ionicons
+                    name={isOpen ? 'chevron-down' : 'chevron-forward'}
+                    size={16}
+                    color={theme.textMuted}
+                  />
+                }
+                onPress={() => setSelected(isOpen ? null : item.id)}
+              />
               {isOpen && (
                 <View style={styles.details}>
                   {item.email && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Email</Text>
-                      <Text style={styles.detailValue}>{item.email}</Text>
-                    </View>
+                    <DetailLine label="Email" value={item.email} theme={theme} />
                   )}
                   {item.phone && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Phone</Text>
-                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); Linking.openURL(`tel:${item.phone}`); }}>
-                        <Text style={[styles.detailValue, { color: theme.accent }]}>{item.phone}</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <DetailLine
+                      label="Phone"
+                      value={item.phone}
+                      theme={theme}
+                      onPress={() => Linking.openURL(`tel:${item.phone}`)}
+                    />
                   )}
                   {(item as any).address && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Address</Text>
-                      <Text style={styles.detailValue}>{(item as any).address}</Text>
-                    </View>
+                    <DetailLine label="Address" value={(item as any).address} theme={theme} />
                   )}
                   {item.notes && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Notes</Text>
-                      <Text style={styles.detailValue}>{item.notes}</Text>
-                    </View>
+                    <DetailLine label="Notes" value={item.notes} theme={theme} multiline />
                   )}
                   <View style={styles.detailsFooter}>
-                    <Text style={styles.addedDate}>Added {new Date(item.created_at).toLocaleDateString()}</Text>
-                    <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); openEdit(item); }} style={styles.editBtn}>
+                    <Text style={styles.addedDate}>
+                      Added {new Date(item.created_at).toLocaleDateString()}
+                    </Text>
+                    <TouchableOpacity onPress={() => openEdit(item)} style={styles.editBtn}>
                       <Text style={styles.editBtnText}>Edit</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               )}
-            </TouchableOpacity>
+            </View>
           );
         }}
       />
@@ -218,12 +259,12 @@ export default function OwnerClients() {
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>New Client</Text>
-              <TextInput style={styles.input} placeholder="Full name *" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
-              <TextInput style={styles.input} placeholder="Company (optional)" placeholderTextColor={theme.textMuted} value={newCompany} onChangeText={setNewCompany} />
-              <TextInput style={styles.input} placeholder="Email (optional)" placeholderTextColor={theme.textMuted} value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" />
-              <TextInput style={styles.input} placeholder="Phone (optional)" placeholderTextColor={theme.textMuted} value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
+              <TextInput style={styles.modalInput} placeholder="Full name *" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+              <TextInput style={styles.modalInput} placeholder="Company (optional)" placeholderTextColor={theme.textMuted} value={newCompany} onChangeText={setNewCompany} />
+              <TextInput style={styles.modalInput} placeholder="Email (optional)" placeholderTextColor={theme.textMuted} value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput style={styles.modalInput} placeholder="Phone (optional)" placeholderTextColor={theme.textMuted} value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
               <TextInput
-                style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
                 placeholder="Notes (optional)"
                 placeholderTextColor={theme.textMuted}
                 value={newNotes}
@@ -243,7 +284,6 @@ export default function OwnerClients() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Edit Client modal */}
       <Modal visible={!!editClient} transparent animationType="slide">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -252,13 +292,13 @@ export default function OwnerClients() {
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>Edit {editClient?.name || 'Client'}</Text>
-              <TextInput style={styles.input} placeholder="Full name *" placeholderTextColor={theme.textMuted} value={editName} onChangeText={setEditName} />
-              <TextInput style={styles.input} placeholder="Company" placeholderTextColor={theme.textMuted} value={editCompany} onChangeText={setEditCompany} />
-              <TextInput style={styles.input} placeholder="Email" placeholderTextColor={theme.textMuted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
-              <TextInput style={styles.input} placeholder="Phone" placeholderTextColor={theme.textMuted} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
-              <TextInput style={styles.input} placeholder="Address" placeholderTextColor={theme.textMuted} value={editAddress} onChangeText={setEditAddress} />
+              <TextInput style={styles.modalInput} placeholder="Full name *" placeholderTextColor={theme.textMuted} value={editName} onChangeText={setEditName} />
+              <TextInput style={styles.modalInput} placeholder="Company" placeholderTextColor={theme.textMuted} value={editCompany} onChangeText={setEditCompany} />
+              <TextInput style={styles.modalInput} placeholder="Email" placeholderTextColor={theme.textMuted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput style={styles.modalInput} placeholder="Phone" placeholderTextColor={theme.textMuted} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+              <TextInput style={styles.modalInput} placeholder="Address" placeholderTextColor={theme.textMuted} value={editAddress} onChangeText={setEditAddress} />
               <TextInput
-                style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                style={[styles.modalInput, { height: 100, textAlignVertical: 'top' }]}
                 placeholder="Notes — preferences, access instructions, etc."
                 placeholderTextColor={theme.textMuted}
                 value={editNotes}
@@ -281,26 +321,64 @@ export default function OwnerClients() {
   );
 }
 
+function DetailLine({
+  label, value, theme, onPress, multiline,
+}: { label: string; value: string; theme: Theme; onPress?: () => void; multiline?: boolean }) {
+  const Wrap: any = onPress ? TouchableOpacity : View;
+  return (
+    <Wrap style={{ flexDirection: 'row', gap: 10, paddingVertical: 6 }} onPress={onPress}>
+      <Text style={{ color: theme.textMuted, fontSize: 12, width: 56, fontWeight: '700', paddingTop: 2 }}>{label}</Text>
+      <Text
+        style={{
+          color: onPress ? theme.accent : theme.textPrimary,
+          fontSize: 14, flex: 1,
+          lineHeight: multiline ? 20 : undefined,
+        }}
+      >
+        {value}
+      </Text>
+    </Wrap>
+  );
+}
+
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
-    empty: { color: t.textMuted, textAlign: 'center', marginTop: 60, fontSize: 15 },
-    card: { backgroundColor: t.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: t.border },
-    cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    avatar: {
-      width: 40, height: 40, borderRadius: 20,
-      backgroundColor: t.accentMuted, alignItems: 'center', justifyContent: 'center',
+
+    offlineBanner: { backgroundColor: t.dangerMuted, paddingVertical: 8, paddingHorizontal: 16 },
+    offlineText: { color: t.danger, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+
+    searchBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      marginHorizontal: 16, marginTop: 12,
+      backgroundColor: t.surfaceInset,
+      borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
     },
-    avatarText: { color: t.accent, fontSize: 18, fontWeight: '700' },
-    clientName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
-    company: { color: t.textSecondary, fontSize: 13, marginTop: 1 },
-    jobBadge: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
-    jobBadgeText: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
-    details: { marginTop: 14, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 12, gap: 8 },
-    detailRow: { flexDirection: 'row', gap: 8 },
-    detailLabel: { color: t.textMuted, fontSize: 13, width: 50 },
-    detailValue: { color: t.textPrimary, fontSize: 13, flex: 1 },
+    input: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 0 },
+
+    addBar: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingHorizontal: 16, paddingVertical: 14,
+      marginTop: 12,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
+    },
+    addIcon: {
+      width: 32, height: 32, borderRadius: 16,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    addText: { fontSize: 15, fontWeight: '700' },
+
+    empty: { paddingTop: 80, paddingHorizontal: 32, alignItems: 'center' },
+    emptyTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '800', marginBottom: 6 },
+    emptySub: { color: t.textMuted, fontSize: 14, textAlign: 'center' },
+
+    details: {
+      paddingHorizontal: 16, paddingBottom: 14,
+      paddingLeft: 64,
+      gap: 2,
+    },
     addedDate: { color: t.textMuted, fontSize: 11 },
     detailsFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
     editBtn: {
@@ -308,16 +386,11 @@ function makeStyles(t: Theme) {
       paddingVertical: 6, paddingHorizontal: 14,
     },
     editBtnText: { color: t.accent, fontSize: 12, fontWeight: '700' },
-    fab: {
-      position: 'absolute', bottom: 24, right: 24,
-      backgroundColor: t.accent, borderRadius: 28,
-      paddingVertical: 14, paddingHorizontal: 24, elevation: 4,
-    },
-    fabText: { color: t.accentContrast, fontWeight: '700', fontSize: 15 },
+
     modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
     modal: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
     modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
-    input: {
+    modalInput: {
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
       borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 12,
     },

@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, RefreshControl
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { mobileGet } from '../../lib/mobileApi';
 import { getUser } from '../../lib/storage';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
+import { Divider, SectionHeader } from '../../components/Flat';
 
 function formatDuration(start: string, end: string | null): string {
   const s = new Date(start).getTime();
@@ -23,6 +26,8 @@ interface Assignment {
 }
 
 export default function CrewHours() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,7 +36,6 @@ export default function CrewHours() {
   const loadData = useCallback(async () => {
     const user = await getUser();
     if (!user) return;
-
     let rows: Assignment[] = [];
     try {
       rows = await mobileGet<Assignment[]>('/api/mobile/crew/my-assignments');
@@ -60,7 +64,7 @@ export default function CrewHours() {
   useEffect(() => { loadData(); }, [loadData]);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
@@ -68,19 +72,28 @@ export default function CrewHours() {
       data={assignments}
       keyExtractor={a => a.id}
       style={styles.container}
-      contentContainerStyle={{ padding: 16, gap: 10 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+      contentContainerStyle={{ paddingBottom: 140 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
+      ItemSeparatorComponent={() => <Divider inset={16} />}
       ListHeaderComponent={
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryValue}>{weekHours}h</Text>
-          <Text style={styles.summaryLabel}>This week</Text>
+        <>
+          <View style={styles.summary}>
+            <Text style={styles.summaryValue}>{weekHours}h</Text>
+            <Text style={styles.summaryLabel}>This week</Text>
+          </View>
+          {assignments.length > 0 && <SectionHeader label="Check-ins" hint={`${assignments.length}`} />}
+        </>
+      }
+      ListEmptyComponent={
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>No hours logged yet</Text>
+          <Text style={styles.emptySub}>Check in from the Home tab when you're on site.</Text>
         </View>
       }
-      ListEmptyComponent={<Text style={styles.empty}>No hours logged yet.</Text>}
       renderItem={({ item }) => (
-        <View style={styles.card}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.jobName}>{(item.jobs as any)?.name}</Text>
+        <View style={styles.row}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.jobName} numberOfLines={1}>{(item.jobs as any)?.name}</Text>
             <Text style={styles.date}>
               {new Date(item.checked_in_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </Text>
@@ -101,23 +114,35 @@ export default function CrewHours() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  summaryCard: {
-    backgroundColor: '#1a1a1a', borderRadius: 14, padding: 20,
-    alignItems: 'center', borderWidth: 1, borderColor: '#0ea5e933', marginBottom: 4,
-  },
-  summaryValue: { color: '#0ea5e9', fontSize: 48, fontWeight: '800' },
-  summaryLabel: { color: '#666', fontSize: 14, marginTop: 4 },
-  empty: { color: '#444', textAlign: 'center', marginTop: 60, fontSize: 15 },
-  card: {
-    backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16,
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  jobName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  date: { color: '#666', fontSize: 12, marginTop: 2 },
-  duration: { color: '#0ea5e9', fontSize: 15, fontWeight: '700' },
-  timeRange: { color: '#555', fontSize: 12, marginTop: 2 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    summary: {
+      alignItems: 'center',
+      paddingVertical: 32,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.border,
+    },
+    summaryValue: {
+      color: t.accent,
+      fontSize: 56, fontWeight: '800',
+      fontVariant: ['tabular-nums'],
+      letterSpacing: -1,
+    },
+    summaryLabel: { color: t.textSecondary, fontSize: 14, fontWeight: '600', marginTop: 4 },
+
+    row: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingHorizontal: 16, paddingVertical: 14,
+    },
+    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+    date: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
+    duration: { color: t.textPrimary, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+    timeRange: { color: t.textMuted, fontSize: 12, marginTop: 2 },
+
+    empty: { padding: 48, alignItems: 'center' },
+    emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '700', marginBottom: 6 },
+    emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center' },
+  });
+}

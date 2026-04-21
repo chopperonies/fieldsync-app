@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  ActivityIndicator, RefreshControl, TouchableOpacity
+  RefreshControl, TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { mobileGet } from '../../lib/mobileApi';
@@ -9,6 +9,8 @@ import { router } from 'expo-router';
 import { getUser } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import { SectionHeader, Row, Divider, RowAvatar, StatusChip } from '../../components/Flat';
+import ClockInCard from '../../components/ClockInCard';
 
 type HomeJob = {
   id: string;
@@ -94,8 +96,6 @@ export default function OwnerOverview() {
   const [refreshing, setRefreshing] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
 
-  // Business Health uses blur/reveal — numbers show as $••• by default.
-  // Today + Recent Activity stay visible but truncated with "View all".
   const [revealed, setRevealed] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -106,7 +106,7 @@ export default function OwnerOverview() {
       ]);
       setStats(s);
       if (f) setFinancials(f);
-    } catch (e) {
+    } catch {
       // Keep last-good on failure
     } finally {
       setLoading(false);
@@ -138,61 +138,29 @@ export default function OwnerOverview() {
   const days = weekStripDays(today);
   const todayIdx = today.getDay();
 
-  // Hero variants keyed by state.
-  const hero = (() => {
-    const stuck = safe.stuckJobs || [];
-    if (stuck.length > 0) {
-      return {
-        kind: 'attention' as const,
-        title: stuck.length === 1 ? 'Needs attention' : `${stuck.length} jobs need attention`,
-        body: stuck[0].name + (stuck.length > 1 ? ` · +${stuck.length - 1} more` : ''),
-        cta: 'Review',
-        onPress: () => router.push('/(owner)/jobs?filter=active' as any),
-      };
-    }
-    if (safe.activeJobs === 0) {
-      return {
-        kind: 'empty' as const,
-        title: 'Let\'s get started',
-        body: 'No active jobs right now. Create one to get on the board.',
-        cta: '+ Schedule a job',
-        onPress: () => router.push('/(owner)/jobs?open=new' as any),
-      };
-    }
-    return {
-      kind: 'running' as const,
-      title: 'All systems go',
-      body: `${safe.activeJobs} active · ${safe.crewOnSite} on site`,
-      cta: 'View jobs',
-      onPress: () => router.push('/(owner)/jobs?filter=active' as any),
-    };
-  })();
-
-  // Hero color by kind
-  const heroColors = (() => {
-    if (hero.kind === 'attention') return { bg: theme.warningMuted, border: theme.warning, tint: theme.warning };
-    if (hero.kind === 'empty')     return { bg: theme.accentSoft,    border: theme.accent,  tint: theme.accent };
-    return                                { bg: theme.successMuted,  border: theme.success, tint: theme.success };
-  })();
-
-  // To-do items
-  const todoItems: { id: string; label: string; sub: string; icon: any; color: string; onPress: () => void }[] = [];
+  // To-do items: stuck jobs + pending supplies flagged at a glance
+  const todoItems: Array<{
+    id: string; label: string; sub: string; icon: any; color: string; onPress: () => void;
+  }> = [];
   (safe.stuckJobs || []).slice(0, 3).forEach(j => todoItems.push({
     id: 'stuck-' + j.id,
     label: j.name,
     sub: `Stuck ${j.updated_at ? timeAgo(j.updated_at) : ''}${j.stage_name ? ` · ${j.stage_name}` : ''}`,
-    icon: 'warning-outline',
+    icon: 'alert-circle-outline',
     color: theme.warning,
     onPress: () => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any),
   }));
   if (safe.pendingSupplies > 0) todoItems.push({
     id: 'supplies',
     label: `${safe.pendingSupplies} pending supply ${safe.pendingSupplies === 1 ? 'request' : 'requests'}`,
-    sub: 'Mark ordered or delivered from Supplies',
+    sub: 'Tap to review in Supplies',
     icon: 'cube-outline',
     color: theme.accent,
     onPress: () => router.push('/(owner)/supplies' as any),
   });
+
+  const todayJobs = safe.todayJobs || [];
+  const recent = safe.recentActivity || [];
 
   return (
     <ScrollView
@@ -202,20 +170,12 @@ export default function OwnerOverview() {
     >
       <View style={styles.header}>
         <Text style={styles.date}>{dateLabel}</Text>
-        <Text style={styles.greeting}>{greeting}{firstName ? `, ${firstName}` : ''}</Text>
+        <Text style={styles.greeting}>
+          {greeting}{firstName ? `, ${firstName}` : ''}
+        </Text>
       </View>
 
-      <TouchableOpacity
-        style={[styles.hero, { backgroundColor: heroColors.bg, borderColor: heroColors.border + '55' }]}
-        onPress={hero.onPress}
-        activeOpacity={0.85}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.heroTitle, { color: heroColors.tint }]}>{hero.title}</Text>
-          <Text style={styles.heroBody}>{hero.body}</Text>
-        </View>
-        <Text style={[styles.heroCta, { color: heroColors.tint }]}>{hero.cta} ›</Text>
-      </TouchableOpacity>
+      <ClockInCard />
 
       <View style={styles.weekStrip}>
         {days.map((d, i) => {
@@ -241,105 +201,74 @@ export default function OwnerOverview() {
 
       {todoItems.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>To do</Text>
-          {todoItems.map(t => (
-            <TouchableOpacity key={`${t.id}`} style={styles.todoRow} onPress={t.onPress} activeOpacity={0.75}>
-              <View style={[styles.todoIcon, { backgroundColor: t.color + '22', borderColor: t.color + '55' }]}>
-                <Ionicons name={t.icon} size={18} color={t.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.todoLabel}>{t.label}</Text>
-                <Text style={styles.todoSub}>{t.sub}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
-            </TouchableOpacity>
+          <SectionHeader label="To do" hint={`${todoItems.length}`} />
+          {todoItems.map((t, i) => (
+            <View key={t.id}>
+              {i > 0 ? <Divider inset={64} /> : null}
+              <Row
+                leading={<RowAvatar icon={t.icon} tint={t.color} />}
+                title={t.label}
+                subtitle={t.sub}
+                trailing={<Ionicons name="chevron-forward" size={16} color={theme.textMuted} />}
+                onPress={t.onPress}
+              />
+            </View>
           ))}
         </>
       )}
 
       {financials && (
         <>
-          <TouchableOpacity
-            style={styles.collapsibleHeader}
-            onPress={() => setRevealed(v => !v)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.sectionLabel}>Business health</Text>
-            <View style={[styles.revealPill, { backgroundColor: theme.accentMuted, borderColor: theme.accent + '55' }]}>
-              <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={14} color={theme.accent} />
-              <Text style={[styles.revealPillText, { color: theme.accent }]}>{revealed ? 'Hide' : 'Reveal'}</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.healthCard}>
-            <HealthRow theme={theme} label="Revenue this month" sub="MTD" value={revealed ? shortMoney(financials.revenueMtd) : '$•••'} muted={!revealed} />
-            <HealthRow theme={theme} label="Outstanding" sub="Awaiting payment" value={revealed ? shortMoney(financials.outstanding) : '$•••'} valueColor={revealed ? theme.warning : undefined} muted={!revealed} />
-            <HealthRow theme={theme} label="Paid in the last 7 days" sub="Cash collected" value={revealed ? shortMoney(financials.paidThisWeek) : '$•••'} valueColor={revealed ? theme.success : undefined} muted={!revealed} last />
-          </View>
+          <SectionHeader
+            label="Business health"
+            right={revealed ? 'Hide' : 'Reveal'}
+            onPressRight={() => setRevealed(v => !v)}
+          />
+          <HealthRow theme={theme} label="Revenue this month" sub="MTD" value={revealed ? shortMoney(financials.revenueMtd) : '$•••'} muted={!revealed} />
+          <Divider inset={16} />
+          <HealthRow theme={theme} label="Outstanding" sub="Awaiting payment" value={revealed ? shortMoney(financials.outstanding) : '$•••'} valueColor={revealed ? theme.warning : undefined} muted={!revealed} />
+          <Divider inset={16} />
+          <HealthRow theme={theme} label="Paid in the last 7 days" sub="Cash collected" value={revealed ? shortMoney(financials.paidThisWeek) : '$•••'} valueColor={revealed ? theme.success : undefined} muted={!revealed} />
         </>
       )}
 
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionLabel}>
-          Today{(safe.todayJobs?.length ?? 0) > 0 ? ` · ${safe.todayJobs!.length}` : ''}
-        </Text>
-        {(safe.todayJobs?.length ?? 0) > 3 && (
-          <TouchableOpacity onPress={() => router.push('/(owner)/jobs?filter=active' as any)}>
-            <Text style={styles.sectionLink}>View all ›</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      {(safe.todayJobs?.length ?? 0) === 0 && !loading ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>No active jobs right now.</Text>
-        </View>
+      <SectionHeader
+        label="Today"
+        hint={todayJobs.length > 0 ? `${todayJobs.length}` : undefined}
+        right={todayJobs.length > 3 ? 'View all' : undefined}
+        onPressRight={todayJobs.length > 3 ? () => router.push('/(owner)/jobs?filter=active' as any) : undefined}
+      />
+      {todayJobs.length === 0 && !loading ? (
+        <Text style={styles.emptyText}>No active jobs right now.</Text>
       ) : (
-        safe.todayJobs!.slice(0, 3).map(j => (
-          <TouchableOpacity
-            key={j.id}
-            style={styles.jobCard}
-            onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
-            activeOpacity={0.75}
-          >
-            <View style={styles.jobTop}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.jobName}>{j.name}</Text>
-                {j.client_name ? <Text style={styles.clientLine}>{j.client_name}</Text> : null}
-              </View>
-              {j.stage_name && (
-                <View style={[styles.stagePill, { borderColor: (j.stage_color || theme.accent) + '55', backgroundColor: (j.stage_color || theme.accent) + '22' }]}>
-                  <Text style={[styles.stagePillText, { color: j.stage_color || theme.accent }]}>{j.stage_name}</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.jobMeta}>
-              <View style={styles.metaChip}>
-                <Ionicons name="people-outline" size={12} color={theme.textSecondary} />
-                <Text style={styles.metaChipText}>
-                  {j.crew.length > 0 ? j.crew.slice(0, 2).join(', ') + (j.crew.length > 2 ? ` +${j.crew.length - 2}` : '') : 'Unassigned'}
-                </Text>
-              </View>
-              {j.pendingSupplies > 0 && (
-                <View style={styles.metaChip}>
-                  <Ionicons name="cube-outline" size={12} color={theme.accent} />
-                  <Text style={[styles.metaChipText, { color: theme.accent }]}>{j.pendingSupplies} supplies</Text>
-                </View>
-              )}
-              {j.updated_at && (
-                <Text style={styles.metaTime}>{timeAgo(j.updated_at)} ago</Text>
-              )}
-            </View>
-          </TouchableOpacity>
+        todayJobs.slice(0, 3).map((j, i) => (
+          <View key={j.id}>
+            {i > 0 ? <Divider inset={64} /> : null}
+            <Row
+              leading={<RowAvatar icon="hammer-outline" tint={theme.accent} />}
+              title={j.name}
+              subtitle={[j.client_name, j.crew.length > 0 ? j.crew.slice(0, 2).join(', ') + (j.crew.length > 2 ? ` +${j.crew.length - 2}` : '') : 'Unassigned'].filter(Boolean).join(' · ')}
+              trailing={
+                <>
+                  {j.pendingSupplies > 0 ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Ionicons name="cube-outline" size={12} color={theme.accent} />
+                      <Text style={{ color: theme.accent, fontSize: 11, fontWeight: '700' }}>{j.pendingSupplies}</Text>
+                    </View>
+                  ) : null}
+                  {j.stage_name ? <StatusChip label={j.stage_name} tint={j.stage_color || theme.accent} /> : null}
+                </>
+              }
+              onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
+            />
+          </View>
         ))
       )}
 
-      {safe.recentActivity && safe.recentActivity.length > 0 && (
+      {recent.length > 0 && (
         <>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionLabel}>
-              Recent activity · {safe.recentActivity.length}
-            </Text>
-          </View>
-          {safe.recentActivity.slice(0, 5).map(a => {
+          <SectionHeader label="Recent activity" hint={`${recent.length}`} />
+          {recent.slice(0, 5).map((a, i) => {
             const iconName =
               a.type === 'photo'      ? 'camera-outline' :
               a.type === 'note'       ? 'create-outline' :
@@ -362,22 +291,15 @@ export default function OwnerOverview() {
               a.type === 'bottleneck' ? 'Flagged a bottleneck' :
                                         (a.message || 'Update');
             return (
-              <TouchableOpacity
-                key={a.id}
-                style={styles.activityRow}
-                onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: a.job_id } } as any)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.activityIcon, { backgroundColor: iconColor + '22', borderColor: iconColor + '55' }]}>
-                  <Ionicons name={iconName as any} size={16} color={iconColor} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activityLine} numberOfLines={2}>{label}</Text>
-                  <Text style={styles.activitySub}>
-                    {a.job_name || 'Job'} · {a.employee_name || 'Crew'} · {timeAgo(a.created_at)} ago
-                  </Text>
-                </View>
-              </TouchableOpacity>
+              <View key={a.id}>
+                {i > 0 ? <Divider inset={64} /> : null}
+                <Row
+                  leading={<RowAvatar icon={iconName} tint={iconColor} />}
+                  title={label}
+                  subtitle={`${a.job_name || 'Job'} · ${a.employee_name || 'Crew'} · ${timeAgo(a.created_at)} ago`}
+                  onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: a.job_id } } as any)}
+                />
+              </View>
             );
           })}
         </>
@@ -387,13 +309,12 @@ export default function OwnerOverview() {
 }
 
 function HealthRow({
-  theme, label, sub, value, valueColor, last, muted,
-}: { theme: Theme; label: string; sub?: string; value: string; valueColor?: string; last?: boolean; muted?: boolean }) {
+  theme, label, sub, value, valueColor, muted,
+}: { theme: Theme; label: string; sub?: string; value: string; valueColor?: string; muted?: boolean }) {
   return (
     <View style={{
       flexDirection: 'row', alignItems: 'center',
-      paddingVertical: 14,
-      borderBottomWidth: last ? 0 : 1, borderBottomColor: theme.border,
+      paddingHorizontal: 16, paddingVertical: 14,
     }}>
       <View style={{ flex: 1 }}>
         <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '600' }}>{label}</Text>
@@ -404,6 +325,7 @@ function HealthRow({
         fontWeight: '800',
         color: muted ? theme.textMuted : (valueColor || theme.textPrimary),
         letterSpacing: muted ? 2 : 0,
+        fontVariant: ['tabular-nums'],
       }}>{value}</Text>
     </View>
   );
@@ -412,25 +334,18 @@ function HealthRow({
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
-    content: { padding: 16, gap: 14, paddingBottom: 140 },
+    content: { paddingBottom: 140 },
 
-    header: { marginBottom: 4 },
+    header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
     date: { color: t.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 4 },
     greeting: { color: t.textPrimary, fontSize: 28, fontWeight: '800' },
 
-    hero: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      borderWidth: 1,
-      borderRadius: 16, padding: 16,
-    },
-    heroTitle: { fontSize: 15, fontWeight: '800' },
-    heroBody: { color: t.textSecondary, fontSize: 13, marginTop: 4, lineHeight: 18 },
-    heroCta: { fontSize: 13, fontWeight: '800' },
-
     weekStrip: {
       flexDirection: 'row', justifyContent: 'space-between',
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
-      borderRadius: 16, paddingVertical: 10, paddingHorizontal: 8,
+      paddingVertical: 14, paddingHorizontal: 16,
+      marginTop: 12,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
     },
     dayCell: { flex: 1, alignItems: 'center', gap: 4 },
     dayLetter: { color: t.textMuted, fontSize: 11, fontWeight: '700' },
@@ -441,71 +356,6 @@ function makeStyles(t: Theme) {
     dayNumber: { color: t.textSecondary, fontSize: 14, fontWeight: '700' },
     dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 4 },
 
-    sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-    sectionLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '800', marginTop: 6 },
-    collapsibleHeader: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingVertical: 6,
-    },
-    collapsibleRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    collapsibleHint: { color: t.textMuted, fontSize: 11, fontWeight: '600' },
-    revealPill: {
-      flexDirection: 'row', alignItems: 'center', gap: 5,
-      paddingVertical: 4, paddingHorizontal: 10,
-      borderWidth: 1, borderRadius: 999,
-    },
-    revealPillText: { fontSize: 12, fontWeight: '800' },
-    sectionLink: { color: t.accent, fontSize: 13, fontWeight: '700' },
-
-    todoRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
-      borderRadius: 12, padding: 12,
-    },
-    todoIcon: {
-      width: 34, height: 34, borderRadius: 10, borderWidth: 1,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    todoLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
-    todoSub: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
-
-    healthCard: {
-      backgroundColor: t.surface, borderRadius: 16, borderWidth: 1, borderColor: t.border,
-      paddingHorizontal: 14,
-    },
-
-    jobCard: {
-      backgroundColor: t.surface, borderRadius: 12,
-      padding: 12, borderWidth: 1, borderColor: t.border,
-    },
-    jobTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-    jobName: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
-    clientLine: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
-    stagePill: { borderWidth: 1, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 10 },
-    stagePillText: { fontSize: 11, fontWeight: '700' },
-    jobMeta: {
-      flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap',
-    },
-    metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    metaChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
-    metaTime: { color: t.textMuted, fontSize: 11, marginLeft: 'auto' },
-
-    emptyCard: {
-      backgroundColor: t.surface, borderRadius: 12, borderWidth: 1, borderColor: t.border,
-      padding: 18, alignItems: 'center',
-    },
-    emptyText: { color: t.textSecondary, fontSize: 14 },
-
-    activityRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
-      borderRadius: 12, padding: 12,
-    },
-    activityIcon: {
-      width: 32, height: 32, borderRadius: 10, borderWidth: 1,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    activityLine: { color: t.textPrimary, fontSize: 13, fontWeight: '600' },
-    activitySub: { color: t.textSecondary, fontSize: 11, marginTop: 2 },
+    emptyText: { color: t.textMuted, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14 },
   });
 }

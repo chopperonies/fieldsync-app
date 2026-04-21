@@ -1,15 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator, AppState, RefreshControl
+  StyleSheet, Alert, ActivityIndicator, AppState, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Job } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { setCache, getStaleCache } from '../../lib/cache';
 import { enqueue, syncQueue, getQueueCount } from '../../lib/offlineQueue';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
+import { Pill, PillRow, SectionHeader, Divider } from '../../components/Flat';
+import ClockInCard from '../../components/ClockInCard';
 
 async function getGPS(): Promise<{ lat: number; lng: number } | null> {
   try {
@@ -24,6 +29,9 @@ async function getGPS(): Promise<{ lat: number; lng: number } | null> {
 
 export default function CheckIn() {
   const router = useRouter();
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+
   const [jobs, setJobs] = useState<Job[]>([]);
   const [history, setHistory] = useState<Job[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -38,8 +46,6 @@ export default function CheckIn() {
 
   useEffect(() => {
     init();
-
-    // Sync queue and re-check connectivity when app comes to foreground
     const sub = AppState.addEventListener('change', async (next) => {
       if (appState.current.match(/inactive|background/) && next === 'active') {
         await trySyncQueue();
@@ -47,7 +53,6 @@ export default function CheckIn() {
       }
       appState.current = next;
     });
-
     return () => sub.remove();
   }, []);
 
@@ -64,9 +69,7 @@ export default function CheckIn() {
     const synced = await syncQueue();
     const remaining = await getQueueCount();
     setPendingCount(remaining);
-    if (synced > 0) {
-      setIsOnline(true);
-    }
+    if (synced > 0) setIsOnline(true);
   }
 
   async function loadHistory() {
@@ -89,9 +92,6 @@ export default function CheckIn() {
       setIsOnline(true);
       await setCache('crew_jobs_' + user?.tenant_id, result);
     } catch (e: any) {
-      // Only fall into offline mode if the fetch actually rejected (no network).
-      // HTTP 4xx/5xx throw Error with "failed: <code>" message — those mean the
-      // server replied, so we are online and should surface the error instead.
       const msg = String(e?.message || '');
       const serverResponded = /failed:\s*\d+/.test(msg);
       if (serverResponded) {
@@ -118,7 +118,6 @@ export default function CheckIn() {
       const data = await mobileGet<{ job_id: string } | null>('/api/mobile/crew/assignment');
       if (data) setCheckedInJob(data.job_id);
     } catch {
-      // Try from cache
       const cached = await getStaleCache<string>('crew_checked_in_' + user.id);
       if (cached) setCheckedInJob(cached);
     }
@@ -141,7 +140,6 @@ export default function CheckIn() {
         punch_in_lat: gps?.lat ?? null,
         punch_in_lng: gps?.lng ?? null,
       };
-
       if (isOnline) {
         await mobilePost(`/api/mobile/crew/jobs/${job.id}/check-in`, { gps });
         Alert.alert('Checked in!', `You're now on site at ${job.name}${gps ? '\n📍 Location recorded' : ''}`);
@@ -151,11 +149,9 @@ export default function CheckIn() {
         setPendingCount(count);
         Alert.alert('Saved offline', `Check-in saved. It will sync automatically when you're back online.`);
       }
-
       setCheckedInJob(job.id);
       await setCache('crew_checked_in_' + user.id, job.id);
     } catch {
-      // Fallback to offline queue on network error
       const user2 = await getUser();
       if (user2) {
         await enqueue('checkin', {
@@ -193,7 +189,6 @@ export default function CheckIn() {
         setPendingCount(count);
         Alert.alert('Saved offline', `Check-out saved. It will sync when you're back online.`);
       }
-
       setCheckedInJob(null);
       await setCache('crew_checked_in_' + user.id, null);
     } catch {
@@ -214,6 +209,8 @@ export default function CheckIn() {
     }
   }
 
+  const activeList = view === 'active' ? jobs : history;
+
   return (
     <View style={styles.container}>
       {!isOnline && (
@@ -226,137 +223,146 @@ export default function CheckIn() {
       )}
       {isOnline && pendingCount > 0 && (
         <View style={styles.syncBanner}>
-          <Text style={styles.syncText}>🔄 Syncing {pendingCount} offline action{pendingCount > 1 ? 's' : ''}...</Text>
+          <Text style={styles.syncText}>🔄 Syncing {pendingCount} offline action{pendingCount > 1 ? 's' : ''}…</Text>
         </View>
       )}
 
-      <View style={styles.segmented}>
-        <TouchableOpacity
-          onPress={() => setView('active')}
-          style={[styles.segBtn, view === 'active' && styles.segBtnActive]}
-        >
-          <Text style={[styles.segText, view === 'active' && styles.segTextActive]}>Active ({jobs.length})</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => { setView('history'); if (!historyLoaded) loadHistory(); }}
-          style={[styles.segBtn, view === 'history' && styles.segBtnActive]}
-        >
-          <Text style={[styles.segText, view === 'history' && styles.segTextActive]}>History ({history.length})</Text>
-        </TouchableOpacity>
-      </View>
+      <ClockInCard />
 
-      {view === 'active' ? (
-        <>
-          <Text style={styles.label}>
-            {checkedInJob ? '✅ Currently on site' : '📍 Select a job site'}
-          </Text>
-          <FlatList
-            data={jobs}
-            keyExtractor={j => j.id}
-            contentContainerStyle={{ gap: 12, padding: 16 }}
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={loadJobs} tintColor="#0ea5e9" />}
-            ListEmptyComponent={
-              <View style={{ padding: 24, alignItems: 'center' }}>
-                <Text style={{ color: '#555', textAlign: 'center', marginBottom: 16 }}>
-                  {fromCache ? 'No cached jobs available.' : 'No active jobs found.'}
-                </Text>
-                <TouchableOpacity onPress={loadJobs} style={{ backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 }}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Try again</Text>
-                </TouchableOpacity>
-              </View>
-            }
-            renderItem={({ item }) => {
-              const isActive = checkedInJob === item.id;
-              return (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: item.id } } as any)}
-                  style={[styles.card, isActive && styles.cardActive]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.jobName}>{item.name}</Text>
-                    <Text style={styles.jobAddress}>{item.address}</Text>
-                    <Text style={styles.viewHint}>
-                      {item.workflow_id ? 'Tap to open workflow →' : 'Tap to view job →'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.btn, isActive ? styles.btnOut : styles.btnIn]}
-                    onPress={(e) => { e.stopPropagation?.(); isActive ? handleCheckOut(item) : handleCheckIn(item); }}
-                    disabled={actionLoading || (!!checkedInJob && !isActive)}
-                  >
-                    {actionLoading && isActive
-                      ? <ActivityIndicator size="small" color="#000" />
-                      : <Text style={styles.btnText}>{isActive ? 'Check Out' : 'Check In'}</Text>
-                    }
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              );
-            }}
-          />
-        </>
-      ) : (
-        <FlatList
-          data={history}
-          keyExtractor={j => j.id}
-          contentContainerStyle={{ gap: 10, padding: 16 }}
-          refreshControl={<RefreshControl refreshing={false} onRefresh={loadHistory} tintColor="#0ea5e9" />}
-          ListEmptyComponent={
-            <View style={{ padding: 24, alignItems: 'center' }}>
-              <Text style={{ color: '#555', textAlign: 'center' }}>
-                {historyLoaded ? 'No past jobs yet.' : 'Loading history…'}
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: item.id } } as any)}
-              style={styles.card}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.jobName}>{item.name}</Text>
-                <Text style={styles.jobAddress}>{item.address}</Text>
-                <Text style={[styles.viewHint, { color: '#888' }]}>
-                  {String(item.status || '').replace(/_/g, ' ')}
-                </Text>
-              </View>
-              <Text style={{ color: '#555', fontSize: 22 }}>›</Text>
-            </TouchableOpacity>
-          )}
+      <PillRow>
+        <Pill
+          label={`Active${jobs.length > 0 ? ` · ${jobs.length}` : ''}`}
+          active={view === 'active'}
+          onPress={() => setView('active')}
         />
-      )}
+        <Pill
+          label={`History${history.length > 0 ? ` · ${history.length}` : ''}`}
+          active={view === 'history'}
+          onPress={() => { setView('history'); if (!historyLoaded) loadHistory(); }}
+        />
+      </PillRow>
+
+      <SectionHeader
+        label={checkedInJob ? 'On site now' : (view === 'active' ? 'Assigned jobs' : 'Past jobs')}
+      />
+
+      <FlatList
+        data={activeList}
+        keyExtractor={j => j.id}
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadJobs} tintColor={theme.accent} />}
+        ItemSeparatorComponent={() => <Divider inset={16} />}
+        ListEmptyComponent={
+          view === 'active' ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>{fromCache ? 'No cached jobs' : 'No active jobs'}</Text>
+              <Text style={styles.emptySub}>Jobs your owner assigns show up here.</Text>
+              <TouchableOpacity onPress={loadJobs} style={styles.retryBtn}>
+                <Text style={styles.retryBtnText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>{historyLoaded ? 'No past jobs yet' : 'Loading…'}</Text>
+            </View>
+          )
+        }
+        renderItem={({ item }) => {
+          const isActive = checkedInJob === item.id;
+          const isHistory = view === 'history';
+          return (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: item.id } } as any)}
+              style={styles.jobRow}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.jobName} numberOfLines={1}>{item.name}</Text>
+                {item.address ? <Text style={styles.jobAddress} numberOfLines={1}>{item.address}</Text> : null}
+                {!isHistory && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    {item.workflow_id ? (
+                      <>
+                        <Ionicons name="git-branch-outline" size={11} color={theme.accent} />
+                        <Text style={styles.hint}>Workflow attached</Text>
+                      </>
+                    ) : (
+                      <Text style={[styles.hint, { color: theme.textMuted }]}>Tap to open</Text>
+                    )}
+                  </View>
+                )}
+                {isHistory && item.status ? (
+                  <Text style={[styles.hint, { color: theme.textMuted, marginTop: 4 }]}>
+                    {String(item.status).replace(/_/g, ' ')}
+                  </Text>
+                ) : null}
+              </View>
+              {!isHistory ? (
+                <TouchableOpacity
+                  style={[
+                    styles.punchBtn,
+                    isActive
+                      ? { backgroundColor: theme.dangerMuted, borderColor: theme.danger + '55' }
+                      : { backgroundColor: theme.successMuted, borderColor: theme.success + '55' },
+                  ]}
+                  onPress={(e) => { e.stopPropagation?.(); isActive ? handleCheckOut(item) : handleCheckIn(item); }}
+                  disabled={actionLoading || (!!checkedInJob && !isActive)}
+                >
+                  {actionLoading && isActive
+                    ? <ActivityIndicator size="small" color={theme.danger} />
+                    : (
+                      <Text style={[
+                        styles.punchBtnText,
+                        { color: isActive ? theme.danger : theme.success },
+                      ]}>
+                        {isActive ? 'Check Out' : 'Check In'}
+                      </Text>
+                    )
+                  }
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+              )}
+            </TouchableOpacity>
+          );
+        }}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  offlineBanner: { backgroundColor: '#7f1d1d', paddingVertical: 8, paddingHorizontal: 16 },
-  offlineText: { color: '#fca5a5', fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  syncBanner: { backgroundColor: '#1e3a5f', paddingVertical: 8, paddingHorizontal: 16 },
-  syncText: { color: '#93c5fd', fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  label: { color: '#888', fontSize: 14, padding: 16, paddingBottom: 4 },
-  card: {
-    backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16,
-    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  cardActive: { borderColor: '#0ea5e9' },
-  jobName: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  jobAddress: { color: '#666', fontSize: 13, marginTop: 2 },
-  viewHint: { color: '#0ea5e9', fontSize: 11, fontWeight: '600', marginTop: 4 },
-  btn: { borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, minWidth: 90, alignItems: 'center' },
-  btnIn: { backgroundColor: '#0ea5e9' },
-  btnOut: { backgroundColor: '#ef4444' },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  segmented: {
-    flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingTop: 12,
-    borderBottomWidth: 1, borderBottomColor: '#1a1a1a', paddingBottom: 10,
-  },
-  segBtn: {
-    paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  segBtnActive: { backgroundColor: '#0ea5e91a', borderColor: '#0ea5e9' },
-  segText: { color: '#888', fontSize: 13, fontWeight: '600' },
-  segTextActive: { color: '#0ea5e9' },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    offlineBanner: { backgroundColor: t.dangerMuted, paddingVertical: 8, paddingHorizontal: 16 },
+    offlineText: { color: t.danger, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+    syncBanner: { backgroundColor: t.infoMuted, paddingVertical: 8, paddingHorizontal: 16 },
+    syncText: { color: t.info, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+
+    jobRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingHorizontal: 16, paddingVertical: 14,
+      minHeight: 68,
+    },
+    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '700' },
+    jobAddress: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    hint: { color: t.accent, fontSize: 11, fontWeight: '700' },
+
+    punchBtn: {
+      borderWidth: 1,
+      borderRadius: 999,
+      paddingVertical: 8, paddingHorizontal: 14,
+      alignItems: 'center', justifyContent: 'center',
+      minWidth: 94,
+    },
+    punchBtnText: { fontSize: 13, fontWeight: '800' },
+
+    empty: { padding: 48, alignItems: 'center' },
+    emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '700', marginBottom: 6 },
+    emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 16 },
+    retryBtn: {
+      backgroundColor: t.accent, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10,
+    },
+    retryBtnText: { color: t.accentContrast, fontWeight: '700', fontSize: 14 },
+  });
+}
