@@ -235,15 +235,17 @@ export default function OwnerJobs() {
           />
           <View style={styles.dayModeControls}>
             {selectedDay !== toDateString(new Date()) && (
-              <TouchableOpacity onPress={() => setSelectedDay(toDateString(new Date()))}>
+              <TouchableOpacity onPress={() => setSelectedDay(toDateString(new Date()))} style={{ paddingVertical: 4, paddingRight: 12 }}>
                 <Text style={styles.dayModeLink}>Today</Text>
               </TouchableOpacity>
             )}
             {(() => {
               const todayStr = toDateString(new Date());
               const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return toDateString(d); })();
-              const pingMode = selectedDay === todayStr ? 'today' : selectedDay === tomorrowStr ? 'tomorrow' : null;
-              if (!pingMode || filteredJobs.length === 0) return null;
+              const pingMode: 'today' | 'tomorrow' | null =
+                selectedDay === todayStr ? 'today' :
+                selectedDay === tomorrowStr ? 'tomorrow' : null;
+              if (!pingMode) return null;
               return (
                 <TouchableOpacity
                   onPress={async () => {
@@ -253,21 +255,22 @@ export default function OwnerJobs() {
                         'Reminder sent',
                         resp?.sent
                           ? `Pushed to ${resp.sent} crew member${resp.sent === 1 ? '' : 's'}.`
-                          : 'No crew to ping — nobody is assigned to jobs on this day (or their push notifications are off).',
+                          : 'No one to ping yet. Make sure crew are assigned to the job and their push notifications are on.',
                       );
                     } catch (e: any) {
                       Alert.alert('Failed', e?.message || 'Could not send reminders.');
                     }
                   }}
-                  style={{ marginLeft: 14, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  style={{ paddingVertical: 4, paddingRight: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }}
                 >
                   <Ionicons name="notifications-outline" size={14} color={theme.accent} />
                   <Text style={styles.dayModeLink}>Ping crew</Text>
                 </TouchableOpacity>
               );
             })()}
-            <TouchableOpacity onPress={() => setDayMode(false)}>
-              <Text style={[styles.dayModeLink, { marginLeft: 'auto' }]}>Show all jobs ›</Text>
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity onPress={() => setDayMode(false)} style={{ paddingVertical: 4 }}>
+              <Text style={styles.dayModeLink}>Show all jobs ›</Text>
             </TouchableOpacity>
           </View>
         </View>
