@@ -239,6 +239,33 @@ export default function OwnerJobs() {
                 <Text style={styles.dayModeLink}>Today</Text>
               </TouchableOpacity>
             )}
+            {(() => {
+              const todayStr = toDateString(new Date());
+              const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return toDateString(d); })();
+              const pingMode = selectedDay === todayStr ? 'today' : selectedDay === tomorrowStr ? 'tomorrow' : null;
+              if (!pingMode || filteredJobs.length === 0) return null;
+              return (
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      const resp = await mobilePost<{ sent: number }>('/api/mobile/owner/crew-reminder-test', { mode: pingMode });
+                      Alert.alert(
+                        'Reminder sent',
+                        resp?.sent
+                          ? `Pushed to ${resp.sent} crew member${resp.sent === 1 ? '' : 's'}.`
+                          : 'No crew to ping — nobody is assigned to jobs on this day (or their push notifications are off).',
+                      );
+                    } catch (e: any) {
+                      Alert.alert('Failed', e?.message || 'Could not send reminders.');
+                    }
+                  }}
+                  style={{ marginLeft: 14, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
+                  <Ionicons name="notifications-outline" size={14} color={theme.accent} />
+                  <Text style={styles.dayModeLink}>Ping crew</Text>
+                </TouchableOpacity>
+              );
+            })()}
             <TouchableOpacity onPress={() => setDayMode(false)}>
               <Text style={[styles.dayModeLink, { marginLeft: 'auto' }]}>Show all jobs ›</Text>
             </TouchableOpacity>
