@@ -94,12 +94,9 @@ export default function OwnerOverview() {
   const [refreshing, setRefreshing] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
 
-  // Collapsible section state. Closed-by-default each session:
-  // • Business health stays private unless owner opens it (shoulder-surfing)
-  // • Today + Recent Activity start closed to save vertical space
-  const [businessOpen, setBusinessOpen] = useState(false);
-  const [todayOpen, setTodayOpen] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
+  // Business Health uses blur/reveal — numbers show as $••• by default.
+  // Today + Recent Activity stay visible but truncated with "View all".
+  const [revealed, setRevealed] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -264,41 +261,39 @@ export default function OwnerOverview() {
         <>
           <TouchableOpacity
             style={styles.collapsibleHeader}
-            onPress={() => setBusinessOpen(v => !v)}
+            onPress={() => setRevealed(v => !v)}
             activeOpacity={0.7}
           >
             <Text style={styles.sectionLabel}>Business health</Text>
             <View style={styles.collapsibleRight}>
-              {!businessOpen && <Text style={styles.collapsibleHint}>Tap to reveal</Text>}
-              <Ionicons name={businessOpen ? 'chevron-down' : 'chevron-forward'} size={16} color={theme.textMuted} />
+              <Text style={styles.collapsibleHint}>{revealed ? 'Tap to hide' : 'Tap to reveal'}</Text>
+              <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={16} color={theme.textMuted} />
             </View>
           </TouchableOpacity>
-          {businessOpen && (
-            <View style={styles.healthCard}>
-              <HealthRow theme={theme} label="Revenue this month" sub="MTD" value={shortMoney(financials.revenueMtd)} />
-              <HealthRow theme={theme} label="Outstanding" sub="Awaiting payment" value={shortMoney(financials.outstanding)} valueColor={theme.warning} />
-              <HealthRow theme={theme} label="Paid in the last 7 days" sub="Cash collected" value={shortMoney(financials.paidThisWeek)} valueColor={theme.success} last />
-            </View>
-          )}
+          <View style={styles.healthCard}>
+            <HealthRow theme={theme} label="Revenue this month" sub="MTD" value={revealed ? shortMoney(financials.revenueMtd) : '$•••'} muted={!revealed} />
+            <HealthRow theme={theme} label="Outstanding" sub="Awaiting payment" value={revealed ? shortMoney(financials.outstanding) : '$•••'} valueColor={revealed ? theme.warning : undefined} muted={!revealed} />
+            <HealthRow theme={theme} label="Paid in the last 7 days" sub="Cash collected" value={revealed ? shortMoney(financials.paidThisWeek) : '$•••'} valueColor={revealed ? theme.success : undefined} muted={!revealed} last />
+          </View>
         </>
       )}
 
-      <TouchableOpacity
-        style={styles.collapsibleHeader}
-        onPress={() => setTodayOpen(v => !v)}
-        activeOpacity={0.7}
-      >
+      <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionLabel}>
           Today{(safe.todayJobs?.length ?? 0) > 0 ? ` · ${safe.todayJobs!.length}` : ''}
         </Text>
-        <Ionicons name={todayOpen ? 'chevron-down' : 'chevron-forward'} size={16} color={theme.textMuted} />
-      </TouchableOpacity>
-      {todayOpen && ((safe.todayJobs?.length ?? 0) === 0 && !loading ? (
+        {(safe.todayJobs?.length ?? 0) > 3 && (
+          <TouchableOpacity onPress={() => router.push('/(owner)/jobs?filter=active' as any)}>
+            <Text style={styles.sectionLink}>View all ›</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      {(safe.todayJobs?.length ?? 0) === 0 && !loading ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyText}>No active jobs right now.</Text>
         </View>
       ) : (
-        safe.todayJobs!.map(j => (
+        safe.todayJobs!.slice(0, 3).map(j => (
           <TouchableOpacity
             key={j.id}
             style={styles.jobCard}
@@ -335,21 +330,16 @@ export default function OwnerOverview() {
             </View>
           </TouchableOpacity>
         ))
-      ))}
+      )}
 
       {safe.recentActivity && safe.recentActivity.length > 0 && (
         <>
-          <TouchableOpacity
-            style={styles.collapsibleHeader}
-            onPress={() => setActivityOpen(v => !v)}
-            activeOpacity={0.7}
-          >
+          <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionLabel}>
               Recent activity · {safe.recentActivity.length}
             </Text>
-            <Ionicons name={activityOpen ? 'chevron-down' : 'chevron-forward'} size={16} color={theme.textMuted} />
-          </TouchableOpacity>
-          {activityOpen && safe.recentActivity.slice(0, 8).map(a => {
+          </View>
+          {safe.recentActivity.slice(0, 5).map(a => {
             const iconName =
               a.type === 'photo'      ? 'camera-outline' :
               a.type === 'note'       ? 'create-outline' :
@@ -397,8 +387,8 @@ export default function OwnerOverview() {
 }
 
 function HealthRow({
-  theme, label, sub, value, valueColor, last,
-}: { theme: Theme; label: string; sub?: string; value: string; valueColor?: string; last?: boolean }) {
+  theme, label, sub, value, valueColor, last, muted,
+}: { theme: Theme; label: string; sub?: string; value: string; valueColor?: string; last?: boolean; muted?: boolean }) {
   return (
     <View style={{
       flexDirection: 'row', alignItems: 'center',
@@ -409,7 +399,12 @@ function HealthRow({
         <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '600' }}>{label}</Text>
         {sub && <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>{sub}</Text>}
       </View>
-      <Text style={{ fontSize: 20, fontWeight: '800', color: valueColor || theme.textPrimary }}>{value}</Text>
+      <Text style={{
+        fontSize: 20,
+        fontWeight: '800',
+        color: muted ? theme.textMuted : (valueColor || theme.textPrimary),
+        letterSpacing: muted ? 2 : 0,
+      }}>{value}</Text>
     </View>
   );
 }
