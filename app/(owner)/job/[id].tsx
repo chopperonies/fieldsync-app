@@ -244,6 +244,10 @@ export default function OwnerJobDetail() {
   const statusKey = normalizeStatusKey(job.status);
   const currentIndex = lifecycleIndex(job.status);
 
+  const invoiceAmtExisting = Number((job as any).invoice_amount) || 0;
+  const paid = String((job as any).payment_status || '').toLowerCase() === 'paid';
+  const hasDate = !!((job as any).scheduled_date);
+
   function handlePipePress(target: JobStatusKey) {
     const targetIdx = LIFECYCLE_ORDER.indexOf(target);
     // Revert confirm: only when moving backward on the linear path.
@@ -259,13 +263,31 @@ export default function OwnerJobDetail() {
       );
       return;
     }
+    // Advancing to In progress without an appointment date — nudge.
+    if (target === 'in_progress' && !hasDate) {
+      Alert.alert(
+        'No appointment date picked',
+        'The job has no date on the calendar. Set one or use today?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Pick date', onPress: () => { setScheduledDate(null); setPicker('schedule'); } },
+          {
+            text: 'Use today & continue',
+            onPress: async () => {
+              const today = new Date();
+              const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+              await saveScheduledDate(iso);
+              advance('in_progress');
+            },
+          },
+        ],
+      );
+      return;
+    }
     advance(target);
   }
 
   // Next-step guidance card — replaces the redundant hero pill.
-  const invoiceAmtExisting = Number((job as any).invoice_amount) || 0;
-  const paid = String((job as any).payment_status || '').toLowerCase() === 'paid';
-  const hasDate = !!((job as any).scheduled_date);
   type NextStep = {
     tone: typeof STATUS_META[number]['tone'];
     icon: typeof STATUS_META[number]['icon'];
@@ -290,7 +312,7 @@ export default function OwnerJobDetail() {
             tone: 'stageCyan', icon: 'checkmark-circle-outline',
             title: 'All set',
             body: 'Appointment picked. Move to In progress when the crew is on site.',
-            ctaLabel: 'Mark In progress', onCta: () => advance('in_progress'),
+            ctaLabel: 'Mark In progress', onCta: () => handlePipePress('in_progress'),
           }
         : {
             tone: 'stageBlue', icon: 'calendar-outline',
