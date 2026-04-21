@@ -4,6 +4,8 @@ import {
   ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { mobileGet, mobilePost } from '../lib/mobileApi';
+import { useTheme } from '../lib/themeContext';
+import { Theme } from '../lib/theme';
 
 type Client = {
   id: string;
@@ -22,6 +24,8 @@ type Props = {
 type Mode = 'pick' | 'new' | 'amount';
 
 export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props) {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [mode, setMode] = useState<Mode>('pick');
   const [clients, setClients] = useState<Client[]>([]);
   const [clientsLoading, setClientsLoading] = useState(false);
@@ -126,14 +130,14 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
                 <TextInput
                   style={styles.input}
                   placeholder="Client name *"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={theme.textMuted}
                   value={newName}
                   onChangeText={setNewName}
                 />
                 <TextInput
                   style={styles.input}
                   placeholder="Email (optional — needed to auto-send)"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={theme.textMuted}
                   value={newEmail}
                   onChangeText={setNewEmail}
                   keyboardType="email-address"
@@ -142,7 +146,7 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
                 <TextInput
                   style={styles.input}
                   placeholder="Phone (optional)"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={theme.textMuted}
                   value={newPhone}
                   onChangeText={setNewPhone}
                   keyboardType="phone-pad"
@@ -156,12 +160,12 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
                 <TextInput
                   style={styles.input}
                   placeholder="Search clients…"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={theme.textMuted}
                   value={search}
                   onChangeText={setSearch}
                 />
                 {clientsLoading ? (
-                  <ActivityIndicator color="#0ea5e9" style={{ marginVertical: 12 }} />
+                  <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />
                 ) : (
                   <View style={styles.clientList}>
                     {filtered.slice(0, 6).map(c => (
@@ -186,7 +190,7 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
             <TextInput
               style={styles.input}
               placeholder="0.00"
-              placeholderTextColor="#444"
+              placeholderTextColor={theme.textMuted}
               keyboardType="decimal-pad"
               value={amount}
               onChangeText={setAmount}
@@ -196,7 +200,7 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
             <TextInput
               style={[styles.input, { height: 70, textAlignVertical: 'top' }]}
               placeholder="e.g. Quarterly cleanup — front & side yards"
-              placeholderTextColor="#555"
+              placeholderTextColor={theme.textMuted}
               value={description}
               onChangeText={setDescription}
               multiline
@@ -208,7 +212,7 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
               disabled={!canSubmit || submitting}
             >
               {submitting
-                ? <ActivityIndicator color="#000" />
+                ? <ActivityIndicator color={theme.accentContrast} />
                 : <Text style={styles.submitText}>Create &amp; Send Invoice</Text>}
             </TouchableOpacity>
           </ScrollView>
@@ -218,42 +222,44 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: '#0f0f0f',
-    borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, paddingBottom: 28, maxHeight: '90%',
-  },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  close: { color: '#0ea5e9', fontWeight: '600' },
-  label: { color: '#888', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 8 },
-  input: {
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 14, color: '#fff', fontSize: 15, marginBottom: 10,
-  },
-  clientList: { borderRadius: 10, overflow: 'hidden', marginBottom: 4 },
-  clientRow: {
-    backgroundColor: '#1a1a1a', padding: 12,
-    borderBottomWidth: 1, borderBottomColor: '#1f1f1f',
-  },
-  clientName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  clientMeta: { color: '#666', fontSize: 12, marginTop: 2 },
-  emptyText: { color: '#555', fontSize: 13, marginTop: 8, marginBottom: 4 },
-  switchLink: { padding: 10, alignItems: 'center' },
-  switchLinkText: { color: '#0ea5e9', fontSize: 13, fontWeight: '600' },
-  selected: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#0ea5e911', borderWidth: 1, borderColor: '#0ea5e9',
-    borderRadius: 10, padding: 14, marginBottom: 4,
-  },
-  selectedName: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  selectedMeta: { color: '#bae6fd', fontSize: 12, marginTop: 2 },
-  changeLink: { color: '#0ea5e9', fontWeight: '600', fontSize: 13 },
-  submit: {
-    backgroundColor: '#0ea5e9', borderRadius: 12, padding: 16,
-    alignItems: 'center', marginTop: 22,
-  },
-  submitText: { color: '#000', fontWeight: '800', fontSize: 15 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    backdrop: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
+    sheet: {
+      backgroundColor: t.surfaceElevated,
+      borderTopLeftRadius: 20, borderTopRightRadius: 20,
+      padding: 20, paddingBottom: 28, maxHeight: '90%',
+    },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    title: { color: t.textPrimary, fontSize: 18, fontWeight: '800' },
+    close: { color: t.accent, fontWeight: '600' },
+    label: { color: t.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 8 },
+    input: {
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 10,
+    },
+    clientList: { borderRadius: 10, overflow: 'hidden', marginBottom: 4 },
+    clientRow: {
+      backgroundColor: t.surfaceInset, padding: 12,
+      borderBottomWidth: 1, borderBottomColor: t.border,
+    },
+    clientName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+    clientMeta: { color: t.textMuted, fontSize: 12, marginTop: 2 },
+    emptyText: { color: t.textMuted, fontSize: 13, marginTop: 8, marginBottom: 4 },
+    switchLink: { padding: 10, alignItems: 'center' },
+    switchLinkText: { color: t.accent, fontSize: 13, fontWeight: '600' },
+    selected: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: t.accentSoft, borderWidth: 1, borderColor: t.accent,
+      borderRadius: 10, padding: 14, marginBottom: 4,
+    },
+    selectedName: { color: t.textPrimary, fontSize: 15, fontWeight: '700' },
+    selectedMeta: { color: t.accent, fontSize: 12, marginTop: 2 },
+    changeLink: { color: t.accent, fontWeight: '600', fontSize: 13 },
+    submit: {
+      backgroundColor: t.accent, borderRadius: 12, padding: 16,
+      alignItems: 'center', marginTop: 22,
+    },
+    submitText: { color: t.accentContrast, fontWeight: '800', fontSize: 15 },
+  });
+}

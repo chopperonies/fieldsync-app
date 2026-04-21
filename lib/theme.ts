@@ -1,31 +1,34 @@
-// Theme tokens. Two curated palettes (dark / light) plus a system
-// option that follows the OS setting. Components read tokens via
-// useTheme() — no hard-coded hex in screens once converted.
+// Three curated themes: two light + one refined dark. Users pick via
+// Appearance in Settings. 'system' resolves to professional (OS light)
+// or midnight (OS dark).
 
-export type ThemeName = 'dark' | 'light';
+export type ThemeName = 'professional' | 'soft' | 'midnight';
 export type ThemePreference = ThemeName | 'system';
 
 export interface Theme {
   name: ThemeName;
+  label: string;
+  tagline: string;
+  isDark: boolean;
 
   // Surfaces
   bg: string;              // root background
-  surface: string;         // card background (primary container)
+  surface: string;         // card background
   surfaceElevated: string; // modals / sheets
-  surfaceInset: string;    // deeper (inputs on a card, tab bar bg)
+  surfaceInset: string;    // inputs, tab bar inset
   border: string;          // subtle divider
   borderStrong: string;    // focused / selected border
 
   // Text
-  textPrimary: string;     // main body text
-  textSecondary: string;   // supporting / labels
-  textMuted: string;       // disabled / hints
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
 
   // Brand + status accents
-  accent: string;          // primary brand color
-  accentMuted: string;     // 20% alpha-ish backdrop for pills
-  accentSoft: string;      // 10% alpha for hover/selected states
-  accentContrast: string;  // text that sits on accent fills
+  accent: string;
+  accentMuted: string;     // alpha-mixed background for pills
+  accentSoft: string;      // subtler alpha
+  accentContrast: string;  // text on accent fills
 
   success: string;
   successMuted: string;
@@ -36,10 +39,9 @@ export interface Theme {
   info: string;
   infoMuted: string;
 
-  // Overlay (modal backdrop)
-  overlay: string;
+  overlay: string;         // modal backdrop
 
-  // Stage palette for Service PRO workflow chips
+  // Workflow stage palette
   stageBlue: string;
   stageCyan: string;
   stageGreen: string;
@@ -48,75 +50,121 @@ export interface Theme {
   stageAmber: string;
 }
 
-export const darkTheme: Theme = {
-  name: 'dark',
-  bg: '#0a0a0a',
-  surface: '#111111',
-  surfaceElevated: '#1a1a1a',
-  surfaceInset: '#0a0a0a',
-  border: '#1e1e1e',
-  borderStrong: '#2a2a2a',
-  textPrimary: '#ffffff',
-  textSecondary: '#888888',
-  textMuted: '#555555',
-  accent: '#0ea5e9',
-  accentMuted: '#0ea5e922',
-  accentSoft: '#0ea5e911',
-  accentContrast: '#000000',
-  success: '#4ade80',
-  successMuted: '#4ade8022',
-  warning: '#facc15',
-  warningMuted: '#facc1522',
-  danger: '#ef4444',
-  dangerMuted: '#ef444422',
-  info: '#3b82f6',
-  infoMuted: '#3b82f622',
-  overlay: 'rgba(0,0,0,0.6)',
+// Professional — refined off-white + teal. Business tool look.
+export const professionalTheme: Theme = {
+  name: 'professional',
+  label: 'Professional',
+  tagline: 'Warm off-white, deep teal. Business-ready.',
+  isDark: false,
+  bg: '#fafafa',
+  surface: '#ffffff',
+  surfaceElevated: '#ffffff',
+  surfaceInset: '#f4f4f5',
+  border: '#e4e4e7',
+  borderStrong: '#d4d4d8',
+  textPrimary: '#18181b',
+  textSecondary: '#52525b',
+  textMuted: '#a1a1aa',
+  accent: '#0f766e',           // teal-700
+  accentMuted: '#0f766e22',
+  accentSoft: '#0f766e0f',
+  accentContrast: '#ffffff',
+  success: '#15803d',
+  successMuted: '#15803d1a',
+  warning: '#b45309',
+  warningMuted: '#b453091a',
+  danger: '#b91c1c',
+  dangerMuted: '#b91c1c1a',
+  info: '#1d4ed8',
+  infoMuted: '#1d4ed81a',
+  overlay: 'rgba(24,24,27,0.45)',
+  stageBlue: '#1d4ed8',
+  stageCyan: '#0e7490',
+  stageGreen: '#15803d',
+  stageIndigo: '#4338ca',
+  stagePurple: '#7e22ce',
+  stageAmber: '#b45309',
+};
+
+// Soft — lavender-tinted whites + violet accent. Calmer / creative.
+export const softTheme: Theme = {
+  name: 'soft',
+  label: 'Soft',
+  tagline: 'Lavender pastels, violet accent. Calm and airy.',
+  isDark: false,
+  bg: '#fbfaff',
+  surface: '#ffffff',
+  surfaceElevated: '#ffffff',
+  surfaceInset: '#f5f3ff',
+  border: '#e9d5ff',
+  borderStrong: '#c4b5fd',
+  textPrimary: '#1e1b4b',
+  textSecondary: '#5b21b6',
+  textMuted: '#a78bfa',
+  accent: '#7c3aed',           // violet-600
+  accentMuted: '#7c3aed22',
+  accentSoft: '#7c3aed10',
+  accentContrast: '#ffffff',
+  success: '#059669',          // emerald
+  successMuted: '#0596691a',
+  warning: '#d97706',
+  warningMuted: '#d977061a',
+  danger: '#e11d48',           // rose
+  dangerMuted: '#e11d481a',
+  info: '#0ea5e9',
+  infoMuted: '#0ea5e91a',
+  overlay: 'rgba(30,27,75,0.4)',
   stageBlue: '#3b82f6',
-  stageCyan: '#0ea5e9',
-  stageGreen: '#4ade80',
+  stageCyan: '#06b6d4',
+  stageGreen: '#10b981',
   stageIndigo: '#6366f1',
-  stagePurple: '#a78bfa',
+  stagePurple: '#8b5cf6',
   stageAmber: '#f59e0b',
 };
 
-export const lightTheme: Theme = {
-  name: 'light',
-  bg: '#ffffff',
-  surface: '#f8fafc',
-  surfaceElevated: '#ffffff',
-  surfaceInset: '#f1f5f9',
-  border: '#e2e8f0',
-  borderStrong: '#cbd5e1',
-  textPrimary: '#0f172a',
-  textSecondary: '#475569',
-  textMuted: '#94a3b8',
-  // Jobber-style forest green accent to match the reference screenshots.
-  accent: '#15803d',
-  accentMuted: '#15803d22',
-  accentSoft: '#15803d11',
-  accentContrast: '#ffffff',
-  success: '#16a34a',
-  successMuted: '#16a34a22',
-  warning: '#d97706',
-  warningMuted: '#d9770622',
-  danger: '#dc2626',
-  dangerMuted: '#dc262622',
-  info: '#2563eb',
-  infoMuted: '#2563eb22',
-  overlay: 'rgba(15,23,42,0.5)',
-  stageBlue: '#2563eb',
-  stageCyan: '#0891b2',
-  stageGreen: '#16a34a',
-  stageIndigo: '#4f46e5',
-  stagePurple: '#7c3aed',
-  stageAmber: '#d97706',
+// Midnight — slate-navy dark (not pure black) + bright cyan accent.
+export const midnightTheme: Theme = {
+  name: 'midnight',
+  label: 'Midnight',
+  tagline: 'Rich slate navy, bright cyan. Kind to eyes at night.',
+  isDark: true,
+  bg: '#0f172a',
+  surface: '#1e293b',
+  surfaceElevated: '#1e293b',
+  surfaceInset: '#0f172a',
+  border: '#334155',
+  borderStrong: '#475569',
+  textPrimary: '#f1f5f9',
+  textSecondary: '#cbd5e1',
+  textMuted: '#64748b',
+  accent: '#22d3ee',           // cyan-400
+  accentMuted: '#22d3ee22',
+  accentSoft: '#22d3ee11',
+  accentContrast: '#0f172a',
+  success: '#34d399',
+  successMuted: '#34d39922',
+  warning: '#fbbf24',
+  warningMuted: '#fbbf2422',
+  danger: '#f87171',
+  dangerMuted: '#f8717122',
+  info: '#60a5fa',
+  infoMuted: '#60a5fa22',
+  overlay: 'rgba(0,0,0,0.6)',
+  stageBlue: '#60a5fa',
+  stageCyan: '#22d3ee',
+  stageGreen: '#34d399',
+  stageIndigo: '#818cf8',
+  stagePurple: '#c084fc',
+  stageAmber: '#fbbf24',
 };
 
+export const allThemes: Theme[] = [professionalTheme, softTheme, midnightTheme];
+
 export function resolveTheme(pref: ThemePreference, systemScheme: 'light' | 'dark' | null): Theme {
-  const name: ThemeName =
-    pref === 'system'
-      ? (systemScheme === 'light' ? 'light' : 'dark')
-      : pref;
-  return name === 'light' ? lightTheme : darkTheme;
+  if (pref === 'system') {
+    return systemScheme === 'dark' ? midnightTheme : professionalTheme;
+  }
+  if (pref === 'professional') return professionalTheme;
+  if (pref === 'soft') return softTheme;
+  return midnightTheme;
 }

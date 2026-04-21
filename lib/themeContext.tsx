@@ -15,13 +15,16 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
-  const [preference, setPreferenceState] = useState<ThemePreference>('dark');
+  const [preference, setPreferenceState] = useState<ThemePreference>('professional');
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_PREF_KEY).then(raw => {
-      if (raw === 'dark' || raw === 'light' || raw === 'system') {
+      if (raw === 'professional' || raw === 'soft' || raw === 'midnight' || raw === 'system') {
         setPreferenceState(raw);
       }
+      // Migrate legacy values
+      else if (raw === 'light') setPreferenceState('professional');
+      else if (raw === 'dark')  setPreferenceState('midnight');
     });
   }, []);
 

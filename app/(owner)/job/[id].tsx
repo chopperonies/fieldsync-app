@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileGet, mobilePatch, mobilePost } from '../../../lib/mobileApi';
 import { Job, Employee } from '../../../lib/supabase';
 import CalendarPicker, { prettyDate } from '../../../components/CalendarPicker';
+import { useTheme } from '../../../lib/themeContext';
+import { Theme } from '../../../lib/theme';
 
 type Assignment = {
   id: string;
@@ -44,6 +46,8 @@ type Tab = 'overview' | 'crew' | 'notes' | 'photos';
 export default function OwnerJobDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = makeStyles(theme);
 
   const [tab, setTab] = useState<Tab>('overview');
   const [job, setJob] = useState<Job | null>(null);
@@ -739,94 +743,110 @@ export default function OwnerJobDetail() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
 
-  headerCard: { backgroundColor: '#0f0f0f', borderBottomWidth: 1, borderBottomColor: '#1e1e1e', padding: 16, paddingBottom: 8 },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  title: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  subtitle: { color: '#888', fontSize: 13, marginTop: 2 },
-  clientLine: { color: '#0ea5e9', fontSize: 13, marginTop: 4, fontWeight: '600' },
-  stageBadge: { borderRadius: 14, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, marginLeft: 8 },
-  stageText: { fontSize: 12, fontWeight: '700' },
+    headerCard: {
+      backgroundColor: t.surface,
+      borderBottomWidth: 1, borderBottomColor: t.border,
+      padding: 16, paddingBottom: 8,
+    },
+    headerRow: { flexDirection: 'row', alignItems: 'flex-start' },
+    title: { color: t.textPrimary, fontSize: 20, fontWeight: '800' },
+    subtitle: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    clientLine: { color: t.accent, fontSize: 13, marginTop: 4, fontWeight: '600' },
+    stageBadge: { borderRadius: 14, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, marginLeft: 8 },
+    stageText: { fontSize: 12, fontWeight: '700' },
 
-  tabs: { flexDirection: 'row', gap: 6 },
-  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#111' },
-  tabActive: { backgroundColor: '#0ea5e922', borderColor: '#0ea5e9' },
-  tabText: { color: '#777', fontSize: 13, fontWeight: '700' },
-  tabTextActive: { color: '#0ea5e9' },
+    tabs: { flexDirection: 'row', gap: 6 },
+    tab: {
+      paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
+      borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
+    },
+    tabActive: { backgroundColor: t.accentMuted, borderColor: t.accent },
+    tabText: { color: t.textSecondary, fontSize: 13, fontWeight: '700' },
+    tabTextActive: { color: t.accent },
 
-  sectionLabel: { color: '#ddd', fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 6 },
-  card: { backgroundColor: '#111', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#1e1e1e', marginTop: 10 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  cardTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  cardEdit: { borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 8, paddingVertical: 4, paddingHorizontal: 12 },
-  cardEditText: { color: '#0ea5e9', fontSize: 12, fontWeight: '700' },
-  cardRow: { flexDirection: 'row', alignItems: 'center' },
+    sectionLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 6 },
+    card: {
+      backgroundColor: t.surface, borderRadius: 12, padding: 14,
+      borderWidth: 1, borderColor: t.border, marginTop: 10,
+    },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    cardTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
+    cardEdit: { borderWidth: 1, borderColor: t.accent, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 12 },
+    cardEditText: { color: t.accent, fontSize: 12, fontWeight: '700' },
+    cardRow: { flexDirection: 'row', alignItems: 'center' },
 
-  pipeline: { flexDirection: 'row', gap: 8 },
-  pipeChip: { borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14, borderWidth: 1, borderColor: '#2a2a2a', backgroundColor: '#111' },
-  pipeChipText: { color: '#555', fontSize: 12, fontWeight: '700' },
+    pipeline: { flexDirection: 'row', gap: 8 },
+    pipeChip: {
+      borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
+      borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
+    },
+    pipeChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },
 
-  rowTwo: { flexDirection: 'row', gap: 8 },
-  fieldCard: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#111', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#1e1e1e',
-  },
-  fieldLabel: { color: '#888', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  fieldValue: { color: '#fff', fontSize: 14, fontWeight: '700', marginTop: 2 },
+    rowTwo: { flexDirection: 'row', gap: 8 },
+    fieldCard: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: t.surface, borderRadius: 12, padding: 14,
+      borderWidth: 1, borderColor: t.border,
+    },
+    fieldLabel: { color: t.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+    fieldValue: { color: t.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 2 },
 
-  scopeText: { color: '#ddd', fontSize: 13, lineHeight: 19 },
+    scopeText: { color: t.textSecondary, fontSize: 13, lineHeight: 19 },
 
-  invoicePill: { borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
-  invoicePillText: { fontSize: 11, fontWeight: '800' },
-  invoiceAmount: { color: '#fff', fontSize: 22, fontWeight: '800' },
+    invoicePill: { borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
+    invoicePillText: { fontSize: 11, fontWeight: '800' },
+    invoiceAmount: { color: t.textPrimary, fontSize: 22, fontWeight: '800' },
 
-  actionBtn: {
-    backgroundColor: '#0ea5e9', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14,
-    flex: 1, alignItems: 'center',
-  },
-  actionBtnText: { color: '#000', fontWeight: '700', fontSize: 13 },
-  actionBtnGhost: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    borderWidth: 1, borderColor: '#0ea5e9', backgroundColor: '#0a1420', borderRadius: 10,
-    paddingVertical: 12, paddingHorizontal: 14,
-  },
-  actionBtnGhostText: { color: '#0ea5e9', fontSize: 13, fontWeight: '700' },
+    actionBtn: {
+      backgroundColor: t.accent, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14,
+      flex: 1, alignItems: 'center',
+    },
+    actionBtnText: { color: t.accentContrast, fontWeight: '700', fontSize: 13 },
+    actionBtnGhost: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      borderWidth: 1, borderColor: t.accent, backgroundColor: t.accentSoft, borderRadius: 10,
+      paddingVertical: 12, paddingHorizontal: 14,
+    },
+    actionBtnGhostText: { color: t.accent, fontSize: 13, fontWeight: '700' },
 
-  crewName: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  crewPhone: { color: '#0ea5e9', fontSize: 12, marginTop: 2 },
-  crewStatus: { borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
+    crewName: { color: t.textPrimary, fontSize: 15, fontWeight: '700' },
+    crewPhone: { color: t.accent, fontSize: 12, marginTop: 2 },
+    crewStatus: { borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
 
-  noteBody: { color: '#ddd', fontSize: 14, lineHeight: 20 },
-  noteMeta: { color: '#666', fontSize: 11, marginTop: 6 },
+    noteBody: { color: t.textSecondary, fontSize: 14, lineHeight: 20 },
+    noteMeta: { color: t.textMuted, fontSize: 11, marginTop: 6 },
 
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  photoCell: { width: '48%' },
-  photo: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#1a1a1a' },
-  photoMeta: { color: '#666', fontSize: 10, marginTop: 4 },
-  photoViewer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
-  photoViewerImage: { width: '100%', height: '90%' },
-  photoViewerClose: {
-    position: 'absolute', top: 50, right: 20, zIndex: 10,
-    backgroundColor: '#00000099', borderRadius: 20, padding: 8,
-  },
+    photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    photoCell: { width: '48%' },
+    photo: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: t.surfaceInset },
+    photoMeta: { color: t.textMuted, fontSize: 10, marginTop: 4 },
+    photoViewer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+    photoViewerImage: { width: '100%', height: '90%' },
+    photoViewerClose: {
+      position: 'absolute', top: 50, right: 20, zIndex: 10,
+      backgroundColor: '#00000099', borderRadius: 20, padding: 8,
+    },
 
-  modalOverlay: { flex: 1, backgroundColor: '#000000aa', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  modalFieldLabel: { color: '#888', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginTop: 10, marginBottom: 6 },
-  input: {
-    backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 14, color: '#fff', fontSize: 15, marginBottom: 12,
-  },
-  modalActions: { flexDirection: 'row', gap: 10 },
-  modalCancel: { flex: 1, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 10, padding: 14, alignItems: 'center' },
-  modalCancelText: { color: '#aaa', fontWeight: '700' },
-  modalSave: { flex: 1, backgroundColor: '#0ea5e9', borderRadius: 10, padding: 14, alignItems: 'center' },
-  modalSaveText: { color: '#000', fontWeight: '800' },
-  crewCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#262626' },
-  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#3a3a3a', alignItems: 'center', justifyContent: 'center' },
-  checkboxChecked: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
-  checkmark: { color: '#000', fontWeight: '800' },
-});
+    modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
+    modalSheet: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+    modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+    modalFieldLabel: { color: t.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginTop: 10, marginBottom: 6 },
+    input: {
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 12,
+    },
+    modalActions: { flexDirection: 'row', gap: 10 },
+    modalCancel: { flex: 1, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 14, alignItems: 'center' },
+    modalCancelText: { color: t.textSecondary, fontWeight: '700' },
+    modalSave: { flex: 1, backgroundColor: t.accent, borderRadius: 10, padding: 14, alignItems: 'center' },
+    modalSaveText: { color: t.accentContrast, fontWeight: '800' },
+    crewCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.border },
+    checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: t.borderStrong, alignItems: 'center', justifyContent: 'center' },
+    checkboxChecked: { backgroundColor: t.accent, borderColor: t.accent },
+    checkmark: { color: t.accentContrast, fontWeight: '800' },
+  });
+}

@@ -1,22 +1,27 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme, useThemePreference } from '../lib/themeContext';
-import { ThemePreference } from '../lib/theme';
+import { ThemePreference, allThemes, Theme } from '../lib/theme';
 
-// Dark / Light / System picker. Drop into any settings screen.
+// Theme picker with live swatch previews. Drop into any settings screen.
 export default function AppearanceSettings() {
   const theme = useTheme();
   const { preference, setPreference } = useThemePreference();
 
-  const options: { value: ThemePreference; label: string; detail: string }[] = [
-    { value: 'system', label: 'Match device',    detail: 'Follow your phone\'s dark/light setting.' },
-    { value: 'dark',   label: 'Dark',            detail: 'Black background, cyan accent (default).' },
-    { value: 'light',  label: 'Light',           detail: 'White background, forest-green accent.' },
+  const systemOption = {
+    value: 'system' as ThemePreference,
+    label: 'Match device',
+    tagline: 'Follow your phone\'s dark/light setting automatically.',
+    theme: null as Theme | null,
+  };
+  const options = [
+    systemOption,
+    ...allThemes.map(t => ({ value: t.name as ThemePreference, label: t.label, tagline: t.tagline, theme: t })),
   ];
 
   return (
     <View>
-      <Text style={[styles.hint, { color: theme.textMuted }]}>
-        Switch how LinkCrew looks. Matches your preference across every tab.
+      <Text style={{ color: theme.textSecondary, fontSize: 13, lineHeight: 19, marginBottom: 14 }}>
+        Pick the look that feels right. You can change this anytime.
       </Text>
       {options.map(o => {
         const selected = preference === o.value;
@@ -25,19 +30,28 @@ export default function AppearanceSettings() {
             key={o.value}
             style={[
               styles.row,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-              selected && { borderColor: theme.accent, backgroundColor: theme.accentSoft },
+              {
+                backgroundColor: selected ? theme.accentSoft : theme.surface,
+                borderColor: selected ? theme.accent : theme.border,
+              },
             ]}
             onPress={() => setPreference(o.value)}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
+            {o.theme ? (
+              <ThemeSwatch t={o.theme} />
+            ) : (
+              <View style={styles.systemSwatch}>
+                <Text style={{ fontSize: 18 }}>🌓</Text>
+              </View>
+            )}
             <View style={{ flex: 1 }}>
               <Text style={[
                 styles.label,
                 { color: theme.textPrimary },
                 selected && { color: theme.accent },
               ]}>{o.label}</Text>
-              <Text style={[styles.detail, { color: theme.textSecondary }]}>{o.detail}</Text>
+              <Text style={[styles.detail, { color: theme.textSecondary }]}>{o.tagline}</Text>
             </View>
             <View style={[
               styles.radio,
@@ -53,19 +67,39 @@ export default function AppearanceSettings() {
   );
 }
 
+function ThemeSwatch({ t }: { t: Theme }) {
+  // Mini-preview — two stacked rows showing surface + accent, framed by bg.
+  return (
+    <View style={[styles.swatch, { backgroundColor: t.bg, borderColor: t.borderStrong }]}>
+      <View style={[styles.swatchTop, { backgroundColor: t.surface }]} />
+      <View style={[styles.swatchBottom, { backgroundColor: t.accent }]} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  hint: { fontSize: 13, lineHeight: 19, marginBottom: 14 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 12, padding: 14,
+    borderRadius: 12, padding: 12,
     marginBottom: 8, borderWidth: 1,
   },
-  label: { fontSize: 15, fontWeight: '600' },
-  detail: { fontSize: 12, marginTop: 2 },
+  label: { fontSize: 15, fontWeight: '700' },
+  detail: { fontSize: 12, marginTop: 2, lineHeight: 17 },
   radio: {
     width: 20, height: 20, borderRadius: 10,
     borderWidth: 2,
     alignItems: 'center', justifyContent: 'center',
   },
   radioInner: { width: 10, height: 10, borderRadius: 5 },
+  swatch: {
+    width: 40, height: 40, borderRadius: 8, overflow: 'hidden',
+    borderWidth: 1,
+  },
+  swatchTop: { height: '60%', width: '100%' },
+  swatchBottom: { height: '40%', width: '100%' },
+  systemSwatch: {
+    width: 40, height: 40, borderRadius: 8,
+    backgroundColor: '#e5e7eb',
+    alignItems: 'center', justifyContent: 'center',
+  },
 });

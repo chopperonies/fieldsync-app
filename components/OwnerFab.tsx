@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useTheme } from '../lib/themeContext';
 import QuickInvoiceModal from './QuickInvoiceModal';
 
 const TAB_BAR_HEIGHT = 60;      // keep in sync with (owner)/_layout.tsx
@@ -23,6 +24,7 @@ const ACTIONS: { label: string; icon: any; color: string; path?: string; quick?:
 ];
 
 export default function OwnerFab() {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [quickInvoiceOpen, setQuickInvoiceOpen] = useState(false);
@@ -53,17 +55,17 @@ export default function OwnerFab() {
   return (
     <>
       <TouchableOpacity
-        style={[styles.fab, { bottom: fabBottom }]}
+        style={[styles.fab, { bottom: fabBottom, backgroundColor: theme.accent }]}
         activeOpacity={0.85}
         onPress={() => toggle(!open)}
       >
         <Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
-          <Ionicons name="add" size={32} color="#000" />
+          <Ionicons name="add" size={32} color={theme.accentContrast} />
         </Animated.View>
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => toggle(false)}>
-        <Pressable style={styles.backdrop} onPress={() => toggle(false)}>
+        <Pressable style={[styles.backdrop, { backgroundColor: theme.overlay }]} onPress={() => toggle(false)}>
           <View pointerEvents="box-none" style={styles.stackContainer}>
             <View style={[styles.stack, { bottom: fabBottom + FAB_SIZE + 16, right: 20 }]}>
               {ACTIONS.map((a, i) => (
@@ -76,10 +78,16 @@ export default function OwnerFab() {
                     { marginBottom: 14 },
                   ]}
                 >
-                  <View style={styles.labelWrap}>
-                    <Text style={styles.label}>{a.label}</Text>
+                  <View style={[
+                    styles.labelWrap,
+                    { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+                  ]}>
+                    <Text style={[styles.label, { color: theme.textPrimary }]}>{a.label}</Text>
                   </View>
-                  <View style={[styles.iconCircle, { borderColor: a.color + '66' }]}>
+                  <View style={[
+                    styles.iconCircle,
+                    { backgroundColor: theme.surfaceElevated, borderColor: a.color + '66' },
+                  ]}>
                     <Ionicons name={a.icon} size={22} color={a.color} />
                   </View>
                 </Pressable>
@@ -101,32 +109,27 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute', right: 20,
     width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2,
-    backgroundColor: '#0ea5e9',
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
     elevation: 6,
     zIndex: 1000,
   },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
+  backdrop: { flex: 1 },
   stackContainer: { flex: 1 },
   stack: { position: 'absolute', alignItems: 'flex-end' },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   labelWrap: {
-    backgroundColor: '#0f0f0f',
-    borderWidth: 1, borderColor: '#2a2a2a',
+    borderWidth: 1,
     borderRadius: 14,
     paddingVertical: 8, paddingHorizontal: 14,
-    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  label: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  label: { fontSize: 15, fontWeight: '700' },
   iconCircle: {
-    width: 46, height: 46, borderRadius: 23,
-    backgroundColor: '#0f0f0f', borderWidth: 1,
+    width: 46, height: 46, borderRadius: 23, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
 });

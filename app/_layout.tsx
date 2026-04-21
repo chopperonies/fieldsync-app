@@ -63,7 +63,7 @@ function ThemedRoot() {
 
   return (
     <>
-      <StatusBar style={theme.name === 'light' ? 'dark' : 'light'} />
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: theme.bg },
