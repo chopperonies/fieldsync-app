@@ -88,6 +88,7 @@ export default function OwnerLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
     <Tabs
+      backBehavior="history"
       screenOptions={{
         tabBarStyle: { backgroundColor: theme.bg, borderTopColor: theme.border, height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
         tabBarActiveTintColor: theme.accent,
