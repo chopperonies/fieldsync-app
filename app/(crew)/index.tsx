@@ -15,6 +15,7 @@ import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { Pill, PillRow, SectionHeader, Divider } from '../../components/Flat';
 import ClockInCard from '../../components/ClockInCard';
+import PunchMap, { MapPin } from '../../components/PunchMap';
 
 async function getGPS(): Promise<{ lat: number; lng: number } | null> {
   try {
@@ -42,7 +43,19 @@ export default function CheckIn() {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [fromCache, setFromCache] = useState(false);
+  const [myPins, setMyPins] = useState<MapPin[]>([]);
   const appState = useRef(AppState.currentState);
+
+  async function loadMyPins() {
+    try {
+      const data = await mobileGet<{ pins: Array<{ kind: 'in' | 'out'; lat: number; lng: number; at?: string }> }>(
+        '/api/mobile/me/clock-state'
+      );
+      setMyPins((data?.pins || []).map(p => ({ lat: p.lat, lng: p.lng, kind: p.kind, at: p.at })));
+    } catch {
+      setMyPins([]);
+    }
+  }
 
   useEffect(() => {
     init();
@@ -59,6 +72,7 @@ export default function CheckIn() {
   async function init() {
     await loadJobs();
     await loadCurrentAssignment();
+    await loadMyPins();
     await trySyncQueue();
   }
 
@@ -227,7 +241,13 @@ export default function CheckIn() {
         </View>
       )}
 
-      <ClockInCard />
+      <ClockInCard onChange={loadMyPins} />
+
+      <PunchMap
+        pins={myPins}
+        height={150}
+        emptyLabel="Clock in to drop a pin"
+      />
 
       <PillRow>
         <Pill

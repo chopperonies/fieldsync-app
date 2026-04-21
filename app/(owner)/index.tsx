@@ -11,6 +11,7 @@ import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { SectionHeader, Row, Divider, RowAvatar, StatusChip } from '../../components/Flat';
 import ClockInCard from '../../components/ClockInCard';
+import PunchMap, { MapPin } from '../../components/PunchMap';
 
 type HomeJob = {
   id: string;
@@ -73,36 +74,45 @@ function timeAgo(iso: string): string {
   return `${days}d`;
 }
 
-const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-function weekStripDays(today: Date): Date[] {
-  const sunday = new Date(today);
-  sunday.setDate(today.getDate() - today.getDay());
-  sunday.setHours(0, 0, 0, 0);
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(sunday);
-    d.setDate(sunday.getDate() + i);
-    return d;
-  });
-}
-
 export default function OwnerOverview() {
   const theme = useTheme();
   const styles = makeStyles(theme);
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [financials, setFinancials] = useState<Financials | null>(null);
+  const [crewPins, setCrewPins] = useState<MapPin[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
 
   const [revealed, setRevealed] = useState(false);
 
+  const loadCrewPins = useCallback(async () => {
+    try {
+      const data = await mobileGet<{ pins: Array<{ name?: string; kind: 'in' | 'out'; lat: number; lng: number; at?: string; active?: boolean }> }>(
+        '/api/mobile/owner/crew-pins'
+      );
+      const pins: MapPin[] = (data?.pins || []).map(p => ({
+        lat: p.lat,
+        lng: p.lng,
+        kind: p.kind,
+        name: p.name,
+        label: (p.name || '').charAt(0).toUpperCase(),
+        at: p.at,
+        active: p.active,
+      }));
+      setCrewPins(pins);
+    } catch {
+      setCrewPins([]);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       const [s, f] = await Promise.all([
         mobileGet<Stats>('/api/mobile/owner/home'),
         mobileGet<Financials>('/api/mobile/owner/financials').catch(() => null),
+        loadCrewPins(),
       ]);
       setStats(s);
       if (f) setFinancials(f);
@@ -112,7 +122,7 @@ export default function OwnerOverview() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [loadCrewPins]);
 
   useEffect(() => {
     loadData();
@@ -125,7 +135,6 @@ export default function OwnerOverview() {
     activeJobs: 0, crewOnSite: 0, pendingSupplies: 0, bottlenecksToday: 0,
     jobBreakdown: [], todayJobs: [], stuckJobs: [], recentActivity: [], scheduleByDay: {},
   };
-  const scheduleByDay = safe.scheduleByDay || {};
   const today = new Date();
   const dateLabel = today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const greeting = (() => {
@@ -134,9 +143,6 @@ export default function OwnerOverview() {
     if (h < 18) return 'Good afternoon';
     return 'Good evening';
   })();
-
-  const days = weekStripDays(today);
-  const todayIdx = today.getDay();
 
   // To-do items: stuck jobs + pending supplies flagged at a glance
   const todoItems: Array<{
@@ -175,29 +181,17 @@ export default function OwnerOverview() {
         </Text>
       </View>
 
-      <ClockInCard />
+      <ClockInCard onChange={loadCrewPins} />
 
-      <View style={styles.weekStrip}>
-        {days.map((d, i) => {
-          const isToday = i === todayIdx;
-          const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          const count = scheduleByDay[iso] || 0;
-          return (
-            <TouchableOpacity
-              key={i}
-              style={styles.dayCell}
-              onPress={() => router.push(`/(owner)/jobs?day=${iso}` as any)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.dayLetter}>{DAY_LETTERS[i]}</Text>
-              <View style={[styles.dayBubble, isToday && { backgroundColor: theme.accent }]}>
-                <Text style={[styles.dayNumber, isToday && { color: theme.accentContrast, fontWeight: '800' }]}>{d.getDate()}</Text>
-              </View>
-              <View style={[styles.dayDot, count > 0 && { backgroundColor: theme.accent }]} />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <PunchMap
+        pins={crewPins}
+        title={crewPins.length > 0 ? `Crew today · ${crewPins.length}` : undefined}
+        subtitle={crewPins.filter(p => p.active).length > 0
+          ? `${crewPins.filter(p => p.active).length} on the clock now`
+          : undefined}
+        emptyLabel="No crew clock-ins yet today"
+      />
+
 
       {todoItems.length > 0 && (
         <>
@@ -339,22 +333,6 @@ function makeStyles(t: Theme) {
     header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
     date: { color: t.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 4 },
     greeting: { color: t.textPrimary, fontSize: 28, fontWeight: '800' },
-
-    weekStrip: {
-      flexDirection: 'row', justifyContent: 'space-between',
-      paddingVertical: 14, paddingHorizontal: 16,
-      marginTop: 12,
-      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border,
-      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
-    },
-    dayCell: { flex: 1, alignItems: 'center', gap: 4 },
-    dayLetter: { color: t.textMuted, fontSize: 11, fontWeight: '700' },
-    dayBubble: {
-      width: 30, height: 30, borderRadius: 15,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    dayNumber: { color: t.textSecondary, fontSize: 14, fontWeight: '700' },
-    dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 4 },
 
     emptyText: { color: t.textMuted, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14 },
   });
