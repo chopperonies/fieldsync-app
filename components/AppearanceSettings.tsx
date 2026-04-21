@@ -1,24 +1,18 @@
-import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme, useThemePreference } from '../lib/themeContext';
-import { ThemePreference, allThemes, Theme, resolveTheme } from '../lib/theme';
+import { ThemePreference, allThemes, Theme } from '../lib/theme';
 
 // Theme picker with live swatch previews. Drop into any settings screen.
 export default function AppearanceSettings() {
   const theme = useTheme();
-  const scheme = useColorScheme();
   const { preference, setPreference } = useThemePreference();
 
-  const systemResolved = resolveTheme('system', scheme ?? null);
-  const systemOption = {
-    value: 'system' as ThemePreference,
-    label: 'Match device',
-    tagline: `Follows your phone — currently ${systemResolved.label}.`,
-    theme: systemResolved,
-  };
-  const options = [
-    systemOption,
-    ...allThemes.map(t => ({ value: t.name as ThemePreference, label: t.label, tagline: t.tagline, theme: t })),
-  ];
+  const options = allThemes.map(t => ({
+    value: t.name as ThemePreference,
+    label: t.label,
+    tagline: t.tagline,
+    theme: t,
+  }));
 
   return (
     <View>
@@ -41,11 +35,6 @@ export default function AppearanceSettings() {
             activeOpacity={0.75}
           >
             <ThemeSwatch t={o.theme as Theme} />
-            {o.value === 'system' && (
-              <View style={{ position: 'absolute', left: 22, top: 14, width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 10 }}>🌓</Text>
-              </View>
-            )}
             <View style={{ flex: 1 }}>
               <Text style={[
                 styles.label,
@@ -98,9 +87,4 @@ const styles = StyleSheet.create({
   },
   swatchTop: { height: '60%', width: '100%' },
   swatchBottom: { height: '40%', width: '100%' },
-  systemSwatch: {
-    width: 40, height: 40, borderRadius: 8,
-    backgroundColor: '#e5e7eb',
-    alignItems: 'center', justifyContent: 'center',
-  },
 });

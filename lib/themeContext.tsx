@@ -19,12 +19,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_PREF_KEY).then(raw => {
-      if (raw === 'professional' || raw === 'soft' || raw === 'midnight' || raw === 'system') {
+      if (raw === 'professional' || raw === 'soft' || raw === 'midnight') {
         setPreferenceState(raw);
       }
-      // Migrate legacy values
-      else if (raw === 'light') setPreferenceState('professional');
-      else if (raw === 'dark')  setPreferenceState('midnight');
+      // Migrate legacy / retired values to an explicit theme.
+      else if (raw === 'light')  setPreferenceState('professional');
+      else if (raw === 'dark')   setPreferenceState('midnight');
+      else if (raw === 'system') setPreferenceState('professional');
     });
   }, []);
 
