@@ -105,11 +105,16 @@ export default function OwnerJobs() {
 
   // Add-job modal (triggered by ?open=new / ?open=new_quote via OwnerFab)
   const [showAdd, setShowAdd] = useState(false);
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const [workflows, setWorkflows] = useState<Array<{ id: string; name: string; description?: string | null; industry?: string | null }>>([]);
   const [newName, setNewName] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newEstimate, setNewEstimate] = useState('');
   const [newScheduledDate, setNewScheduledDate] = useState<string | null>(null);
+  const [newWorkflowId, setNewWorkflowId] = useState<string | null>(null);
+  const [newStatus, setNewStatus] = useState<string>('scheduled');
+  const [newTypeLabel, setNewTypeLabel] = useState<string>('New job');
   const [saving, setSaving] = useState(false);
 
   const week = useMemo(() => weekStripDays(anchor), [anchor]);
@@ -132,9 +137,23 @@ export default function OwnerJobs() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    mobileGet<Array<{ id: string; name: string; description?: string | null; industry?: string | null }>>('/api/mobile/owner/workflows')
+      .then(ws => setWorkflows(ws || []))
+      .catch(() => setWorkflows([]));
+  }, []);
+
   const params = useLocalSearchParams<{ open?: string; day?: string }>();
   useEffect(() => {
-    if (params.open === 'new' || params.open === 'new_quote') setShowAdd(true);
+    if (params.open === 'new_quote') {
+      // Deep link from OwnerFab's Quote action — preload a quote.
+      setNewStatus('quoted');
+      setNewTypeLabel('New quote');
+      setShowAdd(true);
+    } else if (params.open === 'new') {
+      // Deep link from OwnerFab's Job action — show the type picker.
+      setShowTypePicker(true);
+    }
   }, [params.open]);
   useEffect(() => {
     if (params.day && /^\d{4}-\d{2}-\d{2}$/.test(params.day)) {
@@ -153,6 +172,8 @@ export default function OwnerJobs() {
         description: newDesc.trim() || null,
         estimate_amount: newEstimate ? parseFloat(newEstimate) : null,
         scheduled_date: newScheduledDate,
+        workflow_id: newWorkflowId,
+        status: newStatus,
       });
       if (data && (data as any).scheduled_date) {
         setSelectedDay((data as any).scheduled_date);
@@ -160,7 +181,8 @@ export default function OwnerJobs() {
         if (parsed) setAnchor(parsed);
       }
       setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
-      setNewScheduledDate(null);
+      setNewScheduledDate(null); setNewWorkflowId(null); setNewStatus('scheduled');
+      setNewTypeLabel('New job');
       setShowAdd(false);
       load();
     } catch (e: any) {
@@ -168,6 +190,23 @@ export default function OwnerJobs() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Called by the type picker. Presets the form state, then opens the
+  // add-job modal with the chosen type already configured.
+  function startCreate(typeLabel: string, status: string, workflowId: string | null, defaultName: string) {
+    setNewTypeLabel(typeLabel);
+    setNewStatus(status);
+    setNewWorkflowId(workflowId);
+    if (!newName.trim()) setNewName(defaultName);
+    setNewScheduledDate(prev => prev || selectedDay);
+    setShowTypePicker(false);
+    setShowAdd(true);
+  }
+
+  function openTypePicker() {
+    setNewScheduledDate(selectedDay);
+    setShowTypePicker(true);
   }
 
   async function pingCrew() {
@@ -289,13 +328,13 @@ export default function OwnerJobs() {
       <View style={styles.selectedHeader}>
         <Text style={styles.selectedLabel}>{friendlyDayLabel(selectedDay)}</Text>
         <TouchableOpacity
-          onPress={() => { setNewScheduledDate(selectedDay); setShowAdd(true); }}
+          onPress={openTypePicker}
           style={styles.newJobBtn}
           activeOpacity={0.7}
           hitSlop={6}
         >
           <Ionicons name="add-circle" size={18} color={theme.accent} />
-          <Text style={styles.newJobBtnText}>New job</Text>
+          <Text style={styles.newJobBtnText}>New</Text>
         </TouchableOpacity>
       </View>
 
@@ -305,7 +344,7 @@ export default function OwnerJobs() {
           jobs={jobsForSelected}
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); load(); }}
-          onAddJob={() => { setNewScheduledDate(selectedDay); setShowAdd(true); }}
+          onAddJob={openTypePicker}
         />
       ) : (
         <CalendarView
@@ -314,9 +353,90 @@ export default function OwnerJobs() {
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); load(); }}
           allJobsWeek={jobs.length > 0}
-          onCreateAtSlot={() => { setNewScheduledDate(selectedDay); setShowAdd(true); }}
+          onCreateAtSlot={openTypePicker}
         />
       )}
+
+      {/* Type picker — Job / Quote / Install / Repair + Service PRO workflows */}
+      <Modal visible={showTypePicker} transparent animationType="slide" onRequestClose={() => setShowTypePicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '85%' }]}>
+            <View style={styles.typeHeader}>
+              <Text style={styles.modalTitle}>What are you adding?</Text>
+              <TouchableOpacity onPress={() => setShowTypePicker(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.typeHint}>Tap a type to prep the form — you can tweak everything before saving.</Text>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.typeGrid}>
+                <TypeTile
+                  theme={theme}
+                  icon="hammer-outline"
+                  color={theme.stageGreen}
+                  label="Job"
+                  hint="Scheduled work"
+                  onPress={() => startCreate('New job', 'scheduled', null, '')}
+                />
+                <TypeTile
+                  theme={theme}
+                  icon="pricetag-outline"
+                  color={theme.stageIndigo}
+                  label="Quote"
+                  hint="Pricing proposal"
+                  onPress={() => startCreate('New quote', 'quoted', null, '')}
+                />
+                <TypeTile
+                  theme={theme}
+                  icon="build-outline"
+                  color={theme.stageCyan}
+                  label="Install"
+                  hint="New install job"
+                  onPress={() => startCreate('New install', 'scheduled', null, 'Install — ')}
+                />
+                <TypeTile
+                  theme={theme}
+                  icon="construct-outline"
+                  color={theme.stageAmber}
+                  label="Repair"
+                  hint="Service call / fix"
+                  onPress={() => startCreate('New repair', 'scheduled', null, 'Repair — ')}
+                />
+              </View>
+
+              {workflows.length > 0 ? (
+                <>
+                  <Text style={styles.templatesLabel}>From your Service PRO templates</Text>
+                  {workflows.map(wf => (
+                    <TouchableOpacity
+                      key={wf.id}
+                      style={[styles.templateRow, { borderColor: theme.border }]}
+                      onPress={() => startCreate(wf.name, 'scheduled', wf.id, `${wf.name} — `)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.templateIcon, { backgroundColor: theme.accentMuted }]}>
+                        <Ionicons name="git-branch-outline" size={18} color={theme.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.templateName}>{wf.name}</Text>
+                        {wf.description ? <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text> : null}
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </>
+              ) : (
+                <View style={styles.templatesEmpty}>
+                  <Text style={styles.templatesEmptyText}>
+                    Service PRO templates you enable on the web dashboard will show up here.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add Job Modal */}
       <Modal visible={showAdd} transparent animationType="slide">
@@ -325,8 +445,8 @@ export default function OwnerJobs() {
           style={styles.modalOverlay}
         >
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom }]}>
-            <Text style={styles.modalTitle}>New Job Site</Text>
-            <TextInput style={styles.modalInput} placeholder="Job name" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+            <Text style={styles.modalTitle}>{newTypeLabel}</Text>
+            <TextInput style={styles.modalInput} placeholder={newStatus === 'quoted' ? 'Quote name' : 'Job name'} placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
             <TextInput style={styles.modalInput} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
             <TextInput
               style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
@@ -378,6 +498,44 @@ export default function OwnerJobs() {
         }}
       />
     </View>
+  );
+}
+
+// ─── TYPE PICKER TILE ──────────────────────────────────────────────
+
+function TypeTile({
+  theme, icon, color, label, hint, onPress,
+}: {
+  theme: Theme;
+  icon: any;
+  color: string;
+  label: string;
+  hint: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.75}
+      style={{
+        width: '48%',
+        padding: 14,
+        backgroundColor: color + '1a',
+        borderWidth: 1, borderColor: color + '55',
+        borderRadius: 14,
+        gap: 8,
+      }}
+    >
+      <View style={{
+        width: 36, height: 36, borderRadius: 18,
+        backgroundColor: color,
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Ionicons name={icon} size={18} color="#fff" />
+      </View>
+      <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: '800' }}>{label}</Text>
+      <Text style={{ color: theme.textSecondary, fontSize: 11, fontWeight: '600' }}>{hint}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -823,6 +981,20 @@ function makeStyles(t: Theme) {
     modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
     modal: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
     modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+    typeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    typeHint: { color: t.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 14, marginTop: -8 },
+    typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },
+    templatesLabel: { color: t.textMuted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
+    templateRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingVertical: 12, paddingHorizontal: 12,
+      borderWidth: 1, borderRadius: 12, marginBottom: 8,
+    },
+    templateIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    templateName: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
+    templateDesc: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
+    templatesEmpty: { padding: 14, alignItems: 'center' },
+    templatesEmptyText: { color: t.textMuted, fontSize: 12, textAlign: 'center' },
     modalInput: {
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
       borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 12,
