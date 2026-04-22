@@ -64,15 +64,10 @@ export async function setBiometricPrompted(): Promise<void> {
 export const getLockPrompted = getBiometricPrompted;
 export const setLockPrompted = setBiometricPrompted;
 
-// Login role — remember which tab the user used last (owner or crew).
-export type LoginRole = 'owner' | 'crew';
-export async function getLoginRole(): Promise<LoginRole> {
-  const raw = await AsyncStorage.getItem(LOGIN_ROLE_KEY);
-  return raw === 'owner' || raw === 'crew' ? raw : 'owner';
-}
-export async function setLoginRole(role: LoginRole): Promise<void> {
-  await AsyncStorage.setItem(LOGIN_ROLE_KEY, role);
-}
+// (Removed) getLoginRole / setLoginRole / LoginRole — the unified login
+// uses phone only, so we no longer need to remember which tab the user
+// picked. The LOGIN_ROLE_KEY in AsyncStorage is left orphaned on
+// existing installs and will be ignored.
 
 // App-lock method — crew wears gloves, so PIN is first-class alongside biometric.
 export type LockMethod = 'none' | 'biometric' | 'pin';
