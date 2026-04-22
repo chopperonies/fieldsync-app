@@ -4,7 +4,6 @@ import {
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Role } from '../lib/supabase';
 import {
   saveUser, savePlan, getLoginRole, setLoginRole, LoginRole,
 } from '../lib/storage';
@@ -115,7 +114,9 @@ export default function Login() {
       } catch {}
     }
 
-    router.replace(`/(${employee.role as Role})` as any);
+    // Unified app — everyone lands on (owner) regardless of role. Feature
+    // gating happens inside each screen based on employee.role.
+    router.replace('/(owner)' as any);
 
     // Register push token in background — don't block login
     registerPushToken().then(pushToken => {

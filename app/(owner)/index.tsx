@@ -12,6 +12,8 @@ import { Theme } from '../../lib/theme';
 import { SectionHeader, Row, Divider, RowAvatar, StatusChip } from '../../components/Flat';
 import ClockInCard from '../../components/ClockInCard';
 import PunchMap, { MapPin } from '../../components/PunchMap';
+import ProgressGauge from '../../components/ProgressGauge';
+import { useRole, canSeeFinancials } from '../../lib/useRole';
 
 type HomeJob = {
   id: string;
@@ -77,10 +79,14 @@ function timeAgo(iso: string): string {
 export default function OwnerOverview() {
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const role = useRole();
+  const showFinancials = canSeeFinancials(role);
+  const showCrewPins = role === 'owner' || role === 'manager';
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [financials, setFinancials] = useState<Financials | null>(null);
   const [crewPins, setCrewPins] = useState<MapPin[]>([]);
+  const [progress, setProgress] = useState<{ completed: number; total: number }>({ completed: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
@@ -89,40 +95,63 @@ export default function OwnerOverview() {
 
   const loadCrewPins = useCallback(async () => {
     try {
-      const data = await mobileGet<{ pins: Array<{ name?: string; kind: 'in' | 'out'; lat: number; lng: number; at?: string; active?: boolean }> }>(
-        '/api/mobile/owner/crew-pins'
-      );
-      const pins: MapPin[] = (data?.pins || []).map(p => ({
-        lat: p.lat,
-        lng: p.lng,
-        kind: p.kind,
-        name: p.name,
-        label: (p.name || '').charAt(0).toUpperCase(),
-        at: p.at,
-        active: p.active,
-      }));
-      setCrewPins(pins);
+      if (showCrewPins) {
+        const data = await mobileGet<{ pins: Array<{ name?: string; kind: 'in' | 'out'; lat: number; lng: number; at?: string; active?: boolean }> }>(
+          '/api/mobile/owner/crew-pins'
+        );
+        const pins: MapPin[] = (data?.pins || []).map(p => ({
+          lat: p.lat,
+          lng: p.lng,
+          kind: p.kind,
+          name: p.name,
+          label: (p.name || '').charAt(0).toUpperCase(),
+          at: p.at,
+          active: p.active,
+        }));
+        setCrewPins(pins);
+      } else {
+        // Crew-only user → show their own pins from clock-state instead.
+        const data = await mobileGet<{ pins: Array<{ kind: 'in' | 'out'; lat: number; lng: number; at?: string }> }>(
+          '/api/mobile/me/clock-state'
+        );
+        setCrewPins((data?.pins || []).map(p => ({ lat: p.lat, lng: p.lng, kind: p.kind, at: p.at })));
+      }
     } catch {
       setCrewPins([]);
+    }
+  }, [showCrewPins]);
+
+  const loadProgress = useCallback(async () => {
+    try {
+      const data = await mobileGet<{ completed: number; total: number }>('/api/mobile/me/today-progress');
+      setProgress({ completed: data?.completed || 0, total: data?.total || 0 });
+    } catch {
+      setProgress({ completed: 0, total: 0 });
     }
   }, []);
 
   const loadData = useCallback(async () => {
     try {
-      const [s, f] = await Promise.all([
-        mobileGet<Stats>('/api/mobile/owner/home'),
-        mobileGet<Financials>('/api/mobile/owner/financials').catch(() => null),
+      const tasks: Array<Promise<unknown>> = [
+        mobileGet<Stats>('/api/mobile/owner/home').then(setStats).catch(() => null),
         loadCrewPins(),
-      ]);
-      setStats(s);
-      if (f) setFinancials(f);
+        loadProgress(),
+      ];
+      if (showFinancials) {
+        tasks.push(
+          mobileGet<Financials>('/api/mobile/owner/financials')
+            .then(setFinancials)
+            .catch(() => null),
+        );
+      }
+      await Promise.all(tasks);
     } catch {
       // Keep last-good on failure
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [loadCrewPins]);
+  }, [loadCrewPins, loadProgress, showFinancials]);
 
   useEffect(() => {
     loadData();
@@ -181,9 +210,11 @@ export default function OwnerOverview() {
         </Text>
       </View>
 
-      <ClockInCard onChange={loadCrewPins} />
+      <ClockInCard onChange={() => { loadCrewPins(); loadProgress(); }} />
 
-      {crewPins.length > 0 ? (
+      <ProgressGauge completed={progress.completed} total={progress.total} />
+
+      {showCrewPins && crewPins.length > 0 ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -216,7 +247,7 @@ export default function OwnerOverview() {
             ))}
         </ScrollView>
       ) : null}
-      <PunchMap pins={crewPins} emptyLabel="No crew clock-ins yet today" />
+      <PunchMap pins={crewPins} emptyLabel={showCrewPins ? 'No crew clock-ins yet today' : 'Clock in to drop a pin'} />
 
 
       {todoItems.length > 0 && (
@@ -237,7 +268,7 @@ export default function OwnerOverview() {
         </>
       )}
 
-      {financials && (
+      {financials && showFinancials && (
         <>
           <SectionHeader
             label="Business health"

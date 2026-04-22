@@ -4,6 +4,7 @@ import {
   ActivityIndicator, ScrollView, Alert,
 } from 'react-native';
 import { callNumber, textNumber } from '../../lib/phone';
+import { useRole, canCreateInvoices } from '../../lib/useRole';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { mobileGet } from '../../lib/mobileApi';
@@ -64,6 +65,8 @@ const PILLS: Array<{ kind: Kind; label: string; icon: keyof typeof import('@expo
 export default function OwnerSearch() {
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const role = useRole();
+  const allowCreate = canCreateInvoices(role); // manager+
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<Kind>('clients');
   const [loading, setLoading] = useState(false);
@@ -147,12 +150,14 @@ export default function OwnerSearch() {
         ))}
       </PillRow>
 
-      <TouchableOpacity style={styles.createBar} onPress={active.createFn} activeOpacity={0.7}>
-        <View style={[styles.createIcon, { backgroundColor: activeTint + '22' }]}>
-          <Ionicons name="add" size={18} color={activeTint} />
-        </View>
-        <Text style={[styles.createText, { color: activeTint }]}>{active.createLabel}</Text>
-      </TouchableOpacity>
+      {allowCreate ? (
+        <TouchableOpacity style={styles.createBar} onPress={active.createFn} activeOpacity={0.7}>
+          <View style={[styles.createIcon, { backgroundColor: activeTint + '22' }]}>
+            <Ionicons name="add" size={18} color={activeTint} />
+          </View>
+          <Text style={[styles.createText, { color: activeTint }]}>{active.createLabel}</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {loading && total === 0 ? (
         <View style={{ paddingVertical: 30, alignItems: 'center' }}>

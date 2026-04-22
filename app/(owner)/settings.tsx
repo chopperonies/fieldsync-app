@@ -5,12 +5,18 @@ import {
 } from 'react-native';
 import { mobileGet, mobilePatch, mobilePost } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
+import { useRole, canSeeFinancials, canEditSettings } from '../../lib/useRole';
+import { clearUser } from '../../lib/storage';
+import { router } from 'expo-router';
 import LockSettings from '../../components/LockSettings';
 import AppearanceSettings from '../../components/AppearanceSettings';
 import MyProfile from '../../components/MyProfile';
 
 export default function OwnerSettings() {
   const theme = useTheme();
+  const role = useRole();
+  const canEditCompany = canEditSettings(role);
+  const showFinancialSections = canSeeFinancials(role);
   const [companyName, setCompanyName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -146,44 +152,55 @@ export default function OwnerSettings() {
       <View style={styles.divider} />
 
       <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Company Info</Text>
-      <Text style={styles.hint}>This appears on invoices sent to your clients.</Text>
+      <Text style={styles.hint}>
+        {canEditCompany
+          ? 'This appears on invoices sent to your clients.'
+          : 'Ask your account owner to update these details.'}
+      </Text>
 
       <Text style={styles.fieldLabel}>Company Name</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, !canEditCompany && { opacity: 0.7 }]}
         placeholder="Your company name"
         placeholderTextColor="#555"
         value={companyName}
         onChangeText={setCompanyName}
+        editable={canEditCompany}
       />
 
       <Text style={styles.fieldLabel}>Phone</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, !canEditCompany && { opacity: 0.7 }]}
         placeholder="Business phone number"
         placeholderTextColor="#555"
         value={phone}
         onChangeText={setPhone}
         keyboardType="phone-pad"
+        editable={canEditCompany}
       />
 
       <Text style={styles.fieldLabel}>Address</Text>
       <TextInput
-        style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+        style={[styles.input, { height: 80, textAlignVertical: 'top' }, !canEditCompany && { opacity: 0.7 }]}
         placeholder="Business address"
         placeholderTextColor="#555"
         value={address}
         onChangeText={setAddress}
         multiline
+        editable={canEditCompany}
       />
 
-      <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={saving}>
-        {saving
-          ? <ActivityIndicator color="#000" />
-          : <Text style={styles.saveBtnText}>Save Changes</Text>
-        }
-      </TouchableOpacity>
+      {canEditCompany ? (
+        <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={saving}>
+          {saving
+            ? <ActivityIndicator color="#000" />
+            : <Text style={styles.saveBtnText}>Save Changes</Text>
+          }
+        </TouchableOpacity>
+      ) : null}
 
+      {showFinancialSections ? (
+        <>
       <View style={styles.divider} />
 
       <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Subscription</Text>
@@ -235,8 +252,8 @@ export default function OwnerSettings() {
             : <Text style={styles.saveBtnText}>Connect Stripe</Text>}
         </TouchableOpacity>
       )}
-
-      <View style={styles.divider} />
+        </>
+      ) : null}
 
       <View style={styles.divider} />
 
@@ -256,6 +273,15 @@ export default function OwnerSettings() {
         onPress={() => Linking.openURL('mailto:support@linkcrew.io')}
       >
         <Text style={styles.supportBtnText}>Email support@linkcrew.io</Text>
+      </TouchableOpacity>
+
+      <View style={styles.divider} />
+
+      <TouchableOpacity
+        style={[styles.supportBtn, { borderColor: theme.danger }]}
+        onPress={async () => { await clearUser(); router.replace('/login'); }}
+      >
+        <Text style={[styles.supportBtnText, { color: theme.danger }]}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
   );

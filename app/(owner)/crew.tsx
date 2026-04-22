@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { callNumber, textNumber } from '../../lib/phone';
+import { useRole, canManageCrew } from '../../lib/useRole';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Employee, Role } from '../../lib/supabase';
@@ -18,6 +19,8 @@ const ROLES: Role[] = ['crew', 'manager', 'owner'];
 
 export default function OwnerCrew() {
   const theme = useTheme();
+  const role = useRole();
+  const canEdit = canManageCrew(role);
   const styles = makeStyles(theme);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,9 +55,9 @@ export default function OwnerCrew() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ open?: string }>();
   useEffect(() => {
-    if (params.open === 'new') handleAddPress();
+    if (params.open === 'new' && canEdit) handleAddPress();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.open]);
+  }, [params.open, canEdit]);
 
   async function handleAddPress() {
     const plan = await getPlan();
@@ -202,7 +205,7 @@ export default function OwnerCrew() {
         contentContainerStyle={{ padding: 16, gap: 10 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => openEdit(item)}>
+          <TouchableOpacity style={styles.card} activeOpacity={canEdit ? 0.75 : 1} onPress={() => canEdit && openEdit(item)}>
             <View style={{ flex: 1 }}>
               <Text style={styles.empName}>{item.name}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
@@ -222,21 +225,29 @@ export default function OwnerCrew() {
               </View>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <View style={styles.roleRow}>
-                {ROLES.map(r => (
-                  <TouchableOpacity
-                    key={r}
-                    style={[styles.roleChip, item.role === r && { backgroundColor: ROLE_COLORS[r] + '22', borderColor: ROLE_COLORS[r] }]}
-                    onPress={(e) => { e.stopPropagation?.(); changeRole(item, r); }}
-                  >
-                    <Text style={[styles.roleText, item.role === r && { color: ROLE_COLORS[r] }]}>{r}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={styles.tapHintRow}>
-                <Text style={styles.tapHint}>Edit</Text>
-                <Text style={styles.tapHintArrow}>›</Text>
-              </View>
+              {canEdit ? (
+                <>
+                  <View style={styles.roleRow}>
+                    {ROLES.map(r => (
+                      <TouchableOpacity
+                        key={r}
+                        style={[styles.roleChip, item.role === r && { backgroundColor: ROLE_COLORS[r] + '22', borderColor: ROLE_COLORS[r] }]}
+                        onPress={(e) => { e.stopPropagation?.(); changeRole(item, r); }}
+                      >
+                        <Text style={[styles.roleText, item.role === r && { color: ROLE_COLORS[r] }]}>{r}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={styles.tapHintRow}>
+                    <Text style={styles.tapHint}>Edit</Text>
+                    <Text style={styles.tapHintArrow}>›</Text>
+                  </View>
+                </>
+              ) : (
+                <View style={[styles.roleChip, { backgroundColor: ROLE_COLORS[item.role as Role] + '22', borderColor: ROLE_COLORS[item.role as Role] }]}>
+                  <Text style={[styles.roleText, { color: ROLE_COLORS[item.role as Role] }]}>{item.role}</Text>
+                </View>
+              )}
             </View>
           </TouchableOpacity>
         )}
