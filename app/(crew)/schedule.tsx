@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  FlatList, RefreshControl,
+  ActivityIndicator, RefreshControl, Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { mobileGet } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
-import { statusMeta } from '../../lib/jobStatus';
 
 type CrewMember = { employee_id: string; name: string };
 type ScheduleJob = {
@@ -23,6 +22,13 @@ type ScheduleJob = {
 };
 
 const DAY_LETTERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Grid dimensions
+const HOUR_START = 7;             // 7 AM
+const HOUR_END = 19;              // 7 PM (exclusive)
+const HOUR_HEIGHT = 72;           // px per hour
+const COL_WIDTH = 180;            // px per crew column
+const GUTTER_WIDTH = 56;          // time gutter width
 
 function isoDay(d: Date): string {
   const y = d.getFullYear();
@@ -52,6 +58,37 @@ function friendlyDayLabel(iso: string): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
+// Deterministic pastel color by seed (job id, crew name, etc.)
+function hashIndex(seed: string, mod: number): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return Math.abs(h) % mod;
+}
+
+function jobPalette(theme: Theme): Array<{ bg: string; border: string; text: string }> {
+  // Soft tinted fills derived from the theme's stage palette.
+  const base = [
+    theme.stageBlue,
+    theme.stageAmber,
+    theme.stageGreen,
+    theme.stagePurple,
+    theme.stageCyan,
+    theme.stageIndigo,
+  ];
+  return base.map(c => ({ bg: c + '1a', border: c, text: c }));
+}
+
+function crewColor(theme: Theme, name: string): string {
+  const palette = [theme.stageBlue, theme.stageCyan, theme.stageGreen, theme.stageIndigo, theme.stagePurple, theme.stageAmber];
+  return palette[hashIndex(name, palette.length)];
+}
+
+function dayTint(theme: Theme, dayIndex: number): string {
+  // Distinct tint per weekday.
+  const palette = [theme.stagePurple, theme.stageBlue, theme.stageCyan, theme.stageGreen, theme.stageAmber, theme.stageIndigo, theme.danger];
+  return palette[dayIndex % palette.length];
+}
+
 function statusStamp(status: string): { label: string; color: string } | null {
   const s = String(status || '').toLowerCase();
   if (s === 'invoiced') return { label: 'INVOICED', color: '#2563eb' };
@@ -61,13 +98,53 @@ function statusStamp(status: string): { label: string; color: string } | null {
   return null;
 }
 
-// Deterministic color per crew-member name — initials on the chip,
-// stable tint across renders.
-function hashColor(seed: string, theme: Theme): string {
-  const colors = [theme.stageBlue, theme.stageCyan, theme.stageGreen, theme.stageIndigo, theme.stagePurple, theme.stageAmber];
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return colors[Math.abs(h) % colors.length];
+type PlacedCard = {
+  job: ScheduleJob;
+  crewName: string;
+  colIndex: number;
+  startHour: number;
+  endHour: number;
+  paletteIdx: number;
+};
+
+// Auto-lay jobs for a single day across crew columns. For now we don't
+// have per-job start/end times — we distribute stacked jobs for the
+// same crew member evenly starting at 8 AM, 2-hour default slot.
+function layoutJobs(jobs: ScheduleJob[]): {
+  cards: PlacedCard[];
+  allCrew: string[];  // stable ordered list (first seen first)
+} {
+  const perCrew = new Map<string, ScheduleJob[]>();
+  const seenOrder: string[] = [];
+  for (const j of jobs) {
+    const people = j.crew && j.crew.length > 0 ? j.crew.map(c => c.name) : ['Unassigned'];
+    for (const name of people) {
+      if (!perCrew.has(name)) { perCrew.set(name, []); seenOrder.push(name); }
+      perCrew.get(name)!.push(j);
+    }
+  }
+  const cards: PlacedCard[] = [];
+  for (const name of seenOrder) {
+    const colIndex = seenOrder.indexOf(name);
+    const list = perCrew.get(name) || [];
+    let cursor = 8; // 8 AM
+    for (const j of list) {
+      const duration = 2; // hours (placeholder until schema has real durations)
+      const startHour = cursor;
+      const endHour = Math.min(HOUR_END, startHour + duration);
+      cards.push({
+        job: j,
+        crewName: name,
+        colIndex,
+        startHour,
+        endHour,
+        paletteIdx: hashIndex(j.id, 6),
+      });
+      cursor = endHour; // next job stacks directly below
+      if (cursor >= HOUR_END) cursor = HOUR_START + 1;
+    }
+  }
+  return { cards, allCrew: seenOrder };
 }
 
 export default function CrewSchedule() {
@@ -84,6 +161,7 @@ export default function CrewSchedule() {
   const week = useMemo(() => weekStrip(anchor), [anchor]);
   const rangeStart = week[0];
   const rangeEnd = week[6];
+  const palette = useMemo(() => jobPalette(theme), [theme]);
 
   const load = useCallback(async () => {
     try {
@@ -101,22 +179,23 @@ export default function CrewSchedule() {
 
   useEffect(() => { load(); }, [load]);
 
-  const jobsByDay: Record<string, ScheduleJob[]> = {};
+  const jobsForSelected = jobs.filter(j => j.scheduled_date === selected);
+  const jobsCountPerDay: Record<string, number> = {};
   for (const j of jobs) {
     const k = j.scheduled_date || '';
     if (!k) continue;
-    (jobsByDay[k] = jobsByDay[k] || []).push(j);
+    jobsCountPerDay[k] = (jobsCountPerDay[k] || 0) + 1;
   }
-  const selectedJobs = jobsByDay[selected] || [];
+  const { cards, allCrew } = useMemo(() => layoutJobs(jobsForSelected), [jobsForSelected]);
+  const gridWidth = Math.max(allCrew.length, 1) * COL_WIDTH;
+  const gridHeight = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
 
   return (
     <View style={styles.container}>
-      {/* Week strip with navigation */}
+      {/* Week nav */}
       <View style={styles.weekNav}>
         <TouchableOpacity
-          onPress={() => {
-            const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d);
-          }}
+          onPress={() => { const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d); }}
           hitSlop={12}
         >
           <Ionicons name="chevron-back" size={20} color={theme.textSecondary} />
@@ -125,47 +204,49 @@ export default function CrewSchedule() {
           {rangeStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {rangeEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         </Text>
         <TouchableOpacity
-          onPress={() => {
-            const d = new Date(anchor); d.setDate(d.getDate() + 7); setAnchor(d);
-          }}
+          onPress={() => { const d = new Date(anchor); d.setDate(d.getDate() + 7); setAnchor(d); }}
           hitSlop={12}
         >
           <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
         </TouchableOpacity>
       </View>
+
+      {/* Week strip with colored day tints */}
       <View style={styles.weekStrip}>
         {week.map((d, i) => {
           const key = isoDay(d);
           const selectedDay = key === selected;
           const today = isoDay(new Date()) === key;
-          const hasJobs = !!jobsByDay[key]?.length;
+          const tint = dayTint(theme, i);
+          const count = jobsCountPerDay[key] || 0;
           return (
             <TouchableOpacity
               key={i}
-              style={styles.dayCell}
+              style={[
+                styles.dayCell,
+                selectedDay && { backgroundColor: tint + '22', borderColor: tint + '66' },
+              ]}
               onPress={() => setSelected(key)}
               activeOpacity={0.7}
             >
               <Text style={[
                 styles.dayLetter,
-                selectedDay && { color: theme.accent, fontWeight: '800' },
-              ]}>{DAY_LETTERS[i]}</Text>
-              <View style={[
-                styles.dayBubble,
-                selectedDay && { backgroundColor: theme.accent },
+                { color: selectedDay ? tint : theme.textMuted },
               ]}>
-                <Text style={[
-                  styles.dayNumber,
-                  selectedDay && { color: theme.accentContrast, fontWeight: '800' },
-                  today && !selectedDay && { color: theme.accent, fontWeight: '800' },
-                ]}>
-                  {d.getDate()}
-                </Text>
+                {DAY_LETTERS[i]}
+              </Text>
+              <Text style={[
+                styles.dayNumber,
+                { color: selectedDay ? tint : (today ? theme.textPrimary : theme.textSecondary) },
+                (selectedDay || today) && { fontWeight: '800' },
+              ]}>
+                {d.getDate()}
+              </Text>
+              <View style={styles.dayDotRow}>
+                {count > 0 ? (
+                  <View style={[styles.dayDot, { backgroundColor: tint }]} />
+                ) : <View style={{ height: 4 }} />}
               </View>
-              <View style={[
-                styles.dayDot,
-                hasJobs && { backgroundColor: selectedDay ? theme.accent : theme.textMuted },
-              ]} />
             </TouchableOpacity>
           );
         })}
@@ -174,82 +255,152 @@ export default function CrewSchedule() {
       <View style={styles.selectedHeader}>
         <Text style={styles.selectedLabel}>{friendlyDayLabel(selected)}</Text>
         <Text style={styles.selectedCount}>
-          {selectedJobs.length === 0 ? 'No jobs' : `${selectedJobs.length} job${selectedJobs.length === 1 ? '' : 's'}`}
+          {jobsForSelected.length === 0
+            ? 'No jobs'
+            : `${jobsForSelected.length} job${jobsForSelected.length === 1 ? '' : 's'} · ${allCrew.length} crew`}
         </Text>
       </View>
 
-      <FlatList
-        data={selectedJobs}
-        keyExtractor={j => j.id}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.empty}>
-              <Ionicons name="calendar-outline" size={32} color={theme.textMuted} />
-              <Text style={styles.emptyTitle}>Nothing scheduled</Text>
-              <Text style={styles.emptySub}>
-                Pick a different day or swipe down to refresh.
-              </Text>
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => {
-          const meta = statusMeta(item.status);
-          const tone = theme[meta.tone];
-          const stamp = statusStamp(item.status);
-          return (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={styles.jobRow}
-              onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: item.id } } as any)}
-            >
-              <View style={[styles.leftBar, { backgroundColor: tone }]} />
-              <View style={{ flex: 1, paddingLeft: 14, paddingVertical: 14, paddingRight: 14 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.jobName} numberOfLines={1}>{item.name}</Text>
-                    {item.client_name ? <Text style={styles.jobClient} numberOfLines={1}>{item.client_name}</Text> : null}
-                    {item.address ? <Text style={styles.jobAddress} numberOfLines={1}>{item.address}</Text> : null}
+      {loading && jobsForSelected.length === 0 ? (
+        <View style={styles.center}><ActivityIndicator color={theme.accent} /></View>
+      ) : jobsForSelected.length === 0 ? (
+        <ScrollView
+          contentContainerStyle={styles.empty}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
+        >
+          <Ionicons name="calendar-outline" size={36} color={theme.textMuted} />
+          <Text style={styles.emptyTitle}>Nothing scheduled</Text>
+          <Text style={styles.emptySub}>Pick a different day or swipe down to refresh.</Text>
+        </ScrollView>
+      ) : (
+        <ScrollView
+          style={{ flex: 1 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
+        >
+          <View style={{ flexDirection: 'row' }}>
+            {/* Fixed time gutter */}
+            <View style={[styles.gutter, { width: GUTTER_WIDTH, height: gridHeight + 44 }]}>
+              <View style={{ height: 44 }} />{/* spacer to line up with crew header row */}
+              {Array.from({ length: HOUR_END - HOUR_START }).map((_, i) => {
+                const h = HOUR_START + i;
+                const display = h === 12 ? '12 PM' : h > 12 ? `${h - 12} PM` : `${h} AM`;
+                return (
+                  <View key={i} style={[styles.hourTick, { height: HOUR_HEIGHT }]}>
+                    <Text style={styles.hourLabel}>{display}</Text>
                   </View>
-                  {stamp ? (
-                    <View style={[styles.stamp, { borderColor: stamp.color + '66' }]}>
-                      <Text style={[styles.stampText, { color: stamp.color }]}>{stamp.label}</Text>
-                    </View>
-                  ) : null}
-                </View>
-                {item.crew && item.crew.length > 0 ? (
-                  <View style={styles.crewRow}>
-                    {item.crew.slice(0, 4).map((c, i) => (
+                );
+              })}
+            </View>
+
+            {/* Horizontal-scrolling crew columns */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              bounces
+              style={{ flex: 1 }}
+            >
+              <View style={{ width: gridWidth }}>
+                {/* Crew header row */}
+                <View style={[styles.crewHeaderRow, { width: gridWidth, height: 44 }]}>
+                  {allCrew.map((name, idx) => {
+                    const color = crewColor(theme, name);
+                    return (
                       <View
-                        key={`${c.employee_id}-${i}`}
-                        style={[styles.crewChip, { backgroundColor: hashColor(c.name, theme) + '22', borderColor: hashColor(c.name, theme) + '55' }]}
+                        key={`${name}-${idx}`}
+                        style={[styles.crewHeader, { width: COL_WIDTH, borderLeftColor: theme.border }]}
                       >
-                        <View style={[styles.crewInitial, { backgroundColor: hashColor(c.name, theme) }]}>
-                          <Text style={styles.crewInitialText}>{c.name.charAt(0).toUpperCase()}</Text>
+                        <View style={[styles.crewAvatar, { backgroundColor: color }]}>
+                          <Text style={styles.crewAvatarLetter}>{name.charAt(0).toUpperCase()}</Text>
                         </View>
-                        <Text style={[styles.crewChipName, { color: hashColor(c.name, theme) }]}>
-                          {c.name.split(' ')[0]}
+                        <Text style={[styles.crewHeaderName, { color: theme.textPrimary }]} numberOfLines={1}>
+                          {name}
                         </Text>
                       </View>
-                    ))}
-                    {item.crew.length > 4 ? (
-                      <Text style={styles.crewMore}>+{item.crew.length - 4}</Text>
-                    ) : null}
-                  </View>
-                ) : (
-                  <Text style={styles.unassigned}>Unassigned</Text>
-                )}
-                <View style={styles.statusFoot}>
-                  <Ionicons name={meta.icon} size={13} color={tone} />
-                  <Text style={[styles.statusLabel, { color: tone }]}>{meta.label}</Text>
+                    );
+                  })}
+                </View>
+
+                {/* Grid cells + cards layer */}
+                <View style={{ width: gridWidth, height: gridHeight, position: 'relative' }}>
+                  {/* Background hour lines + column dividers */}
+                  {Array.from({ length: HOUR_END - HOUR_START }).map((_, i) => (
+                    <View
+                      key={`hl-${i}`}
+                      style={{
+                        position: 'absolute',
+                        top: i * HOUR_HEIGHT, left: 0, right: 0,
+                        height: StyleSheet.hairlineWidth,
+                        backgroundColor: theme.border,
+                      }}
+                    />
+                  ))}
+                  {allCrew.map((_, i) => (
+                    <View
+                      key={`vl-${i}`}
+                      style={{
+                        position: 'absolute',
+                        top: 0, bottom: 0, left: i * COL_WIDTH,
+                        width: StyleSheet.hairlineWidth,
+                        backgroundColor: theme.border,
+                      }}
+                    />
+                  ))}
+                  {/* Job cards */}
+                  {cards.map((c, i) => {
+                    const p = palette[c.paletteIdx];
+                    const top = (c.startHour - HOUR_START) * HOUR_HEIGHT;
+                    const height = (c.endHour - c.startHour) * HOUR_HEIGHT - 4;
+                    const left = c.colIndex * COL_WIDTH + 4;
+                    const w = COL_WIDTH - 8;
+                    const stamp = statusStamp(c.job.status);
+                    return (
+                      <TouchableOpacity
+                        key={`${c.job.id}-${c.colIndex}-${i}`}
+                        activeOpacity={0.8}
+                        onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: c.job.id } } as any)}
+                        style={[
+                          styles.card,
+                          {
+                            top, height, left, width: w,
+                            backgroundColor: p.bg,
+                            borderLeftColor: p.border,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={2}>
+                          {c.job.name}
+                        </Text>
+                        {c.job.client_name ? (
+                          <Text style={styles.cardClient} numberOfLines={1}>{c.job.client_name}</Text>
+                        ) : null}
+                        {c.job.address ? (
+                          <Text style={styles.cardAddress} numberOfLines={1}>{c.job.address}</Text>
+                        ) : null}
+                        {stamp ? (
+                          <View style={[styles.cardStamp, { borderColor: stamp.color + '88' }]}>
+                            <Text style={[styles.cardStampText, { color: stamp.color }]}>{stamp.label}</Text>
+                          </View>
+                        ) : null}
+                        {/* small dots — subcrew indicators */}
+                        {c.job.crew && c.job.crew.length > 1 ? (
+                          <View style={styles.cardDots}>
+                            {c.job.crew.slice(0, 3).map((cc, k) => (
+                              <View
+                                key={k}
+                                style={[styles.cardDot, { backgroundColor: crewColor(theme, cc.name) }]}
+                              />
+                            ))}
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
-            </TouchableOpacity>
-          );
-        }}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+            </ScrollView>
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -257,6 +408,7 @@ export default function CrewSchedule() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 30 },
 
     weekNav: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -265,75 +417,78 @@ function makeStyles(t: Theme) {
     weekLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '800' },
 
     weekStrip: {
-      flexDirection: 'row', justifyContent: 'space-between',
+      flexDirection: 'row', gap: 4,
       paddingVertical: 8, paddingHorizontal: 12,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
     },
-    dayCell: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
-    dayLetter: { color: t.textMuted, fontSize: 11, fontWeight: '700' },
-    dayBubble: {
-      width: 34, height: 34, borderRadius: 17,
-      alignItems: 'center', justifyContent: 'center',
+    dayCell: {
+      flex: 1, alignItems: 'center', paddingVertical: 6,
+      borderRadius: 10,
+      borderWidth: 1, borderColor: 'transparent',
     },
-    dayNumber: { color: t.textSecondary, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
-    dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 2 },
+    dayLetter: { fontSize: 11, fontWeight: '700', marginBottom: 2 },
+    dayNumber: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
+    dayDotRow: { height: 6, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
+    dayDot: { width: 4, height: 4, borderRadius: 2 },
 
     selectedHeader: {
       flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8,
+      paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
     },
     selectedLabel: { color: t.textPrimary, fontSize: 18, fontWeight: '800' },
-    selectedCount: { color: t.textMuted, fontSize: 13, fontWeight: '700' },
+    selectedCount: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
 
-    jobRow: {
+    gutter: {
+      backgroundColor: t.bg,
+      borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: t.border,
+    },
+    hourTick: {
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border,
+      alignItems: 'flex-end', paddingRight: 8, paddingTop: 4,
+    },
+    hourLabel: { color: t.textMuted, fontSize: 10, fontWeight: '700', fontVariant: ['tabular-nums'] },
+
+    crewHeaderRow: {
       flexDirection: 'row',
-      backgroundColor: t.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
+      backgroundColor: t.bg,
     },
-    leftBar: { width: 4 },
-    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '700' },
-    jobClient: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
-    jobAddress: { color: t.textMuted, fontSize: 12, marginTop: 2 },
-
-    stamp: {
-      borderWidth: 1, borderRadius: 6,
-      paddingVertical: 3, paddingHorizontal: 6,
-      transform: [{ rotate: '-6deg' }],
-      marginLeft: 8, marginTop: 2,
+    crewHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingHorizontal: 10,
+      borderLeftWidth: StyleSheet.hairlineWidth,
     },
-    stampText: { fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-
-    crewRow: {
-      flexDirection: 'row', flexWrap: 'wrap',
-      gap: 6, marginTop: 10,
-      alignItems: 'center',
-    },
-    crewChip: {
-      flexDirection: 'row', alignItems: 'center', gap: 5,
-      height: 26, paddingRight: 8,
-      borderRadius: 999, borderWidth: 1,
-    },
-    crewInitial: {
-      width: 22, height: 22, borderRadius: 11,
+    crewAvatar: {
+      width: 28, height: 28, borderRadius: 14,
       alignItems: 'center', justifyContent: 'center',
     },
-    crewInitialText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-    crewChipName: { fontSize: 11, fontWeight: '800' },
-    crewMore: { color: t.textMuted, fontSize: 12, fontWeight: '700', marginLeft: 2 },
-    unassigned: { color: t.textMuted, fontSize: 12, fontStyle: 'italic', marginTop: 10 },
+    crewAvatarLetter: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    crewHeaderName: { fontSize: 13, fontWeight: '700', flex: 1 },
 
-    statusFoot: {
-      flexDirection: 'row', alignItems: 'center', gap: 5,
-      marginTop: 8,
+    card: {
+      position: 'absolute',
+      borderLeftWidth: 3,
+      borderRadius: 8,
+      paddingVertical: 8, paddingHorizontal: 10,
     },
-    statusLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-
-    separator: {
-      height: StyleSheet.hairlineWidth, backgroundColor: t.border,
-      marginLeft: 20,
+    cardTitle: { fontSize: 13, fontWeight: '800' },
+    cardClient: { color: t.textSecondary, fontSize: 11, marginTop: 2 },
+    cardAddress: { color: t.textMuted, fontSize: 10, marginTop: 1 },
+    cardStamp: {
+      position: 'absolute', top: 6, right: 6,
+      borderWidth: 1, borderRadius: 5,
+      paddingVertical: 1, paddingHorizontal: 4,
+      transform: [{ rotate: '-6deg' }],
     },
+    cardStampText: { fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+    cardDots: {
+      position: 'absolute', bottom: 6, right: 8,
+      flexDirection: 'row', gap: 3,
+    },
+    cardDot: { width: 6, height: 6, borderRadius: 3 },
 
-    empty: { padding: 60, alignItems: 'center', gap: 8 },
+    empty: { paddingTop: 60, alignItems: 'center', gap: 8 },
     emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '700' },
-    emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center' },
+    emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center', paddingHorizontal: 32 },
   });
 }
