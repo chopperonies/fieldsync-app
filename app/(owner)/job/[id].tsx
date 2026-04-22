@@ -13,6 +13,7 @@ import CalendarPicker, { prettyDate } from '../../../components/CalendarPicker';
 import { useTheme } from '../../../lib/themeContext';
 import { Theme } from '../../../lib/theme';
 import { STATUS_META, normalizeStatusKey, lifecycleIndex, LIFECYCLE_ORDER, JobStatusKey } from '../../../lib/jobStatus';
+import { callNumber, textNumber } from '../../../lib/phone';
 
 type Assignment = {
   id: string;
@@ -650,9 +651,15 @@ export default function OwnerJobDetail() {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.crewName}>{a.employees?.name || 'Unknown'}</Text>
                         {a.employees?.phone && (
-                          <TouchableOpacity onPress={() => a.employees?.phone && Linking.openURL(`tel:${a.employees.phone}`)}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
                             <Text style={styles.crewPhone}>{a.employees.phone}</Text>
-                          </TouchableOpacity>
+                            <TouchableOpacity onPress={() => textNumber(a.employees?.phone)} hitSlop={6}>
+                              <Ionicons name="chatbubble-outline" size={14} color={theme.accent} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => callNumber(a.employees?.phone)} hitSlop={6}>
+                              <Ionicons name="call-outline" size={14} color={theme.accent} />
+                            </TouchableOpacity>
+                          </View>
                         )}
                         {latestScope && (
                           <Text style={[

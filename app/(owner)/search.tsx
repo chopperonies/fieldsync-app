@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, ScrollView, Linking, Alert,
+  ActivityIndicator, ScrollView, Alert,
 } from 'react-native';
+import { callNumber, textNumber } from '../../lib/phone';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { mobileGet } from '../../lib/mobileApi';
@@ -219,9 +220,14 @@ function ClientRow({ theme, c }: { theme: Theme; c: Client }) {
       subtitle={[(c as any).company, c.email].filter(Boolean).join(' · ') || c.phone || 'Client'}
       trailing={
         c.phone ? (
-          <TouchableOpacity onPress={() => Linking.openURL(`tel:${c.phone}`)} hitSlop={8}>
-            <Ionicons name="call-outline" size={18} color={theme.accent} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 14 }}>
+            <TouchableOpacity onPress={() => textNumber(c.phone)} hitSlop={8}>
+              <Ionicons name="chatbubble-outline" size={18} color={theme.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => callNumber(c.phone)} hitSlop={8}>
+              <Ionicons name="call-outline" size={18} color={theme.accent} />
+            </TouchableOpacity>
+          </View>
         ) : null
       }
       onPress={() => router.push('/(owner)/clients' as any)}

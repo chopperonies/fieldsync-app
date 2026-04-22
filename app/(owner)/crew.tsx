@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal, Linking,
+  StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { callNumber, textNumber } from '../../lib/phone';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Employee, Role } from '../../lib/supabase';
@@ -203,9 +205,21 @@ export default function OwnerCrew() {
           <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => openEdit(item)}>
             <View style={{ flex: 1 }}>
               <Text style={styles.empName}>{item.name}</Text>
-              <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); Linking.openURL(`tel:${item.phone}`); }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
                 <Text style={styles.empPhone}>{item.phone}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation?.(); textNumber(item.phone); }}
+                  hitSlop={8}
+                >
+                  <Ionicons name="chatbubble-outline" size={16} color={theme.accent} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation?.(); callNumber(item.phone); }}
+                  hitSlop={8}
+                >
+                  <Ionicons name="call-outline" size={16} color={theme.accent} />
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <View style={styles.roleRow}>

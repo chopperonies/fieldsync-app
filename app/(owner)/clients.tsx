@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Modal, ScrollView, Linking, KeyboardAvoidingView, Platform,
+  Modal, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { callNumber, textNumber } from '../../lib/phone';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -223,12 +224,16 @@ export default function OwnerClients() {
                     <DetailLine label="Email" value={item.email} theme={theme} />
                   )}
                   {item.phone && (
-                    <DetailLine
-                      label="Phone"
-                      value={item.phone}
-                      theme={theme}
-                      onPress={() => Linking.openURL(`tel:${item.phone}`)}
-                    />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
+                      <Text style={{ color: theme.textMuted, fontSize: 12, width: 56, fontWeight: '700' }}>Phone</Text>
+                      <Text style={{ color: theme.textPrimary, fontSize: 14, flex: 1 }}>{item.phone}</Text>
+                      <TouchableOpacity onPress={() => textNumber(item.phone)} hitSlop={8}>
+                        <Ionicons name="chatbubble-outline" size={18} color={theme.accent} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => callNumber(item.phone)} hitSlop={8}>
+                        <Ionicons name="call-outline" size={18} color={theme.accent} />
+                      </TouchableOpacity>
+                    </View>
                   )}
                   {(item as any).address && (
                     <DetailLine label="Address" value={(item as any).address} theme={theme} />
