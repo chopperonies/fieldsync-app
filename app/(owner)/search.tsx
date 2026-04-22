@@ -12,7 +12,7 @@ import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { Pill, PillRow, Row, RowAvatar, SectionHeader, Divider } from '../../components/Flat';
 
-type Kind = 'clients' | 'quotes' | 'estimates' | 'jobs' | 'invoices';
+type Kind = 'clients' | 'quotes' | 'estimates' | 'jobs' | 'invoices' | 'expenses';
 
 type Client = { id: string; name: string; company?: string | null; email?: string | null; phone?: string | null };
 type QuoteRow = {
@@ -25,6 +25,12 @@ type JobHit = {
   invoice_amount?: number | null; payment_status?: string | null;
   scheduled_date?: string | null; clients?: { name: string } | null;
 };
+type ExpenseRow = {
+  id: string; name: string; amount: number; category: string; date: string;
+  details?: string | null;
+  status?: string | null; receipt_url?: string | null;
+  employees?: { name: string } | null; jobs?: { name: string } | null;
+};
 
 type SearchResponse = {
   clients: Client[];
@@ -32,6 +38,7 @@ type SearchResponse = {
   estimates: JobHit[];
   jobs: JobHit[];
   invoices: JobHit[];
+  expenses: ExpenseRow[];
 };
 
 const PILLS: Array<{ kind: Kind; label: string; icon: keyof typeof import('@expo/vector-icons/build/Ionicons').default.glyphMap; tintKey: keyof Theme; createLabel: string; createFn: () => void }> = [
@@ -60,6 +67,11 @@ const PILLS: Array<{ kind: Kind; label: string; icon: keyof typeof import('@expo
     tintKey: 'stageAmber', createLabel: 'Create invoice',
     createFn: () => router.push('/(owner)/invoices?open=quick_invoice' as any),
   },
+  {
+    kind: 'expenses', label: 'Expenses', icon: 'receipt-outline',
+    tintKey: 'stageGreen', createLabel: 'Log expense',
+    createFn: () => router.push('/(owner)/expense-new' as any),
+  },
 ];
 
 export default function OwnerSearch() {
@@ -70,25 +82,40 @@ export default function OwnerSearch() {
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<Kind>('clients');
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<SearchResponse>({ clients: [], quotes: [], estimates: [], jobs: [], invoices: [] });
+  const [data, setData] = useState<SearchResponse>({ clients: [], quotes: [], estimates: [], jobs: [], invoices: [], expenses: [] });
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const run = useCallback(async (query: string, type: Kind) => {
     setLoading(true);
     try {
-      const res = await mobileGet<SearchResponse>(
-        `/api/mobile/owner/search?q=${encodeURIComponent(query)}&type=${type}`
-      );
-      setData({
-        clients: res?.clients || [],
-        quotes: res?.quotes || [],
-        estimates: res?.estimates || [],
-        jobs: res?.jobs || [],
-        invoices: res?.invoices || [],
-      });
+      if (type === 'expenses') {
+        // Expenses hit their own endpoint (crew sees own, manager sees all).
+        const rows = await mobileGet<ExpenseRow[]>('/api/mobile/expenses');
+        const q = query.trim().toLowerCase();
+        const filtered = q
+          ? (rows || []).filter(r =>
+              r.name.toLowerCase().includes(q) ||
+              (r.category || '').toLowerCase().includes(q) ||
+              (r.details || '').toLowerCase().includes(q)
+            )
+          : (rows || []);
+        setData(prev => ({ ...prev, expenses: filtered }));
+      } else {
+        const res = await mobileGet<SearchResponse>(
+          `/api/mobile/owner/search?q=${encodeURIComponent(query)}&type=${type}`
+        );
+        setData(prev => ({
+          ...prev,
+          clients: res?.clients || [],
+          quotes: res?.quotes || [],
+          estimates: res?.estimates || [],
+          jobs: res?.jobs || [],
+          invoices: res?.invoices || [],
+        }));
+      }
     } catch {
-      setData({ clients: [], quotes: [], estimates: [], jobs: [], invoices: [] });
+      setData(prev => ({ ...prev, [type]: [] } as SearchResponse));
     } finally {
       setLoading(false);
     }
@@ -110,6 +137,7 @@ export default function OwnerSearch() {
       case 'estimates': return 'Search estimates';
       case 'jobs':      return 'Search jobs';
       case 'invoices':  return 'Search invoices';
+      case 'expenses':  return 'Search expenses';
     }
   })();
 
@@ -203,6 +231,12 @@ export default function OwnerSearch() {
             <InvoiceRow theme={theme} inv={inv} />
           </View>
         ))}
+        {kind === 'expenses' && data.expenses.map((e, i) => (
+          <View key={e.id}>
+            {i > 0 ? <Divider inset={64} /> : null}
+            <ExpenseRowView theme={theme} row={e} />
+          </View>
+        ))}
 
         {!loading && total === 0 ? (
           <View style={styles.emptyWrap}>
@@ -286,6 +320,46 @@ function JobRow({ theme, j }: { theme: Theme; j: JobHit }) {
         <Text style={{ color: theme.textMuted, fontSize: 12, fontWeight: '700' }}>{j.scheduled_date}</Text>
       ) : null}
       onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
+    />
+  );
+}
+
+function ExpenseRowView({ theme, row }: { theme: Theme; row: ExpenseRow }) {
+  const catIcon: Record<string, keyof typeof import('@expo/vector-icons/build/Ionicons').default.glyphMap> = {
+    fuel: 'car-outline',
+    materials: 'cube-outline',
+    tools: 'construct-outline',
+    meals: 'restaurant-outline',
+    vehicle: 'car-sport-outline',
+    lodging: 'bed-outline',
+    subcontractor: 'people-outline',
+    other: 'receipt-outline',
+  };
+  const icon = catIcon[row.category] || 'receipt-outline';
+  const statusColor = row.status === 'approved' ? theme.success
+    : row.status === 'rejected' ? theme.danger
+    : theme.warning;
+  const sub = [
+    row.category,
+    row.date,
+    row.employees?.name,
+    row.jobs?.name,
+  ].filter(Boolean).join(' · ');
+  return (
+    <Row
+      leading={<RowAvatar icon={icon} tint={theme.stageGreen} />}
+      title={row.name}
+      subtitle={sub}
+      trailing={
+        <View style={{ alignItems: 'flex-end', gap: 2 }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '800' }}>
+            ${Number(row.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          </Text>
+          <Text style={{ color: statusColor, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+            {row.status || 'pending'}
+          </Text>
+        </View>
+      }
     />
   );
 }

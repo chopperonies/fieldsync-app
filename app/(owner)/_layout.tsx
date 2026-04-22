@@ -155,6 +155,7 @@ export default function OwnerLayout() {
       <Tabs.Screen name="job/[id]"  options={{ href: null, title: 'Job' }} />
       <Tabs.Screen name="message/[id]"  options={{ href: null, title: 'Message' }} />
       <Tabs.Screen name="message-new"   options={{ href: null, title: 'New message' }} />
+      <Tabs.Screen name="expense-new"   options={{ href: null, title: 'New expense' }} />
     </Tabs>
     <OwnerFab />
     </View>
