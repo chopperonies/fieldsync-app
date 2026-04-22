@@ -1,55 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  Text, TextInput, TouchableOpacity,
+  Text, TextInput, TouchableOpacity, View,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import {
-  saveUser, savePlan, getLoginRole, setLoginRole, LoginRole,
-} from '../lib/storage';
+import { saveUser, savePlan } from '../lib/storage';
 import { registerPushToken } from '../lib/notifications';
 import { useTheme } from '../lib/themeContext';
 
 export default function Login() {
   const theme = useTheme();
-  const [role, setRole] = useState<LoginRole>('owner');
-  const [hasRemembered, setHasRemembered] = useState(false);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const remembered = await getLoginRole();
-      setRole(remembered);
-      setHasRemembered(true);
-    })();
-  }, []);
-
-  function switchRole(next: LoginRole) {
-    // Casual switch crew → crew is free. Switching to owner gets a warning
-    // when this device was previously signed in as crew.
-    if (next === 'owner' && hasRemembered && role === 'crew') {
-      Alert.alert(
-        'Sign in as Owner?',
-        'Only continue if you are the account owner. Failed owner sign-in attempts are logged.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Continue',
-            style: 'destructive',
-            onPress: () => { setRole('owner'); setLoginRole('owner'); },
-          },
-        ],
-      );
-      return;
-    }
-    setRole(next);
-    setLoginRole(next);
-  }
-
-  async function loginCrew() {
+  async function signInWithPhone() {
     if (!phone.trim()) return Alert.alert('Missing info', 'Enter your phone number.');
     setLoading(true);
     try {
@@ -60,7 +27,7 @@ export default function Login() {
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok || !payload.employee) {
-        Alert.alert('Not found', payload.error || 'Phone not registered. If you are the account owner, switch to the Owner tab.');
+        Alert.alert('Sign in failed', payload.error || 'We could not find your account.');
         return;
       }
       await finishLogin(payload.employee);
@@ -71,7 +38,7 @@ export default function Login() {
     }
   }
 
-  async function loginOwner() {
+  async function signInWithEmail() {
     if (!email.trim() || !password) return Alert.alert('Missing info', 'Enter your email and password.');
     setLoading(true);
     try {
@@ -95,8 +62,6 @@ export default function Login() {
 
   async function finishLogin(employee: any) {
     await saveUser(employee);
-    // Remember the role on this device — next login screen defaults to it.
-    await setLoginRole(employee.role === 'owner' ? 'owner' : 'crew');
 
     if (employee.role === 'owner' && employee.tenant_id) {
       try {
@@ -111,14 +76,13 @@ export default function Login() {
             max_users: tenant.max_users ?? 1,
           });
         }
-      } catch {}
+      } catch {
+        /* non-blocking */
+      }
     }
 
-    // Unified app — everyone lands on (owner) regardless of role. Feature
-    // gating happens inside each screen based on employee.role.
     router.replace('/(owner)' as any);
 
-    // Register push token in background — don't block login
     registerPushToken().then(pushToken => {
       if (pushToken) {
         fetch('https://linkcrew.io/api/mobile/push-token', {
@@ -146,15 +110,58 @@ export default function Login() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
     >
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 28 }} keyboardShouldPersistTaps="handled">
-        <Text style={{ fontSize: 36, fontWeight: '800', color: theme.accent, marginBottom: 6 }}>LinkCrew</Text>
-        <Text style={{ fontSize: 16, color: theme.textMuted, marginBottom: 32 }}>Field crew management</Text>
-
-        <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 14 }}>
-          {role === 'owner' ? 'Sign in as Owner' : 'Sign in as Crew / Manager'}
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 28 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={{ fontSize: 36, fontWeight: '800', color: theme.accent, marginBottom: 6 }}>
+          LinkCrew
+        </Text>
+        <Text style={{ fontSize: 16, color: theme.textMuted, marginBottom: 32 }}>
+          Field crew management
         </Text>
 
-        {role === 'owner' ? (
+        <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 14 }}>
+          Sign in
+        </Text>
+
+        {mode === 'phone' ? (
+          <>
+            <TextInput
+              style={inputStyle}
+              placeholder="Phone number"
+              placeholderTextColor={theme.textMuted}
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              autoComplete="tel"
+              autoFocus
+            />
+            <TouchableOpacity
+              style={{
+                backgroundColor: theme.accent, borderRadius: 12, padding: 16,
+                alignItems: 'center', marginTop: 4,
+              }}
+              onPress={signInWithPhone}
+              disabled={loading}
+            >
+              {loading
+                ? <ActivityIndicator color={theme.accentContrast} />
+                : <Text style={{ fontSize: 16, fontWeight: '700', color: theme.accentContrast }}>Sign In</Text>}
+            </TouchableOpacity>
+            <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 18 }}>
+              Your account owner adds you by phone number.{'\n'}New? Sign up at linkcrew.io/app.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setMode('email')}
+              style={{ padding: 14, alignItems: 'center', marginTop: 4 }}
+            >
+              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>
+                Sign in with email instead
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
           <>
             <TextInput
               style={inputStyle}
@@ -166,6 +173,7 @@ export default function Login() {
               keyboardType="email-address"
               autoCorrect={false}
               autoComplete="email"
+              autoFocus
             />
             <TextInput
               style={inputStyle}
@@ -178,42 +186,24 @@ export default function Login() {
               autoComplete="password"
             />
             <TouchableOpacity
-              style={{ backgroundColor: theme.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 }}
-              onPress={loginOwner}
+              style={{
+                backgroundColor: theme.accent, borderRadius: 12, padding: 16,
+                alignItems: 'center', marginTop: 4,
+              }}
+              onPress={signInWithEmail}
               disabled={loading}
             >
               {loading
                 ? <ActivityIndicator color={theme.accentContrast} />
                 : <Text style={{ fontSize: 16, fontWeight: '700', color: theme.accentContrast }}>Sign In</Text>}
             </TouchableOpacity>
-            <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 18 }}>Use the same email and password you use at linkcrew.io/app.</Text>
-            <TouchableOpacity onPress={() => switchRole('crew')} style={{ padding: 14, alignItems: 'center', marginTop: 4 }}>
-              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>I'm crew / manager — sign in with phone instead</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TextInput
-              style={inputStyle}
-              placeholder="Phone number"
-              placeholderTextColor={theme.textMuted}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-            />
             <TouchableOpacity
-              style={{ backgroundColor: theme.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 }}
-              onPress={loginCrew}
-              disabled={loading}
+              onPress={() => setMode('phone')}
+              style={{ padding: 14, alignItems: 'center', marginTop: 4 }}
             >
-              {loading
-                ? <ActivityIndicator color={theme.accentContrast} />
-                : <Text style={{ fontSize: 16, fontWeight: '700', color: theme.accentContrast }}>Sign In</Text>}
-            </TouchableOpacity>
-            <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 18 }}>Your manager adds you to the team by phone number. Contact them if you can't sign in.</Text>
-            <TouchableOpacity onPress={() => switchRole('owner')} style={{ padding: 14, alignItems: 'center', marginTop: 4 }}>
-              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>I'm the account owner — sign in with email</Text>
+              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>
+                Sign in with phone instead
+              </Text>
             </TouchableOpacity>
           </>
         )}
