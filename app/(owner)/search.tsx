@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, ScrollView, Linking,
+  ActivityIndicator, ScrollView, Linking, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -10,48 +10,81 @@ import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { Pill, PillRow, Row, RowAvatar, SectionHeader, Divider } from '../../components/Flat';
 
+type Kind = 'clients' | 'quotes' | 'estimates' | 'jobs' | 'invoices';
+
 type Client = { id: string; name: string; company?: string | null; email?: string | null; phone?: string | null };
-type JobHit = {
-  id: string;
-  name: string;
-  address?: string | null;
-  status: string;
-  invoice_amount?: number | null;
-  payment_status?: string | null;
+type QuoteRow = {
+  id: string; name: string; frequency?: string | null;
+  price?: number | null; next_due?: string | null; status?: string | null;
   clients?: { name: string } | null;
 };
-type InvoiceHit = JobHit & { updated_at?: string | null; clients?: { name: string; email?: string | null } | null };
+type JobHit = {
+  id: string; name: string; address?: string | null; status: string;
+  invoice_amount?: number | null; payment_status?: string | null;
+  scheduled_date?: string | null; clients?: { name: string } | null;
+};
 
-type Kind = 'all' | 'clients' | 'jobs' | 'invoices';
+type SearchResponse = {
+  clients: Client[];
+  quotes: QuoteRow[];
+  estimates: JobHit[];
+  jobs: JobHit[];
+  invoices: JobHit[];
+};
+
+const PILLS: Array<{ kind: Kind; label: string; icon: keyof typeof import('@expo/vector-icons/build/Ionicons').default.glyphMap; tintKey: keyof Theme; createLabel: string; createFn: () => void }> = [
+  {
+    kind: 'clients', label: 'Clients', icon: 'person-outline',
+    tintKey: 'stagePurple', createLabel: 'Create client',
+    createFn: () => router.push('/(owner)/clients?open=new' as any),
+  },
+  {
+    kind: 'quotes', label: 'Quotes', icon: 'pricetag-outline',
+    tintKey: 'stageIndigo', createLabel: 'Create quote',
+    createFn: () => router.push('/(owner)/jobs?open=new_quote' as any),
+  },
+  {
+    kind: 'estimates', label: 'Estimates', icon: 'document-text-outline',
+    tintKey: 'stageCyan', createLabel: 'Create estimate',
+    createFn: () => router.push('/(owner)/jobs?open=new_quote' as any),
+  },
+  {
+    kind: 'jobs', label: 'Jobs', icon: 'hammer-outline',
+    tintKey: 'stageGreen', createLabel: 'Create job',
+    createFn: () => router.push('/(owner)/jobs?open=new' as any),
+  },
+  {
+    kind: 'invoices', label: 'Invoices', icon: 'cash-outline',
+    tintKey: 'stageAmber', createLabel: 'Create invoice',
+    createFn: () => router.push('/(owner)/invoices?open=quick_invoice' as any),
+  },
+];
 
 export default function OwnerSearch() {
   const theme = useTheme();
   const styles = makeStyles(theme);
   const [q, setQ] = useState('');
-  const [kind, setKind] = useState<Kind>('all');
+  const [kind, setKind] = useState<Kind>('clients');
   const [loading, setLoading] = useState(false);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [jobs, setJobs] = useState<JobHit[]>([]);
-  const [invoices, setInvoices] = useState<InvoiceHit[]>([]);
-  const [recentClients, setRecentClients] = useState<Client[]>([]);
+  const [data, setData] = useState<SearchResponse>({ clients: [], quotes: [], estimates: [], jobs: [], invoices: [] });
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const run = useCallback(async (query: string, type: Kind) => {
-    if (!query.trim()) {
-      setClients([]); setJobs([]); setInvoices([]);
-      return;
-    }
     setLoading(true);
     try {
-      const data = await mobileGet<{ clients: Client[]; jobs: JobHit[]; invoices: InvoiceHit[] }>(
+      const res = await mobileGet<SearchResponse>(
         `/api/mobile/owner/search?q=${encodeURIComponent(query)}&type=${type}`
       );
-      setClients(data?.clients || []);
-      setJobs(data?.jobs || []);
-      setInvoices(data?.invoices || []);
+      setData({
+        clients: res?.clients || [],
+        quotes: res?.quotes || [],
+        estimates: res?.estimates || [],
+        jobs: res?.jobs || [],
+        invoices: res?.invoices || [],
+      });
     } catch {
-      setClients([]); setJobs([]); setInvoices([]);
+      setData({ clients: [], quotes: [], estimates: [], jobs: [], invoices: [] });
     } finally {
       setLoading(false);
     }
@@ -59,33 +92,25 @@ export default function OwnerSearch() {
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (!q.trim()) { setClients([]); setJobs([]); setInvoices([]); return; }
-    timer.current = setTimeout(() => run(q, kind), 250);
+    timer.current = setTimeout(() => run(q, kind), q ? 250 : 0);
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [q, kind, run]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const c = await mobileGet<Client[]>('/api/mobile/owner/clients');
-        setRecentClients((c || []).slice(0, 6));
-      } catch {
-        setRecentClients([]);
-      }
-    })();
-  }, []);
+  const active = PILLS.find(p => p.kind === kind)!;
+  const activeTint = (theme as any)[active.tintKey] as string;
 
   const placeholder = (() => {
     switch (kind) {
-      case 'clients':  return 'Search clients';
-      case 'jobs':     return 'Search jobs';
-      case 'invoices': return 'Search invoices';
-      default:         return 'Search';
+      case 'clients':   return 'Search clients';
+      case 'quotes':    return 'Search quotes';
+      case 'estimates': return 'Search estimates';
+      case 'jobs':      return 'Search jobs';
+      case 'invoices':  return 'Search invoices';
     }
   })();
 
-  const showEmpty = !q.trim();
-  const totalHits = clients.length + jobs.length + invoices.length;
+  const list = data[kind];
+  const total = list.length;
 
   return (
     <View style={styles.container}>
@@ -108,77 +133,80 @@ export default function OwnerSearch() {
       </View>
 
       <PillRow>
-        <Pill label="All"      active={kind === 'all'}      onPress={() => setKind('all')} />
-        <Pill label="Clients"  active={kind === 'clients'}  onPress={() => setKind('clients')}  icon="person-outline"         showIcon="active-only" tint={theme.stagePurple} />
-        <Pill label="Jobs"     active={kind === 'jobs'}     onPress={() => setKind('jobs')}     icon="hammer-outline"         showIcon="active-only" tint={theme.accent} />
-        <Pill label="Invoices" active={kind === 'invoices'} onPress={() => setKind('invoices')} icon="document-text-outline"  showIcon="active-only" tint={theme.warning} />
+        {PILLS.map(p => (
+          <Pill
+            key={p.kind}
+            label={p.label}
+            active={kind === p.kind}
+            onPress={() => setKind(p.kind)}
+            icon={p.icon}
+            showIcon="active-only"
+            tint={(theme as any)[p.tintKey]}
+          />
+        ))}
       </PillRow>
 
-      {loading && <ActivityIndicator color={theme.accent} style={{ marginTop: 16 }} />}
+      <TouchableOpacity style={styles.createBar} onPress={active.createFn} activeOpacity={0.7}>
+        <View style={[styles.createIcon, { backgroundColor: activeTint + '22' }]}>
+          <Ionicons name="add" size={18} color={activeTint} />
+        </View>
+        <Text style={[styles.createText, { color: activeTint }]}>{active.createLabel}</Text>
+      </TouchableOpacity>
 
-      {showEmpty ? (
-        <ScrollView>
-          {recentClients.length > 0 && (
-            <>
-              <SectionHeader label="Recently active" />
-              {recentClients.map((c, i) => (
-                <View key={c.id}>
-                  {i > 0 ? <Divider inset={64} /> : null}
-                  <ClientRow theme={theme} c={c} />
-                </View>
-              ))}
-            </>
-          )}
-          {recentClients.length === 0 && (
-            <View style={{ alignItems: 'center', marginTop: 80, paddingHorizontal: 32 }}>
-              <Text style={styles.emptyTitle}>Find anything</Text>
-              <Text style={styles.emptySub}>Search clients, jobs, and invoices.</Text>
-            </View>
-          )}
-        </ScrollView>
-      ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
-          {(kind === 'all' || kind === 'clients') && clients.length > 0 && (
-            <>
-              <SectionHeader label="Clients" hint={`${clients.length}`} />
-              {clients.map((c, i) => (
-                <View key={c.id}>
-                  {i > 0 ? <Divider inset={64} /> : null}
-                  <ClientRow theme={theme} c={c} />
-                </View>
-              ))}
-            </>
-          )}
-          {(kind === 'all' || kind === 'jobs') && jobs.length > 0 && (
-            <>
-              <SectionHeader label="Jobs" hint={`${jobs.length}`} />
-              {jobs.map((j, i) => (
-                <View key={j.id}>
-                  {i > 0 ? <Divider inset={64} /> : null}
-                  <JobRow theme={theme} j={j} />
-                </View>
-              ))}
-            </>
-          )}
-          {(kind === 'all' || kind === 'invoices') && invoices.length > 0 && (
-            <>
-              <SectionHeader label="Invoices" hint={`${invoices.length}`} />
-              {invoices.map((inv, i) => (
-                <View key={inv.id}>
-                  {i > 0 ? <Divider inset={64} /> : null}
-                  <InvoiceRow theme={theme} inv={inv} />
-                </View>
-              ))}
-            </>
-          )}
-          {!loading && q.trim() && totalHits === 0 && (
-            <View style={{ alignItems: 'center', marginTop: 80, paddingHorizontal: 32 }}>
-              <Text style={styles.emptyTitle}>No matches</Text>
-              <Text style={styles.emptySub}>Nothing found for "{q}".</Text>
-            </View>
-          )}
-        </ScrollView>
-      )}
+      {loading && total === 0 ? (
+        <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+          <ActivityIndicator color={theme.accent} />
+        </View>
+      ) : null}
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        {total > 0 ? (
+          <SectionHeader
+            label={active.label}
+            hint={`${total}${total === 50 ? '+' : ''}`}
+          />
+        ) : null}
+
+        {kind === 'clients' && data.clients.map((c, i) => (
+          <View key={c.id}>
+            {i > 0 ? <Divider inset={64} /> : null}
+            <ClientRow theme={theme} c={c} />
+          </View>
+        ))}
+        {kind === 'quotes' && data.quotes.map((r, i) => (
+          <View key={r.id}>
+            {i > 0 ? <Divider inset={64} /> : null}
+            <QuoteRowView theme={theme} r={r} />
+          </View>
+        ))}
+        {kind === 'estimates' && data.estimates.map((j, i) => (
+          <View key={j.id}>
+            {i > 0 ? <Divider inset={64} /> : null}
+            <EstimateRow theme={theme} j={j} />
+          </View>
+        ))}
+        {kind === 'jobs' && data.jobs.map((j, i) => (
+          <View key={j.id}>
+            {i > 0 ? <Divider inset={64} /> : null}
+            <JobRow theme={theme} j={j} />
+          </View>
+        ))}
+        {kind === 'invoices' && data.invoices.map((inv, i) => (
+          <View key={inv.id}>
+            {i > 0 ? <Divider inset={64} /> : null}
+            <InvoiceRow theme={theme} inv={inv} />
+          </View>
+        ))}
+
+        {!loading && total === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyTitle}>
+              {q.trim() ? `No ${active.label.toLowerCase()} for "${q}"` : `No ${active.label.toLowerCase()} yet`}
+            </Text>
+            <Text style={styles.emptySub}>Tap "{active.createLabel}" above to add the first one.</Text>
+          </View>
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
@@ -188,7 +216,7 @@ function ClientRow({ theme, c }: { theme: Theme; c: Client }) {
     <Row
       leading={<RowAvatar letter={c.name.charAt(0).toUpperCase()} tint={theme.stagePurple} />}
       title={c.name}
-      subtitle={[c.company, c.email].filter(Boolean).join(' · ') || c.phone || 'Client'}
+      subtitle={[(c as any).company, c.email].filter(Boolean).join(' · ') || c.phone || 'Client'}
       trailing={
         c.phone ? (
           <TouchableOpacity onPress={() => Linking.openURL(`tel:${c.phone}`)} hitSlop={8}>
@@ -201,14 +229,34 @@ function ClientRow({ theme, c }: { theme: Theme; c: Client }) {
   );
 }
 
-function JobRow({ theme, j }: { theme: Theme; j: JobHit }) {
+function QuoteRowView({ theme, r }: { theme: Theme; r: QuoteRow }) {
   return (
     <Row
-      leading={<RowAvatar icon="hammer-outline" tint={theme.accent} />}
-      title={j.name}
-      subtitle={j.address || j.clients?.name || j.status}
-      trailing={Number(j.invoice_amount || 0) > 0 ? (
+      leading={<RowAvatar icon="pricetag-outline" tint={theme.stageIndigo} />}
+      title={r.name}
+      subtitle={[
+        r.clients?.name,
+        r.frequency ? `every ${r.frequency}` : null,
+        r.next_due ? `next ${r.next_due}` : null,
+      ].filter(Boolean).join(' · ') || 'Service agreement'}
+      trailing={Number(r.price || 0) > 0 ? (
         <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: '700' }}>
+          ${Number(r.price).toLocaleString()}
+        </Text>
+      ) : null}
+      onPress={() => Alert.alert('Service agreement', 'Mobile edit is on the roadmap.')}
+    />
+  );
+}
+
+function EstimateRow({ theme, j }: { theme: Theme; j: JobHit }) {
+  return (
+    <Row
+      leading={<RowAvatar icon="document-text-outline" tint={theme.stageCyan} />}
+      title={j.name}
+      subtitle={[j.clients?.name, j.address].filter(Boolean).join(' · ') || j.status}
+      trailing={Number(j.invoice_amount || 0) > 0 ? (
+        <Text style={{ color: theme.textMuted, fontSize: 12, fontWeight: '700' }}>
           ${Number(j.invoice_amount).toLocaleString()}
         </Text>
       ) : null}
@@ -217,7 +265,21 @@ function JobRow({ theme, j }: { theme: Theme; j: JobHit }) {
   );
 }
 
-function InvoiceRow({ theme, inv }: { theme: Theme; inv: InvoiceHit }) {
+function JobRow({ theme, j }: { theme: Theme; j: JobHit }) {
+  return (
+    <Row
+      leading={<RowAvatar icon="hammer-outline" tint={theme.stageGreen} />}
+      title={j.name}
+      subtitle={[j.clients?.name, j.address || j.status].filter(Boolean).join(' · ')}
+      trailing={j.scheduled_date ? (
+        <Text style={{ color: theme.textMuted, fontSize: 12, fontWeight: '700' }}>{j.scheduled_date}</Text>
+      ) : null}
+      onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
+    />
+  );
+}
+
+function InvoiceRow({ theme, inv }: { theme: Theme; inv: JobHit }) {
   const paid = String(inv.payment_status || '').toLowerCase() === 'paid';
   const statusColor = paid ? theme.success : theme.warning;
   return (
@@ -247,7 +309,20 @@ function makeStyles(t: Theme) {
     },
     input: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 0 },
 
-    emptyTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '800', marginBottom: 6 },
-    emptySub: { color: t.textMuted, fontSize: 14, textAlign: 'center' },
+    createBar: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingHorizontal: 16, paddingVertical: 12,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
+    },
+    createIcon: {
+      width: 28, height: 28, borderRadius: 14,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    createText: { fontSize: 14, fontWeight: '800' },
+
+    emptyWrap: { paddingTop: 60, paddingHorizontal: 32, alignItems: 'center' },
+    emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
+    emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center' },
   });
 }

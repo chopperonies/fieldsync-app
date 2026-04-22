@@ -127,14 +127,6 @@ export default function OwnerLayout() {
         }}
       />
       <Tabs.Screen
-        name="clients"
-        options={{
-          title: 'Clients',
-          tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="more"
         options={{
           title: 'More',
@@ -143,7 +135,8 @@ export default function OwnerLayout() {
           headerTitle: 'More',
         }}
       />
-      {/* Hidden from tab bar — accessible via More screen or deep links */}
+      {/* Hidden from tab bar — accessible via Search, More screen, or deep links */}
+      <Tabs.Screen name="clients"   options={{ href: null }} />
       <Tabs.Screen name="crew"      options={{ href: null }} />
       <Tabs.Screen name="invoices"  options={{ href: null }} />
       <Tabs.Screen name="photos"    options={{ href: null }} />
