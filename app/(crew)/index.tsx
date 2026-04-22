@@ -245,7 +245,7 @@ export default function CheckIn() {
 
       <PunchMap
         pins={myPins}
-        height={150}
+        height={220}
         emptyLabel="Clock in to drop a pin"
       />
 

@@ -21,8 +21,6 @@ export type MapPin = {
 
 type Props = {
   pins: MapPin[];
-  title?: string;
-  subtitle?: string;
   height?: number;
   emptyLabel?: string;
 };
@@ -32,7 +30,7 @@ function mapsDeepLink(lat: number, lng: number): string {
 }
 
 export default function PunchMap({
-  pins, title, subtitle, height = 180, emptyLabel = 'No clock-ins yet today',
+  pins, height = 260, emptyLabel = 'No clock-ins yet today',
 }: Props) {
   const theme = useTheme();
   const styles = makeStyles(theme);
@@ -77,12 +75,6 @@ export default function PunchMap({
           style={{ width: '100%', height, backgroundColor: theme.surfaceInset }}
           resizeMode="cover"
         />
-        {title || subtitle ? (
-          <View style={styles.overlay}>
-            {title ? <Text style={styles.title}>{title}</Text> : null}
-            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-          </View>
-        ) : null}
         <View style={styles.openChip}>
           <Ionicons name="open-outline" size={12} color={theme.textPrimary} />
           <Text style={styles.openChipText}>Open</Text>
@@ -109,14 +101,6 @@ function makeStyles(t: Theme) {
       backgroundColor: t.surfaceInset,
     },
     emptyText: { color: t.textMuted, fontSize: 13, fontWeight: '600' },
-    overlay: {
-      position: 'absolute', bottom: 8, left: 10, right: 10,
-      padding: 8,
-      borderRadius: 10,
-      backgroundColor: t.isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.9)',
-    },
-    title: { color: t.textPrimary, fontSize: 13, fontWeight: '800' },
-    subtitle: { color: t.textSecondary, fontSize: 11, fontWeight: '600', marginTop: 1 },
     openChip: {
       position: 'absolute', top: 8, right: 8,
       flexDirection: 'row', alignItems: 'center', gap: 4,

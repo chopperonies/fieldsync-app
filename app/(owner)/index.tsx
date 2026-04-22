@@ -183,14 +183,40 @@ export default function OwnerOverview() {
 
       <ClockInCard onChange={loadCrewPins} />
 
-      <PunchMap
-        pins={crewPins}
-        title={crewPins.length > 0 ? `Crew today · ${crewPins.length}` : undefined}
-        subtitle={crewPins.filter(p => p.active).length > 0
-          ? `${crewPins.filter(p => p.active).length} on the clock now`
-          : undefined}
-        emptyLabel="No crew clock-ins yet today"
-      />
+      {crewPins.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.crewStrip}
+        >
+          {crewPins
+            .slice()
+            .sort((a, b) => Number(!!b.active) - Number(!!a.active))
+            .map((p, i) => (
+              <View
+                key={`${p.name || i}-${i}`}
+                style={[
+                  styles.crewChip,
+                  p.active
+                    ? { backgroundColor: theme.successMuted, borderColor: theme.success + '55' }
+                    : { backgroundColor: theme.surfaceInset, borderColor: 'transparent' },
+                ]}
+              >
+                <View style={[
+                  styles.crewDot,
+                  { backgroundColor: p.active ? theme.success : theme.textMuted },
+                ]} />
+                <Text style={[
+                  styles.crewChipText,
+                  { color: p.active ? theme.success : theme.textSecondary },
+                ]}>
+                  {p.name || 'Crew'}
+                </Text>
+              </View>
+            ))}
+        </ScrollView>
+      ) : null}
+      <PunchMap pins={crewPins} emptyLabel="No crew clock-ins yet today" />
 
 
       {todoItems.length > 0 && (
@@ -335,5 +361,22 @@ function makeStyles(t: Theme) {
     greeting: { color: t.textPrimary, fontSize: 28, fontWeight: '800' },
 
     emptyText: { color: t.textMuted, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14 },
+
+    crewStrip: {
+      paddingHorizontal: 16,
+      paddingTop: 14,
+      paddingBottom: 2,
+      gap: 6,
+      flexDirection: 'row',
+    },
+    crewChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      height: 28,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    crewDot: { width: 7, height: 7, borderRadius: 4 },
+    crewChipText: { fontSize: 12, fontWeight: '700' },
   });
 }
