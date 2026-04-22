@@ -58,7 +58,13 @@ export default function ClockInCard({ onChange }: { onChange?: () => void }) {
 
   const reload = useCallback(async () => {
     try {
-      const data = await mobileGet<ClockState>('/api/mobile/me/clock-state');
+      // Tell the server what "today" means in the user's local timezone.
+      // Render runs UTC, so its midnight doesn't match the user's midnight
+      // and yesterday's entries can leak into today's total.
+      const local = new Date();
+      local.setHours(0, 0, 0, 0);
+      const since = encodeURIComponent(local.toISOString());
+      const data = await mobileGet<ClockState>(`/api/mobile/me/clock-state?since=${since}`);
       setState({
         open: data.open || null,
         totalMs: data.totalMs || 0,
