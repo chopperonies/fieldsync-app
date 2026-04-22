@@ -127,6 +127,15 @@ export default function OwnerLayout() {
         }}
       />
       <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={size} color={color} />,
+          headerTitle: 'Messages',
+        }}
+      />
+      <Tabs.Screen
         name="more"
         options={{
           title: 'More',
@@ -144,6 +153,8 @@ export default function OwnerLayout() {
       <Tabs.Screen name="dashboard" options={{ href: null }} />
       <Tabs.Screen name="settings"  options={{ href: null }} />
       <Tabs.Screen name="job/[id]"  options={{ href: null, title: 'Job' }} />
+      <Tabs.Screen name="message/[id]"  options={{ href: null, title: 'Message' }} />
+      <Tabs.Screen name="message-new"   options={{ href: null, title: 'New message' }} />
     </Tabs>
     <OwnerFab />
     </View>
