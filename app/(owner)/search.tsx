@@ -66,7 +66,7 @@ export default function OwnerSearch() {
   const theme = useTheme();
   const styles = makeStyles(theme);
   const role = useRole();
-  const allowCreate = canCreateInvoices(role); // manager+
+  const canCreateFinancials = canCreateInvoices(role); // manager+ (invoices)
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<Kind>('clients');
   const [loading, setLoading] = useState(false);
@@ -150,7 +150,7 @@ export default function OwnerSearch() {
         ))}
       </PillRow>
 
-      {allowCreate ? (
+      {(kind !== 'invoices' || canCreateFinancials) ? (
         <TouchableOpacity style={styles.createBar} onPress={active.createFn} activeOpacity={0.7}>
           <View style={[styles.createIcon, { backgroundColor: activeTint + '22' }]}>
             <Ionicons name="add" size={18} color={activeTint} />
