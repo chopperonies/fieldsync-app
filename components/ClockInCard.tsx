@@ -86,6 +86,24 @@ export default function ClockInCard({ onChange }: { onChange?: () => void }) {
     return () => clearInterval(id);
   }, [state.open]);
 
+  // Heartbeat: while clocked in + app foregrounded, ping our location to the
+  // server every 5 min. Feeds the Live Map on the web dashboard. Foreground
+  // only — no background location tracking.
+  useEffect(() => {
+    if (!state.open) return;
+    let cancelled = false;
+    async function ping() {
+      if (cancelled) return;
+      const gps = await getGPS();
+      if (!gps) return;
+      try { await mobilePost('/api/mobile/me/heartbeat', gps); } catch {}
+    }
+    // Fire an immediate ping so the dashboard has a fresh dot.
+    ping();
+    const id = setInterval(ping, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [state.open]);
+
   async function punchIn() {
     if (busy) return;
     setBusy(true);
@@ -133,7 +151,12 @@ export default function ClockInCard({ onChange }: { onChange?: () => void }) {
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={styles.label}>Today's total</Text>
         <Text style={styles.time}>{fmtHMS(totalMs)}</Text>
-        {isActive ? <Text style={styles.live}>● Clocked in</Text> : null}
+        {isActive ? (
+          <>
+            <Text style={styles.live}>● Clocked in</Text>
+            <Text style={styles.hint}>Location refreshes every 5 min</Text>
+          </>
+        ) : null}
       </View>
       <TouchableOpacity
         style={[
@@ -184,6 +207,7 @@ function makeStyles(t: Theme) {
       letterSpacing: -0.5,
     },
     live: { color: t.success, fontSize: 11, fontWeight: '800', marginTop: 2, letterSpacing: 0.3 },
+    hint: { color: t.textMuted, fontSize: 10, marginTop: 1 },
     btn: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
       borderWidth: 1,
