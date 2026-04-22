@@ -26,29 +26,21 @@ export default function CrewLayout() {
       }}
     >
       <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />,
+          headerTitle: 'LinkCrew',
+        }}
+      />
+      <Tabs.Screen
         name="schedule"
         options={{
           title: 'Schedule',
           tabBarIcon: ({ color, size, focused }) =>
             <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={size} color={color} />,
           headerTitle: 'Schedule',
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Check In',
-          tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'location' : 'location-outline'} size={size} color={color} />,
-          headerTitle: 'LinkCrew',
-        }}
-      />
-      <Tabs.Screen
-        name="photo"
-        options={{
-          title: 'Photo',
-          tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'camera' : 'camera-outline'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -67,25 +59,12 @@ export default function CrewLayout() {
             <Ionicons name={focused ? 'create' : 'create-outline'} size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="supplies"
-        options={{
-          title: 'Supplies',
-          tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'layers' : 'layers-outline'} size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="bottleneck"
-        options={{
-          title: 'Issues',
-          tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'alert-circle' : 'alert-circle-outline'} size={size} color={color} />,
-        }}
-      />
-      {/* Nested dynamic route — hidden from tab bar; reached via router.push from the jobs list */}
-      <Tabs.Screen name="job/[id]" options={{ href: null, title: 'Job' }} />
-      <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
+      {/* Hidden tabs — still reachable via deep-link / job detail, just not in the tab bar. */}
+      <Tabs.Screen name="photo"      options={{ href: null }} />
+      <Tabs.Screen name="supplies"   options={{ href: null }} />
+      <Tabs.Screen name="bottleneck" options={{ href: null }} />
+      <Tabs.Screen name="job/[id]"   options={{ href: null, title: 'Job' }} />
+      <Tabs.Screen name="settings"   options={{ href: null, title: 'Settings' }} />
     </Tabs>
   );
 }

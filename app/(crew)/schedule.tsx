@@ -1,51 +1,95 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, SectionList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, RefreshControl,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  FlatList, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Job } from '../../lib/supabase';
 import { mobileGet } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { statusMeta } from '../../lib/jobStatus';
-import { prettyDate, fromDateString } from '../../components/CalendarPicker';
 
-type Bucket = 'today' | 'tomorrow' | 'thisWeek' | 'later' | 'undated';
-
-const BUCKET_LABEL: Record<Bucket, string> = {
-  today: 'Today',
-  tomorrow: 'Tomorrow',
-  thisWeek: 'Later this week',
-  later: 'Later',
-  undated: 'No date picked',
+type CrewMember = { employee_id: string; name: string };
+type ScheduleJob = {
+  id: string;
+  name: string;
+  address: string | null;
+  status: string;
+  scheduled_date: string | null;
+  client_id?: string | null;
+  client_name?: string | null;
+  crew: CrewMember[];
 };
 
-function bucketFor(dateStr: string | null | undefined): Bucket {
-  if (!dateStr) return 'undated';
-  const d = fromDateString(dateStr);
-  if (!d) return 'undated';
+const DAY_LETTERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function isoDay(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function weekStrip(anchor: Date): Date[] {
+  const sunday = new Date(anchor);
+  sunday.setDate(anchor.getDate() - anchor.getDay());
+  sunday.setHours(0, 0, 0, 0);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
+    return d;
+  });
+}
+
+function friendlyDayLabel(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const day = new Date(d); day.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((day.getTime() - today.getTime()) / 86_400_000);
-  if (diffDays <= 0) return 'today';
-  if (diffDays === 1) return 'tomorrow';
-  if (diffDays <= 6) return 'thisWeek';
-  return 'later';
+  const diff = Math.round((d.getTime() - today.getTime()) / 86_400_000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff === -1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function statusStamp(status: string): { label: string; color: string } | null {
+  const s = String(status || '').toLowerCase();
+  if (s === 'invoiced') return { label: 'INVOICED', color: '#2563eb' };
+  if (s === 'paid') return { label: 'PAID', color: '#16a34a' };
+  if (s === 'completed' || s === 'complete') return { label: 'DONE', color: '#0891b2' };
+  if (s === 'quote' || s === 'quoted') return { label: 'QUOTE', color: '#d97706' };
+  return null;
+}
+
+// Deterministic color per crew-member name — initials on the chip,
+// stable tint across renders.
+function hashColor(seed: string, theme: Theme): string {
+  const colors = [theme.stageBlue, theme.stageCyan, theme.stageGreen, theme.stageIndigo, theme.stagePurple, theme.stageAmber];
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return colors[Math.abs(h) % colors.length];
 }
 
 export default function CrewSchedule() {
   const theme = useTheme();
   const styles = makeStyles(theme);
   const router = useRouter();
-  const [jobs, setJobs] = useState<Job[]>([]);
+
+  const [anchor, setAnchor] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
+  const [selected, setSelected] = useState<string>(() => isoDay(new Date()));
+  const [jobs, setJobs] = useState<ScheduleJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const week = useMemo(() => weekStrip(anchor), [anchor]);
+  const rangeStart = week[0];
+  const rangeEnd = week[6];
+
   const load = useCallback(async () => {
     try {
-      const data = await mobileGet<Job[]>('/api/mobile/crew/jobs');
+      const data = await mobileGet<ScheduleJob[]>(
+        `/api/mobile/crew/schedule?start=${isoDay(rangeStart)}&end=${isoDay(rangeEnd)}`
+      );
       setJobs(data || []);
     } catch {
       setJobs([]);
@@ -53,91 +97,158 @@ export default function CrewSchedule() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [rangeStart, rangeEnd]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Group, preserve order: today -> tomorrow -> thisWeek -> later -> undated.
-  const buckets: Record<Bucket, Job[]> = {
-    today: [], tomorrow: [], thisWeek: [], later: [], undated: [],
-  };
-  for (const j of jobs) buckets[bucketFor(j.scheduled_date)].push(j);
-  for (const k of Object.keys(buckets) as Bucket[]) {
-    buckets[k].sort((a, b) => {
-      const ad = a.scheduled_date || '';
-      const bd = b.scheduled_date || '';
-      if (ad !== bd) return ad.localeCompare(bd);
-      return a.name.localeCompare(b.name);
-    });
+  const jobsByDay: Record<string, ScheduleJob[]> = {};
+  for (const j of jobs) {
+    const k = j.scheduled_date || '';
+    if (!k) continue;
+    (jobsByDay[k] = jobsByDay[k] || []).push(j);
   }
-  const sections = (['today', 'tomorrow', 'thisWeek', 'later', 'undated'] as Bucket[])
-    .filter(k => buckets[k].length > 0)
-    .map(k => ({ key: k, title: BUCKET_LABEL[k], data: buckets[k] }));
-
-  if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
-  }
-
-  const totalToday = buckets.today.length;
+  const selectedJobs = jobsByDay[selected] || [];
 
   return (
     <View style={styles.container}>
-      <View style={styles.hero}>
-        <Text style={styles.heroLabel}>{totalToday > 0 ? "TODAY'S WORK" : 'UPCOMING'}</Text>
-        <Text style={styles.heroTitle}>
-          {totalToday === 0
-            ? 'Nothing scheduled for today'
-            : totalToday === 1
-              ? '1 job on the books'
-              : `${totalToday} jobs on the books`}
+      {/* Week strip with navigation */}
+      <View style={styles.weekNav}>
+        <TouchableOpacity
+          onPress={() => {
+            const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d);
+          }}
+          hitSlop={12}
+        >
+          <Ionicons name="chevron-back" size={20} color={theme.textSecondary} />
+        </TouchableOpacity>
+        <Text style={styles.weekLabel}>
+          {rangeStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {rangeEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         </Text>
-        <Text style={styles.heroBody}>
-          {totalToday > 0
-            ? 'Tap any card to open the workflow and check in.'
-            : 'Check back later or swipe down to refresh.'}
+        <TouchableOpacity
+          onPress={() => {
+            const d = new Date(anchor); d.setDate(d.getDate() + 7); setAnchor(d);
+          }}
+          hitSlop={12}
+        >
+          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.weekStrip}>
+        {week.map((d, i) => {
+          const key = isoDay(d);
+          const selectedDay = key === selected;
+          const today = isoDay(new Date()) === key;
+          const hasJobs = !!jobsByDay[key]?.length;
+          return (
+            <TouchableOpacity
+              key={i}
+              style={styles.dayCell}
+              onPress={() => setSelected(key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                styles.dayLetter,
+                selectedDay && { color: theme.accent, fontWeight: '800' },
+              ]}>{DAY_LETTERS[i]}</Text>
+              <View style={[
+                styles.dayBubble,
+                selectedDay && { backgroundColor: theme.accent },
+              ]}>
+                <Text style={[
+                  styles.dayNumber,
+                  selectedDay && { color: theme.accentContrast, fontWeight: '800' },
+                  today && !selectedDay && { color: theme.accent, fontWeight: '800' },
+                ]}>
+                  {d.getDate()}
+                </Text>
+              </View>
+              <View style={[
+                styles.dayDot,
+                hasJobs && { backgroundColor: selectedDay ? theme.accent : theme.textMuted },
+              ]} />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View style={styles.selectedHeader}>
+        <Text style={styles.selectedLabel}>{friendlyDayLabel(selected)}</Text>
+        <Text style={styles.selectedCount}>
+          {selectedJobs.length === 0 ? 'No jobs' : `${selectedJobs.length} job${selectedJobs.length === 1 ? '' : 's'}`}
         </Text>
       </View>
 
-      <SectionList
-        sections={sections}
+      <FlatList
+        data={selectedJobs}
         keyExtractor={j => j.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
         ListEmptyComponent={
-          <View style={{ padding: 32, alignItems: 'center' }}>
-            <Text style={styles.empty}>No jobs assigned yet.</Text>
-          </View>
+          !loading ? (
+            <View style={styles.empty}>
+              <Ionicons name="calendar-outline" size={32} color={theme.textMuted} />
+              <Text style={styles.emptyTitle}>Nothing scheduled</Text>
+              <Text style={styles.emptySub}>
+                Pick a different day or swipe down to refresh.
+              </Text>
+            </View>
+          ) : null
         }
-        renderSectionHeader={({ section }) => (
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeader}>{section.title}</Text>
-            <Text style={styles.sectionCount}>{section.data.length}</Text>
-          </View>
-        )}
         renderItem={({ item }) => {
           const meta = statusMeta(item.status);
-          const color = theme[meta.tone];
+          const tone = theme[meta.tone];
+          const stamp = statusStamp(item.status);
           return (
             <TouchableOpacity
-              activeOpacity={0.75}
+              activeOpacity={0.7}
+              style={styles.jobRow}
               onPress={() => router.push({ pathname: '/(crew)/job/[id]', params: { id: item.id } } as any)}
-              style={styles.jobCard}
             >
-              <View style={[styles.dateTag, { backgroundColor: color + '1f', borderColor: color + '55' }]}>
-                <Ionicons name={meta.icon} size={13} color={color} />
-                <Text style={[styles.dateTagText, { color }]}>{prettyDate(item.scheduled_date)}</Text>
-              </View>
-              <View style={{ marginTop: 6 }}>
-                <Text style={styles.jobName} numberOfLines={1}>{item.name}</Text>
-                {item.address ? <Text style={styles.jobAddress} numberOfLines={1}>{item.address}</Text> : null}
-              </View>
-              <View style={styles.jobFoot}>
-                <Text style={[styles.statusTag, { color }]}>{meta.label}</Text>
-                <Text style={styles.chev}>›</Text>
+              <View style={[styles.leftBar, { backgroundColor: tone }]} />
+              <View style={{ flex: 1, paddingLeft: 14, paddingVertical: 14, paddingRight: 14 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.jobName} numberOfLines={1}>{item.name}</Text>
+                    {item.client_name ? <Text style={styles.jobClient} numberOfLines={1}>{item.client_name}</Text> : null}
+                    {item.address ? <Text style={styles.jobAddress} numberOfLines={1}>{item.address}</Text> : null}
+                  </View>
+                  {stamp ? (
+                    <View style={[styles.stamp, { borderColor: stamp.color + '66' }]}>
+                      <Text style={[styles.stampText, { color: stamp.color }]}>{stamp.label}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {item.crew && item.crew.length > 0 ? (
+                  <View style={styles.crewRow}>
+                    {item.crew.slice(0, 4).map((c, i) => (
+                      <View
+                        key={`${c.employee_id}-${i}`}
+                        style={[styles.crewChip, { backgroundColor: hashColor(c.name, theme) + '22', borderColor: hashColor(c.name, theme) + '55' }]}
+                      >
+                        <View style={[styles.crewInitial, { backgroundColor: hashColor(c.name, theme) }]}>
+                          <Text style={styles.crewInitialText}>{c.name.charAt(0).toUpperCase()}</Text>
+                        </View>
+                        <Text style={[styles.crewChipName, { color: hashColor(c.name, theme) }]}>
+                          {c.name.split(' ')[0]}
+                        </Text>
+                      </View>
+                    ))}
+                    {item.crew.length > 4 ? (
+                      <Text style={styles.crewMore}>+{item.crew.length - 4}</Text>
+                    ) : null}
+                  </View>
+                ) : (
+                  <Text style={styles.unassigned}>Unassigned</Text>
+                )}
+                <View style={styles.statusFoot}>
+                  <Ionicons name={meta.icon} size={13} color={tone} />
+                  <Text style={[styles.statusLabel, { color: tone }]}>{meta.label}</Text>
+                </View>
               </View>
             </TouchableOpacity>
           );
         }}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </View>
   );
@@ -146,44 +257,83 @@ export default function CrewSchedule() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
 
-    hero: {
-      backgroundColor: t.surface, borderBottomWidth: 1, borderBottomColor: t.border,
-      paddingHorizontal: 20, paddingVertical: 16,
-    },
-    heroLabel: { color: t.accent, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
-    heroTitle: { color: t.textPrimary, fontSize: 20, fontWeight: '800', marginTop: 4 },
-    heroBody: { color: t.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 4 },
-
-    sectionHeaderRow: {
+    weekNav: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingVertical: 10, marginTop: 4,
+      paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6,
     },
-    sectionHeader: { color: t.textPrimary, fontSize: 13, fontWeight: '800', letterSpacing: 0.3 },
-    sectionCount: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
+    weekLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '800' },
 
-    jobCard: {
-      backgroundColor: t.surface, borderRadius: 14,
-      borderWidth: 1, borderColor: t.border,
-      padding: 14, marginBottom: 10,
+    weekStrip: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      paddingVertical: 8, paddingHorizontal: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
     },
-    dateTag: {
-      alignSelf: 'flex-start',
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      borderWidth: 1, borderRadius: 10,
-      paddingVertical: 4, paddingHorizontal: 8,
+    dayCell: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
+    dayLetter: { color: t.textMuted, fontSize: 11, fontWeight: '700' },
+    dayBubble: {
+      width: 34, height: 34, borderRadius: 17,
+      alignItems: 'center', justifyContent: 'center',
     },
-    dateTagText: { fontSize: 12, fontWeight: '700' },
-    jobName: { color: t.textPrimary, fontSize: 16, fontWeight: '700' },
-    jobAddress: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
-    jobFoot: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      marginTop: 10,
-    },
-    statusTag: { fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
-    chev: { color: t.textMuted, fontSize: 22 },
+    dayNumber: { color: t.textSecondary, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+    dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 2 },
 
-    empty: { color: t.textMuted, fontSize: 14, textAlign: 'center' },
+    selectedHeader: {
+      flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+      paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8,
+    },
+    selectedLabel: { color: t.textPrimary, fontSize: 18, fontWeight: '800' },
+    selectedCount: { color: t.textMuted, fontSize: 13, fontWeight: '700' },
+
+    jobRow: {
+      flexDirection: 'row',
+      backgroundColor: t.surface,
+    },
+    leftBar: { width: 4 },
+    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '700' },
+    jobClient: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    jobAddress: { color: t.textMuted, fontSize: 12, marginTop: 2 },
+
+    stamp: {
+      borderWidth: 1, borderRadius: 6,
+      paddingVertical: 3, paddingHorizontal: 6,
+      transform: [{ rotate: '-6deg' }],
+      marginLeft: 8, marginTop: 2,
+    },
+    stampText: { fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+
+    crewRow: {
+      flexDirection: 'row', flexWrap: 'wrap',
+      gap: 6, marginTop: 10,
+      alignItems: 'center',
+    },
+    crewChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      height: 26, paddingRight: 8,
+      borderRadius: 999, borderWidth: 1,
+    },
+    crewInitial: {
+      width: 22, height: 22, borderRadius: 11,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    crewInitialText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+    crewChipName: { fontSize: 11, fontWeight: '800' },
+    crewMore: { color: t.textMuted, fontSize: 12, fontWeight: '700', marginLeft: 2 },
+    unassigned: { color: t.textMuted, fontSize: 12, fontStyle: 'italic', marginTop: 10 },
+
+    statusFoot: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      marginTop: 8,
+    },
+    statusLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+
+    separator: {
+      height: StyleSheet.hairlineWidth, backgroundColor: t.border,
+      marginLeft: 20,
+    },
+
+    empty: { padding: 60, alignItems: 'center', gap: 8 },
+    emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '700' },
+    emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center' },
   });
 }
