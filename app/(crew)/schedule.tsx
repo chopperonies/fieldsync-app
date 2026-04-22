@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileGet } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import { statusMeta } from '../../lib/jobStatus';
 
 type CrewMember = { employee_id: string; name: string };
 type ScheduleJob = {
@@ -16,6 +17,8 @@ type ScheduleJob = {
   address: string | null;
   status: string;
   scheduled_date: string | null;
+  payment_status?: string | null;
+  invoice_amount?: number | null;
   client_id?: string | null;
   client_name?: string | null;
   crew: CrewMember[];
@@ -65,17 +68,18 @@ function hashIndex(seed: string, mod: number): number {
   return Math.abs(h) % mod;
 }
 
-function jobPalette(theme: Theme): Array<{ bg: string; border: string; text: string }> {
-  // Soft tinted fills derived from the theme's stage palette.
-  const base = [
-    theme.stageBlue,
-    theme.stageAmber,
-    theme.stageGreen,
-    theme.stagePurple,
-    theme.stageCyan,
-    theme.stageIndigo,
-  ];
-  return base.map(c => ({ bg: c + '1a', border: c, text: c }));
+// Status-driven color for a job card. Order of precedence:
+//   paid  → bright green (money in)
+//   status → normalized via statusMeta (Quoted=indigo, Booked=blue,
+//            On the way=purple, In progress=cyan, On hold=amber,
+//            Complete=green, Invoiced=purple, Canceled=danger)
+function colorForJob(theme: Theme, job: ScheduleJob): { bg: string; border: string; text: string } {
+  const paid = String(job.payment_status || '').toLowerCase() === 'paid';
+  if (paid) {
+    return { bg: theme.success + '1a', border: theme.success, text: theme.success };
+  }
+  const tone = theme[statusMeta(job.status).tone];
+  return { bg: tone + '1a', border: tone, text: tone };
 }
 
 function crewColor(theme: Theme, name: string): string {
@@ -89,12 +93,14 @@ function dayTint(theme: Theme, dayIndex: number): string {
   return palette[dayIndex % palette.length];
 }
 
-function statusStamp(status: string): { label: string; color: string } | null {
-  const s = String(status || '').toLowerCase();
-  if (s === 'invoiced') return { label: 'INVOICED', color: '#2563eb' };
-  if (s === 'paid') return { label: 'PAID', color: '#16a34a' };
-  if (s === 'completed' || s === 'complete') return { label: 'DONE', color: '#0891b2' };
-  if (s === 'quote' || s === 'quoted') return { label: 'QUOTE', color: '#d97706' };
+function statusStamp(theme: Theme, job: ScheduleJob): { label: string; color: string } | null {
+  const paid = String(job.payment_status || '').toLowerCase() === 'paid';
+  if (paid) return { label: 'PAID', color: theme.success };
+  const s = String(job.status || '').toLowerCase();
+  if (s === 'invoiced') return { label: 'INVOICED', color: theme.stagePurple };
+  if (s === 'complete' || s === 'completed') return { label: 'DONE', color: theme.stageGreen };
+  if (s === 'quote' || s === 'quoted') return { label: 'QUOTE', color: theme.stageIndigo };
+  if (s === 'canceled' || s === 'cancelled') return { label: 'CANCELED', color: theme.danger };
   return null;
 }
 
@@ -104,7 +110,6 @@ type PlacedCard = {
   colIndex: number;
   startHour: number;
   endHour: number;
-  paletteIdx: number;
 };
 
 // Auto-lay jobs for a single day across crew columns. For now we don't
@@ -138,7 +143,6 @@ function layoutJobs(jobs: ScheduleJob[]): {
         colIndex,
         startHour,
         endHour,
-        paletteIdx: hashIndex(j.id, 6),
       });
       cursor = endHour; // next job stacks directly below
       if (cursor >= HOUR_END) cursor = HOUR_START + 1;
@@ -161,8 +165,6 @@ export default function CrewSchedule() {
   const week = useMemo(() => weekStrip(anchor), [anchor]);
   const rangeStart = week[0];
   const rangeEnd = week[6];
-  const palette = useMemo(() => jobPalette(theme), [theme]);
-
   const load = useCallback(async () => {
     try {
       const data = await mobileGet<ScheduleJob[]>(
@@ -361,12 +363,12 @@ export default function CrewSchedule() {
 
                   {/* Job cards */}
                   {cards.map((c, i) => {
-                    const p = palette[c.paletteIdx];
+                    const p = colorForJob(theme, c.job);
                     const top = (c.startHour - HOUR_START) * HOUR_HEIGHT;
                     const height = (c.endHour - c.startHour) * HOUR_HEIGHT - 4;
                     const left = c.colIndex * COL_WIDTH + 4;
                     const w = COL_WIDTH - 8;
-                    const stamp = statusStamp(c.job.status);
+                    const stamp = statusStamp(theme, c.job);
                     return (
                       <TouchableOpacity
                         key={`${c.job.id}-${c.colIndex}-${i}`}
