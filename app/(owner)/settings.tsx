@@ -7,6 +7,7 @@ import { mobileGet, mobilePatch, mobilePost } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import LockSettings from '../../components/LockSettings';
 import AppearanceSettings from '../../components/AppearanceSettings';
+import MyProfile from '../../components/MyProfile';
 
 export default function OwnerSettings() {
   const theme = useTheme();
@@ -139,6 +140,11 @@ export default function OwnerSettings() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
     >
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>My Profile</Text>
+      <MyProfile />
+
+      <View style={styles.divider} />
+
       <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Company Info</Text>
       <Text style={styles.hint}>This appears on invoices sent to your clients.</Text>
 

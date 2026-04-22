@@ -4,6 +4,7 @@ import { clearUser } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
 import LockSettings from '../../components/LockSettings';
 import AppearanceSettings from '../../components/AppearanceSettings';
+import MyProfile from '../../components/MyProfile';
 
 async function logout() {
   await clearUser();
@@ -14,6 +15,11 @@ export default function CrewSettings() {
   const theme = useTheme();
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ padding: 20 }}>
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>My Profile</Text>
+      <MyProfile />
+
+      <View style={[styles.divider, { backgroundColor: theme.borderStrong }]} />
+
       <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Appearance</Text>
       <AppearanceSettings />
 
