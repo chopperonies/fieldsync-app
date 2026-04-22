@@ -33,11 +33,19 @@ export const STATUS_META: Meta[] = [
   { key: 'canceled',    label: 'Canceled',    icon: 'close-circle-outline',     tone: 'danger',      description: 'Job canceled — no further work scheduled.' },
 ];
 
-// Legacy aliases we've seen in the DB.
+// Legacy + new-lifecycle aliases. Backend may stamp fine-grained states
+// (dispatched / en_route / on_site / paused / closed) from the crew-driven
+// flow; this pipeline stays at the owner's high-level view.
 const ALIASES: Record<string, JobStatusKey> = {
   active: 'in_progress',
   done: 'complete',
   cancelled: 'canceled',
+  dispatched: 'scheduled',
+  en_route: 'on_the_way',
+  on_site: 'in_progress',
+  paused: 'on_hold',
+  completed: 'complete',
+  closed: 'complete',
 };
 
 export function normalizeStatusKey(raw?: string | null): JobStatusKey {

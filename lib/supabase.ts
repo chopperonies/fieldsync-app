@@ -14,7 +14,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-export type Role = 'crew' | 'manager' | 'owner';
+export type Role = 'crew' | 'supervisor' | 'manager' | 'owner';
 
 export interface Employee {
   id: string;

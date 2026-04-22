@@ -15,7 +15,7 @@ import { mobileGet, mobilePost, mobilePatch, mobileDelete } from '../../lib/mobi
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 
-const ROLES: Role[] = ['crew', 'manager', 'owner'];
+const ROLES: Role[] = ['crew', 'supervisor', 'manager', 'owner'];
 
 export default function OwnerCrew() {
   const theme = useTheme();
@@ -94,6 +94,7 @@ export default function OwnerCrew() {
     if (emp.role === role) return;
     const warnsTo: Record<Role, string> = {
       crew: 'Crew see only jobs they are assigned to.',
+      supervisor: 'Supervisors can approve job closures and manage crew/jobs from mobile + web.',
       manager: 'Managers can see all jobs, clients, supplies, and photos.',
       owner: 'Owners have full access including financials, billing, and crew controls.',
     };
@@ -191,7 +192,7 @@ export default function OwnerCrew() {
     );
   }
 
-  const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', manager: '#0ea5e9', owner: '#a855f7' };
+  const ROLE_COLORS: Record<Role, string> = { crew: '#3b82f6', supervisor: '#14b8a6', manager: '#0ea5e9', owner: '#a855f7' };
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;

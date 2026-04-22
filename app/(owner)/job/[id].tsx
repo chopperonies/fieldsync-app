@@ -14,6 +14,19 @@ import { useTheme } from '../../../lib/themeContext';
 import { Theme } from '../../../lib/theme';
 import { STATUS_META, normalizeStatusKey, lifecycleIndex, LIFECYCLE_ORDER, JobStatusKey } from '../../../lib/jobStatus';
 import { callNumber, textNumber } from '../../../lib/phone';
+import { useRole, isOwnerRole, canEditSettings } from '../../../lib/useRole';
+import JobAttachments from '../../../components/JobAttachments';
+
+// Map UI status key → backend DB status (crew-driven lifecycle).
+const PILL_TO_BACKEND: Record<string, string> = {
+  complete: 'completed',
+  canceled: 'cancelled',
+  on_hold: 'on_hold',
+  on_the_way: 'en_route',
+};
+function toBackendStatus(uiKey: string) {
+  return PILL_TO_BACKEND[uiKey] || uiKey;
+}
 
 type Assignment = {
   id: string;
@@ -41,6 +54,10 @@ export default function OwnerJobDetail() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = makeStyles(theme);
+
+  const role = useRole();
+  const isApprover = role === 'owner' || role === 'manager' || role === 'supervisor';
+  const isCrew = role === 'crew';
 
   const [tab, setTab] = useState<Tab>('overview');
   const [job, setJob] = useState<Job | null>(null);
@@ -91,12 +108,57 @@ export default function OwnerJobDetail() {
 
   async function advance(statusKey: string) {
     if (!job) return;
+    const backendStatus = toBackendStatus(statusKey);
     try {
-      const updated = await mobilePatch<Job>(`/api/mobile/owner/jobs/${job.id}`, { status: statusKey });
-      setJob(prev => prev ? { ...prev, ...updated } : prev);
+      // Owner/manager keep PATCH (writes status plus can set other fields).
+      // Crew/supervisor go through the role-aware transition API.
+      if (isApprover) {
+        const updated = await mobilePatch<Job>(`/api/mobile/owner/jobs/${job.id}`, { status: backendStatus });
+        setJob(prev => prev ? { ...prev, ...updated } : prev);
+      } else {
+        const resp = await mobilePost<any>(`/api/mobile/jobs/${job.id}/transition`, { to_status: backendStatus });
+        setJob(prev => prev ? { ...prev, status: resp?.job?.status || backendStatus } : prev);
+      }
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not update status');
+      if (/checkpoint/i.test(e?.message || '')) {
+        Alert.alert('Hold on', 'Some required plans aren\'t confirmed yet. Review the Plans & Documents section first.');
+      } else {
+        Alert.alert('Error', e?.message || 'Could not update status');
+      }
     }
+  }
+
+  async function approveClose() {
+    if (!job) return;
+    try {
+      await mobilePost(`/api/mobile/jobs/${job.id}/approve`, {});
+      await load();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not approve');
+    }
+  }
+
+  async function rejectClose() {
+    if (!job) return;
+    // Alert.prompt is iOS-only. Android: confirm + bounce back without reason.
+    // Future: replace with a proper modal that takes a reason on both OSs.
+    Alert.alert(
+      'Reject closure?',
+      'This bounces the job back to In Progress and notifies the crew.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await mobilePost(`/api/mobile/jobs/${job.id}/reject-completion`, {});
+              await load();
+            } catch (e: any) { Alert.alert('Error', e?.message || 'Could not reject'); }
+          },
+        },
+      ],
+    );
   }
 
   async function saveScheduledDate(v: string | null) {
@@ -561,6 +623,46 @@ export default function OwnerJobDetail() {
                 </Text>
               )}
             </View>
+
+            {/* Plans / schematics / work-order attachments */}
+            <JobAttachments
+              jobId={job.id}
+              hasWorkflow={!!(job as any).service_pro_workflow_id}
+            />
+
+            {/* Pending closure — approver actions */}
+            {normalizeStatusKey(job.status) === 'complete' && String(job.status).toLowerCase() === 'completed' && isApprover && (
+              <View style={[styles.card, { borderColor: theme.success + '55', backgroundColor: theme.success + '0c' }]}>
+                <Text style={[styles.cardTitle, { color: theme.success, marginBottom: 4 }]}>Awaiting your approval</Text>
+                <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 10 }}>
+                  Crew has requested closure. Approve to move this job to Closed, or reject to bounce back.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.nextStepBtn, { backgroundColor: theme.success, flex: 1 }]}
+                    onPress={approveClose}
+                  >
+                    <Text style={styles.nextStepBtnText}>Approve & close</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.nextStepBtn, { backgroundColor: theme.danger + '22', flex: 1 }]}
+                    onPress={rejectClose}
+                  >
+                    <Text style={[styles.nextStepBtnText, { color: theme.danger }]}>Reject</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Crew-specific "Request completion" big button when in_progress */}
+            {isCrew && (normalizeStatusKey(job.status) === 'in_progress') && (
+              <TouchableOpacity
+                style={[styles.nextStepBtn, { backgroundColor: theme.stageGreen, marginBottom: 12 }]}
+                onPress={() => advance('complete')}
+              >
+                <Text style={styles.nextStepBtnText}>Request completion</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Invoice */}
             <View style={styles.card}>
