@@ -14,7 +14,10 @@ export default function Index() {
   useEffect(() => {
     if (!rootNavState?.key || user === undefined) return;
     if (user) {
-      router.replace(`/(${user.role})` as any);
+      // Unified app: every role lands on (owner) with role-gated UI inside.
+      // Legacy (crew) route group still exists on disk but isn't the
+      // entry point anymore. Restricted views are handled by useRole().
+      router.replace('/(owner)' as any);
     } else {
       router.replace('/login');
     }
