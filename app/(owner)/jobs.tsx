@@ -288,9 +288,15 @@ export default function OwnerJobs() {
 
       <View style={styles.selectedHeader}>
         <Text style={styles.selectedLabel}>{friendlyDayLabel(selectedDay)}</Text>
-        <Text style={styles.selectedCount}>
-          {jobsForSelected.length === 0 ? 'No jobs' : `${jobsForSelected.length} job${jobsForSelected.length === 1 ? '' : 's'}`}
-        </Text>
+        <TouchableOpacity
+          onPress={() => { setNewScheduledDate(selectedDay); setShowAdd(true); }}
+          style={styles.newJobBtn}
+          activeOpacity={0.7}
+          hitSlop={6}
+        >
+          <Ionicons name="add-circle" size={18} color={theme.accent} />
+          <Text style={styles.newJobBtnText}>New job</Text>
+        </TouchableOpacity>
       </View>
 
       {view === 'list' ? (
@@ -299,7 +305,7 @@ export default function OwnerJobs() {
           jobs={jobsForSelected}
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); load(); }}
-          onAddJob={() => setShowAdd(true)}
+          onAddJob={() => { setNewScheduledDate(selectedDay); setShowAdd(true); }}
         />
       ) : (
         <CalendarView
@@ -308,6 +314,7 @@ export default function OwnerJobs() {
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); load(); }}
           allJobsWeek={jobs.length > 0}
+          onCreateAtSlot={() => { setNewScheduledDate(selectedDay); setShowAdd(true); }}
         />
       )}
 
@@ -465,13 +472,14 @@ function ListView({
 // ─── CALENDAR GRID VIEW ─────────────────────────────────────────────
 
 function CalendarView({
-  theme, jobs, refreshing, onRefresh, allJobsWeek,
+  theme, jobs, refreshing, onRefresh, allJobsWeek, onCreateAtSlot,
 }: {
   theme: Theme;
   jobs: ScheduleJob[];
   refreshing: boolean;
   onRefresh: () => void;
   allJobsWeek: boolean;
+  onCreateAtSlot: () => void;
 }) {
   const styles = makeStyles(theme);
 
@@ -557,9 +565,27 @@ function CalendarView({
             </View>
 
             <View style={{ width: gridWidth, height: gridHeight, position: 'relative' }}>
+              {/* Background tap layer — empty cells open the add-job modal. */}
+              {(allCrew.length > 0 ? allCrew : ['']).map((_, colIdx) => (
+                Array.from({ length: HOUR_END - HOUR_START }).map((_, rowIdx) => (
+                  <TouchableOpacity
+                    key={`cell-${colIdx}-${rowIdx}`}
+                    activeOpacity={0.5}
+                    onPress={onCreateAtSlot}
+                    style={{
+                      position: 'absolute',
+                      top: rowIdx * HOUR_HEIGHT,
+                      left: colIdx * COL_WIDTH,
+                      width: COL_WIDTH,
+                      height: HOUR_HEIGHT,
+                    }}
+                  />
+                ))
+              ))}
               {Array.from({ length: HOUR_END - HOUR_START }).map((_, i) => (
                 <View
                   key={`hl-${i}`}
+                  pointerEvents="none"
                   style={{
                     position: 'absolute',
                     top: i * HOUR_HEIGHT, left: 0, right: 0,
@@ -571,6 +597,7 @@ function CalendarView({
               {(allCrew.length > 0 ? allCrew : ['']).map((_, i) => (
                 <View
                   key={`vl-${i}`}
+                  pointerEvents="none"
                   style={{
                     position: 'absolute',
                     top: 0, bottom: 0, left: i * COL_WIDTH,
@@ -691,6 +718,8 @@ function makeStyles(t: Theme) {
     },
     selectedLabel: { color: t.textPrimary, fontSize: 18, fontWeight: '800' },
     selectedCount: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
+    newJobBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    newJobBtnText: { color: t.accent, fontSize: 13, fontWeight: '800' },
 
     // List view
     listRow: { flexDirection: 'row', backgroundColor: t.surface },
