@@ -261,17 +261,8 @@ export default function CrewSchedule() {
         </Text>
       </View>
 
-      {loading && jobsForSelected.length === 0 ? (
+      {loading && jobsForSelected.length === 0 && jobs.length === 0 ? (
         <View style={styles.center}><ActivityIndicator color={theme.accent} /></View>
-      ) : jobsForSelected.length === 0 ? (
-        <ScrollView
-          contentContainerStyle={styles.empty}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
-        >
-          <Ionicons name="calendar-outline" size={36} color={theme.textMuted} />
-          <Text style={styles.emptyTitle}>Nothing scheduled</Text>
-          <Text style={styles.emptySub}>Pick a different day or swipe down to refresh.</Text>
-        </ScrollView>
       ) : (
         <ScrollView
           style={{ flex: 1 }}
@@ -302,7 +293,7 @@ export default function CrewSchedule() {
               <View style={{ width: gridWidth }}>
                 {/* Crew header row */}
                 <View style={[styles.crewHeaderRow, { width: gridWidth, height: 44 }]}>
-                  {allCrew.map((name, idx) => {
+                  {allCrew.length > 0 ? allCrew.map((name, idx) => {
                     const color = crewColor(theme, name);
                     return (
                       <View
@@ -317,7 +308,16 @@ export default function CrewSchedule() {
                         </Text>
                       </View>
                     );
-                  })}
+                  }) : (
+                    <View style={[styles.crewHeader, { width: COL_WIDTH, borderLeftColor: 'transparent' }]}>
+                      <View style={[styles.crewAvatar, { backgroundColor: theme.surfaceInset }]}>
+                        <Ionicons name="people-outline" size={14} color={theme.textMuted} />
+                      </View>
+                      <Text style={[styles.crewHeaderName, { color: theme.textMuted }]} numberOfLines={1}>
+                        No crew yet
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Grid cells + cards layer */}
@@ -334,7 +334,7 @@ export default function CrewSchedule() {
                       }}
                     />
                   ))}
-                  {allCrew.map((_, i) => (
+                  {(allCrew.length > 0 ? allCrew : ['']).map((_, i) => (
                     <View
                       key={`vl-${i}`}
                       style={{
@@ -345,6 +345,20 @@ export default function CrewSchedule() {
                       }}
                     />
                   ))}
+
+                  {/* Empty-day hint centered in the grid */}
+                  {jobsForSelected.length === 0 ? (
+                    <View style={styles.gridHint} pointerEvents="none">
+                      <Ionicons name="calendar-outline" size={24} color={theme.textMuted} />
+                      <Text style={styles.gridHintTitle}>Nothing scheduled</Text>
+                      <Text style={styles.gridHintSub}>
+                        {jobs.length > 0
+                          ? 'Tap a dotted day above to jump to jobs'
+                          : 'Set scheduled dates on jobs to see them here'}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {/* Job cards */}
                   {cards.map((c, i) => {
                     const p = palette[c.paletteIdx];
@@ -381,7 +395,6 @@ export default function CrewSchedule() {
                             <Text style={[styles.cardStampText, { color: stamp.color }]}>{stamp.label}</Text>
                           </View>
                         ) : null}
-                        {/* small dots — subcrew indicators */}
                         {c.job.crew && c.job.crew.length > 1 ? (
                           <View style={styles.cardDots}>
                             {c.job.crew.slice(0, 3).map((cc, k) => (
@@ -490,5 +503,13 @@ function makeStyles(t: Theme) {
     empty: { paddingTop: 60, alignItems: 'center', gap: 8 },
     emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '700' },
     emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center', paddingHorizontal: 32 },
+
+    gridHint: {
+      position: 'absolute',
+      top: 40, left: 16, right: 16,
+      alignItems: 'center', gap: 6,
+    },
+    gridHintTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
+    gridHintSub: { color: t.textMuted, fontSize: 12, textAlign: 'center' },
   });
 }
