@@ -4,12 +4,9 @@ import {
   StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl, Linking
 } from 'react-native';
 import { mobileGet, mobilePatch, mobilePost } from '../../lib/mobileApi';
-import { getPlan } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
 import LockSettings from '../../components/LockSettings';
 import AppearanceSettings from '../../components/AppearanceSettings';
-
-const PRIORITY_PLANS = ['team', 'pro', 'business'];
 
 export default function OwnerSettings() {
   const theme = useTheme();
@@ -19,7 +16,6 @@ export default function OwnerSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [hasPrioritySupport, setHasPrioritySupport] = useState(false);
   const [stripeConnected, setStripeConnected] = useState<boolean | null>(null);
   const [stripeBusy, setStripeBusy] = useState(false);
   const [planName, setPlanName] = useState<string | null>(null);
@@ -30,8 +26,6 @@ export default function OwnerSettings() {
 
   const loadData = useCallback(async () => {
     try {
-      const plan = await getPlan();
-      setHasPrioritySupport(PRIORITY_PLANS.includes(plan?.plan ?? ''));
       const [data, stripe] = await Promise.all([
         mobileGet<{
           company_name?: string; phone?: string; address?: string;
@@ -250,22 +244,13 @@ export default function OwnerSettings() {
 
       <View style={styles.divider} />
 
-      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Logo</Text>
-      <Text style={styles.hint}>To upload your company logo, visit the Settings page on the web dashboard at linkcrew.io.</Text>
-
-      {hasPrioritySupport && (
-        <>
-          <View style={styles.divider} />
-          <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Support</Text>
-          <Text style={styles.hint}>As a Team+ member you have access to priority support.</Text>
-          <TouchableOpacity
-            style={styles.supportBtn}
-            onPress={() => Linking.openURL('mailto:hello@linkcrew.io?subject=Priority Support Request')}
-          >
-            <Text style={styles.supportBtnText}>Contact Priority Support</Text>
-          </TouchableOpacity>
-        </>
-      )}
+      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Support</Text>
+      <TouchableOpacity
+        style={styles.supportBtn}
+        onPress={() => Linking.openURL('mailto:support@linkcrew.io')}
+      >
+        <Text style={styles.supportBtnText}>Email support@linkcrew.io</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
