@@ -1,127 +1,109 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Modal, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList, TextInput,
+  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Job } from '../../lib/supabase';
-import { getUser } from '../../lib/storage';
-import { setCache, getStaleCache } from '../../lib/cache';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import { statusMeta } from '../../lib/jobStatus';
+import { useRole, canManageCrew } from '../../lib/useRole';
 import CalendarPicker, { toDateString, fromDateString, prettyDate } from '../../components/CalendarPicker';
 
-// Schedule tab. Day mode (default) filters jobs to scheduled_date = selectedDay.
-// "Show all jobs" flips into legacy Active/Invoiced/All chips. Tapping a card
-// navigates to /(owner)/job/[id] — all editing happens there.
+type CrewMember = { employee_id: string; name: string };
+type ScheduleJob = {
+  id: string;
+  name: string;
+  address: string | null;
+  status: string;
+  scheduled_date: string | null;
+  payment_status?: string | null;
+  invoice_amount?: number | null;
+  client_id?: string | null;
+  client_name?: string | null;
+  crew: CrewMember[];
+};
 
-const PIPELINE = [
-  { key: 'quoted',      label: 'Quoted',      color: '#6366f1' },
-  { key: 'scheduled',   label: 'Scheduled',   color: '#3b82f6' },
-  { key: 'in_progress', label: 'In Progress', color: '#0ea5e9' },
-  { key: 'complete',    label: 'Complete',    color: '#4ade80' },
-  { key: 'invoiced',    label: 'Invoiced',    color: '#a78bfa' },
-  { key: 'on_hold',     label: 'On Hold',     color: '#f59e0b' },
-];
-function normalizeStatus(s: string) { return s === 'active' ? 'in_progress' : s; }
-function pipelineFor(key: string) { return PIPELINE.find(p => p.key === normalizeStatus(key)) ?? PIPELINE[2]; }
+type ViewMode = 'list' | 'calendar';
 
-const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_LETTERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function WeekStrip({
-  theme, selectedDay, onSelect, onPickCalendar, counts,
-}: {
-  theme: Theme;
-  selectedDay: string;
-  onSelect: (day: string) => void;
-  onPickCalendar?: () => void;
-  counts?: Record<string, number>;
-}) {
-  const selDate = fromDateString(selectedDay) || new Date();
-  const sunday = new Date(selDate);
-  sunday.setDate(selDate.getDate() - selDate.getDay());
+// Calendar grid dimensions
+const HOUR_START = 7;
+const HOUR_END = 19;
+const HOUR_HEIGHT = 72;
+const COL_WIDTH = 180;
+const GUTTER_WIDTH = 56;
+
+function weekStripDays(anchor: Date): Date[] {
+  const sunday = new Date(anchor);
+  sunday.setDate(anchor.getDate() - anchor.getDay());
   sunday.setHours(0, 0, 0, 0);
-  const days = Array.from({ length: 7 }, (_, i) => {
+  return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(sunday); d.setDate(sunday.getDate() + i); return d;
   });
-  const todayStr = toDateString(new Date());
-  const endOfWeek = new Date(sunday); endOfWeek.setDate(sunday.getDate() + 6);
-  const label = `${days[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${endOfWeek.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-
-  function shift(delta: number) {
-    const next = new Date(sunday); next.setDate(sunday.getDate() + delta);
-    onSelect(toDateString(next));
-  }
-
-  return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, backgroundColor: theme.bg }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <TouchableOpacity onPress={() => shift(-7)} style={{ padding: 6 }}>
-          <Ionicons name="chevron-back" size={18} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onPickCalendar} style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: '700' }}>{label}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => shift(7)} style={{ padding: 6 }}>
-          <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
-        </TouchableOpacity>
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        {days.map((d, i) => {
-          const s = toDateString(d);
-          const isToday = s === todayStr;
-          const isSelected = s === selectedDay;
-          const count = counts?.[s] || 0;
-          return (
-            <TouchableOpacity key={i} style={{ flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 }} onPress={() => onSelect(s)}>
-              <Text style={{ color: theme.textMuted, fontSize: 11, fontWeight: '700' }}>{DAY_LETTERS[i]}</Text>
-              <View style={[
-                { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-                isToday && !isSelected && { borderWidth: 1, borderColor: theme.accent },
-                isSelected && { backgroundColor: theme.accent },
-              ]}>
-                <Text style={[
-                  { color: theme.textSecondary, fontSize: 14, fontWeight: '700' },
-                  isToday && !isSelected && { color: theme.accent },
-                  isSelected && { color: theme.accentContrast, fontWeight: '800' },
-                ]}>{d.getDate()}</Text>
-              </View>
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: count > 0 ? theme.accent : 'transparent', marginTop: 4 }} />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
-  );
 }
 
-// Retained for backwards-compat; WeekStrip now uses inline theme styles.
-const weekStyles = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
-  cell: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
-  bubble: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 4 },
-  dotActive: { backgroundColor: '#0ea5e9' },
-});
+function friendlyDayLabel(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((d.getTime() - today.getTime()) / 86_400_000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff === -1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
 
-const ACTIVE_STATUSES = ['active', 'in_progress', 'scheduled', 'on_hold', 'quoted', 'complete'];
-const INVOICED_STATUSES = ['invoiced'];
+function colorForJob(theme: Theme, job: ScheduleJob): { bg: string; border: string; text: string } {
+  const paid = String(job.payment_status || '').toLowerCase() === 'paid';
+  if (paid) return { bg: theme.success + '1a', border: theme.success, text: theme.success };
+  const tone = theme[statusMeta(job.status).tone];
+  return { bg: tone + '1a', border: tone, text: tone };
+}
+
+function dayTint(theme: Theme, dayIndex: number): string {
+  const palette = [theme.stagePurple, theme.stageBlue, theme.stageCyan, theme.stageGreen, theme.stageAmber, theme.stageIndigo, theme.danger];
+  return palette[dayIndex % palette.length];
+}
+
+function crewColor(theme: Theme, name: string): string {
+  const palette = [theme.stageBlue, theme.stageCyan, theme.stageGreen, theme.stageIndigo, theme.stagePurple, theme.stageAmber];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return palette[Math.abs(h) % palette.length];
+}
+
+function statusStamp(theme: Theme, job: ScheduleJob): { label: string; color: string } | null {
+  const paid = String(job.payment_status || '').toLowerCase() === 'paid';
+  if (paid) return { label: 'PAID', color: theme.success };
+  const s = String(job.status || '').toLowerCase();
+  if (s === 'invoiced') return { label: 'INVOICED', color: theme.stagePurple };
+  if (s === 'complete' || s === 'completed') return { label: 'DONE', color: theme.stageGreen };
+  if (s === 'quote' || s === 'quoted') return { label: 'QUOTE', color: theme.stageIndigo };
+  if (s === 'canceled' || s === 'cancelled') return { label: 'CANCELED', color: theme.danger };
+  return null;
+}
 
 export default function OwnerJobs() {
   const theme = useTheme();
   const styles = makeStyles(theme);
   const insets = useSafeAreaInsets();
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const role = useRole();
+  const canPingCrew = canManageCrew(role) || role === 'manager';
+
+  const [anchor, setAnchor] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
+  const [selectedDay, setSelectedDay] = useState<string>(toDateString(new Date()));
+  const [view, setView] = useState<ViewMode>('list');
+  const [jobs, setJobs] = useState<ScheduleJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isOffline, setIsOffline] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState<null | 'new' | 'weekjump'>(null);
 
-  // Add job
+  // Add-job modal (triggered by ?open=new / ?open=new_quote via OwnerFab)
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAddress, setNewAddress] = useState('');
@@ -130,69 +112,40 @@ export default function OwnerJobs() {
   const [newScheduledDate, setNewScheduledDate] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Day / filter
-  const [dayMode, setDayMode] = useState<boolean>(true);
-  const [selectedDay, setSelectedDay] = useState<string>(toDateString(new Date()));
-  const [filter, setFilter] = useState<'active' | 'invoiced' | 'all'>('active');
+  const week = useMemo(() => weekStripDays(anchor), [anchor]);
+  const rangeStart = week[0];
+  const rangeEnd = week[6];
 
-  const [pickerOpen, setPickerOpen] = useState<null | 'new' | 'weekjump'>(null);
-
-  const loadData = useCallback(async () => {
-    const user = await getUser();
+  const load = useCallback(async () => {
     try {
-      const result = await mobileGet<Job[]>('/api/mobile/owner/jobs');
-      setJobs(result || []);
-      setIsOffline(false);
-      await setCache('owner_jobs_' + user?.tenant_id, result);
+      const data = await mobileGet<ScheduleJob[]>(
+        `/api/mobile/crew/schedule?start=${toDateString(rangeStart)}&end=${toDateString(rangeEnd)}`
+      );
+      setJobs(data || []);
     } catch {
-      const cached = await getStaleCache<Job[]>('owner_jobs_' + user?.tenant_id);
-      if (cached) { setJobs(cached); setIsOffline(true); }
+      setJobs([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [rangeStart, rangeEnd]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { load(); }, [load]);
 
-  const params = useLocalSearchParams<{ open?: string; filter?: string; day?: string }>();
+  const params = useLocalSearchParams<{ open?: string; day?: string }>();
   useEffect(() => {
     if (params.open === 'new' || params.open === 'new_quote') setShowAdd(true);
   }, [params.open]);
   useEffect(() => {
-    if (params.filter === 'active') { setDayMode(false); setFilter('active'); }
-    else if (params.filter === 'invoiced') { setDayMode(false); setFilter('invoiced'); }
-    else if (params.filter === 'all') { setDayMode(false); setFilter('all'); }
-  }, [params.filter]);
-  useEffect(() => {
     if (params.day && /^\d{4}-\d{2}-\d{2}$/.test(params.day)) {
-      setDayMode(true);
       setSelectedDay(params.day);
+      const parsed = fromDateString(params.day);
+      if (parsed) setAnchor(parsed);
     }
   }, [params.day]);
 
-  const filteredJobs = jobs.filter(j => {
-    if (dayMode) {
-      const sd = (j as any).scheduled_date as string | null;
-      return sd === selectedDay;
-    }
-    const s = normalizeStatus(j.status || '');
-    if (filter === 'active') return ACTIVE_STATUSES.includes(s);
-    if (filter === 'invoiced') return INVOICED_STATUSES.includes(s) || (j as any).payment_status === 'paid';
-    return true;
-  });
-  const unscheduledActive = dayMode && selectedDay === toDateString(new Date())
-    ? jobs.filter(j => !(j as any).scheduled_date && ACTIVE_STATUSES.includes(normalizeStatus(j.status || '')))
-    : [];
-  // Count jobs per scheduled_date for the week-strip dots.
-  const scheduleCounts: Record<string, number> = jobs.reduce((acc, j) => {
-    const sd = (j as any).scheduled_date as string | null;
-    if (sd) acc[sd] = (acc[sd] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
   async function addJob() {
-    if (!newName.trim() || !newAddress.trim()) return Alert.alert('Fill in both fields');
+    if (!newName.trim() || !newAddress.trim()) return Alert.alert('Fill in name and address');
     setSaving(true);
     try {
       const data = await mobilePost<Job>('/api/mobile/owner/jobs', {
@@ -201,10 +154,15 @@ export default function OwnerJobs() {
         estimate_amount: newEstimate ? parseFloat(newEstimate) : null,
         scheduled_date: newScheduledDate,
       });
-      if (data) setJobs(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      if (data && (data as any).scheduled_date) {
+        setSelectedDay((data as any).scheduled_date);
+        const parsed = fromDateString((data as any).scheduled_date);
+        if (parsed) setAnchor(parsed);
+      }
       setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
       setNewScheduledDate(null);
       setShowAdd(false);
+      load();
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not create job.');
     } finally {
@@ -212,184 +170,146 @@ export default function OwnerJobs() {
     }
   }
 
-  if (loading) {
+  async function pingCrew() {
+    const todayStr = toDateString(new Date());
+    const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return toDateString(d); })();
+    const mode: 'today' | 'tomorrow' | null =
+      selectedDay === todayStr ? 'today' :
+      selectedDay === tomorrowStr ? 'tomorrow' : null;
+    if (!mode) return;
+    try {
+      const resp = await mobilePost<{ sent: number; jobsFound: number; assigned: number; noToken: number; noTokenNames: string[] }>(
+        '/api/mobile/owner/crew-reminder-test', { mode },
+      );
+      if (resp?.sent && resp.sent > 0) {
+        Alert.alert('Reminder sent', `Pushed to ${resp.sent} crew member${resp.sent === 1 ? '' : 's'}.`);
+      } else if (!resp?.jobsFound) {
+        Alert.alert('Nothing to ping', `No jobs scheduled for ${mode}.`);
+      } else if (!resp?.assigned) {
+        Alert.alert('No crew assigned', `${resp.jobsFound} job${resp.jobsFound === 1 ? '' : 's'} scheduled for ${mode}, but none have crew assigned.`);
+      } else {
+        Alert.alert('Crew not reachable', `None of the assigned crew have a push token yet.`);
+      }
+    } catch (e: any) {
+      Alert.alert('Failed', e?.message || 'Could not send reminders.');
+    }
+  }
+
+  const jobsByDay: Record<string, ScheduleJob[]> = {};
+  for (const j of jobs) {
+    const k = j.scheduled_date || '';
+    if (!k) continue;
+    (jobsByDay[k] = jobsByDay[k] || []).push(j);
+  }
+  const jobsForSelected = jobsByDay[selectedDay] || [];
+
+  if (loading && jobs.length === 0) {
     return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
     <View style={styles.container}>
-      {isOffline && (
-        <View style={styles.offlineBar}>
-          <Text style={styles.offlineText}>📵 No connection — showing cached jobs</Text>
-        </View>
-      )}
-
-      {dayMode ? (
-        <View>
-          <WeekStrip
-            theme={theme}
-            selectedDay={selectedDay}
-            onSelect={setSelectedDay}
-            onPickCalendar={() => setPickerOpen('weekjump')}
-            counts={scheduleCounts}
-          />
-          <View style={styles.dayModeControls}>
-            {selectedDay !== toDateString(new Date()) && (
-              <TouchableOpacity onPress={() => setSelectedDay(toDateString(new Date()))} style={{ paddingVertical: 4, paddingRight: 12 }}>
-                <Text style={styles.dayModeLink}>Today</Text>
-              </TouchableOpacity>
-            )}
-            {(() => {
-              const todayStr = toDateString(new Date());
-              const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return toDateString(d); })();
-              const pingMode: 'today' | 'tomorrow' | null =
-                selectedDay === todayStr ? 'today' :
-                selectedDay === tomorrowStr ? 'tomorrow' : null;
-              if (!pingMode) return null;
-              return (
-                <TouchableOpacity
-                  onPress={async () => {
-                    try {
-                      const resp = await mobilePost<{ sent: number; jobsFound: number; assigned: number; noToken: number; noTokenNames: string[] }>(
-                        '/api/mobile/owner/crew-reminder-test', { mode: pingMode },
-                      );
-                      if (resp?.sent && resp.sent > 0) {
-                        const extra = resp.noToken > 0
-                          ? `\n\n${resp.noToken} assigned crew member${resp.noToken === 1 ? '' : 's'} (${resp.noTokenNames.join(', ')}) couldn't be reached — they need to log in on the mobile app and allow notifications.`
-                          : '';
-                        Alert.alert('Reminder sent', `Pushed to ${resp.sent} crew member${resp.sent === 1 ? '' : 's'}.${extra}`);
-                      } else if (!resp?.jobsFound) {
-                        Alert.alert('Nothing to ping', `No jobs are scheduled for ${pingMode} yet.`);
-                      } else if (!resp?.assigned) {
-                        Alert.alert('No crew assigned', `${resp.jobsFound} job${resp.jobsFound === 1 ? '' : 's'} scheduled for ${pingMode}, but no crew assigned. Open the job and tap Crew → + Assign.`);
-                      } else {
-                        Alert.alert(
-                          'Crew not reachable',
-                          `${resp.assigned} crew member${resp.assigned === 1 ? ' is' : 's are'} assigned${resp.noTokenNames?.length ? ` (${resp.noTokenNames.join(', ')})` : ''}, but none have a push token. They need to log into the mobile app and allow notifications.`,
-                        );
-                      }
-                    } catch (e: any) {
-                      Alert.alert('Failed', e?.message || 'Could not send reminders.');
-                    }
-                  }}
-                  style={{ paddingVertical: 4, paddingRight: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                >
-                  <Ionicons name="notifications-outline" size={14} color={theme.accent} />
-                  <Text style={styles.dayModeLink}>Ping crew</Text>
-                </TouchableOpacity>
-              );
-            })()}
-            <View style={{ flex: 1 }} />
-            <TouchableOpacity onPress={() => setDayMode(false)} style={{ paddingVertical: 4 }}>
-              <Text style={styles.dayModeLink}>Show all jobs ›</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.filterRow}>
-          <TouchableOpacity onPress={() => setDayMode(true)} style={{ marginRight: 8 }}>
-            <Text style={styles.dayModeLink}>‹ Schedule</Text>
+      {/* View toggle */}
+      <View style={styles.viewToggle}>
+        <TouchableOpacity
+          style={[styles.viewPill, view === 'list' && { backgroundColor: theme.accentMuted, borderColor: theme.accent + '55' }]}
+          onPress={() => setView('list')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="list" size={14} color={view === 'list' ? theme.accent : theme.textSecondary} />
+          <Text style={[styles.viewPillText, view === 'list' && { color: theme.accent }]}>List</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.viewPill, view === 'calendar' && { backgroundColor: theme.accentMuted, borderColor: theme.accent + '55' }]}
+          onPress={() => setView('calendar')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="grid" size={14} color={view === 'calendar' ? theme.accent : theme.textSecondary} />
+          <Text style={[styles.viewPillText, view === 'calendar' && { color: theme.accent }]}>Calendar</Text>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        {canPingCrew && (selectedDay === toDateString(new Date()) || selectedDay === toDateString((() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })())) ? (
+          <TouchableOpacity onPress={pingCrew} style={styles.pingBtn} activeOpacity={0.7}>
+            <Ionicons name="notifications-outline" size={14} color={theme.accent} />
+            <Text style={styles.pingBtnText}>Ping crew</Text>
           </TouchableOpacity>
-          {[
-            { key: 'active', label: `Active (${jobs.filter(j => ACTIVE_STATUSES.includes(normalizeStatus(j.status || ''))).length})` },
-            { key: 'invoiced', label: `Invoiced (${jobs.filter(j => INVOICED_STATUSES.includes(normalizeStatus(j.status || '')) || (j as any).payment_status === 'paid').length})` },
-            { key: 'all', label: `All (${jobs.length})` },
-          ].map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
-              onPress={() => setFilter(f.key as any)}
-            >
-              <Text style={[styles.filterChipText, filter === f.key && styles.filterChipTextActive]}>{f.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+        ) : null}
+      </View>
 
-      <FlatList
-        data={filteredJobs}
-        keyExtractor={j => j.id}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 160 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
-        ListEmptyComponent={
-          dayMode && !loading
-            ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>Nothing scheduled for {prettyDate(selectedDay)}.</Text>
-                <TouchableOpacity onPress={() => setShowAdd(true)}>
-                  <Text style={styles.emptyAction}>+ Schedule a job</Text>
-                </TouchableOpacity>
-              </View>
-            )
-            : null
-        }
-        ListFooterComponent={
-          dayMode && unscheduledActive.length > 0
-            ? (
-              <View style={{ marginTop: 20 }}>
-                <Text style={styles.footerLabel}>Unscheduled active</Text>
-                {unscheduledActive.map(j => (
-                  <TouchableOpacity
-                    key={j.id}
-                    style={[styles.card, { marginBottom: 10 }]}
-                    onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
-                    activeOpacity={0.75}
-                  >
-                    <View style={styles.cardRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.jobName}>{j.name}</Text>
-                        <Text style={styles.jobAddress}>{j.address}</Text>
-                      </View>
-                      <View style={styles.dayBadge}>
-                        <Text style={styles.dayBadgeText}>SCHEDULE</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )
-            : null
-        }
-        renderItem={({ item }) => {
-          const stage = pipelineFor(item.status);
-          const sd = (item as any).scheduled_date as string | null;
-          const amt = Number((item as any).invoice_amount) || Number((item as any).estimate_amount) || 0;
+      {/* Week strip */}
+      <View style={styles.weekNav}>
+        <TouchableOpacity
+          onPress={() => { const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d); }}
+          hitSlop={12}
+        >
+          <Ionicons name="chevron-back" size={20} color={theme.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setPickerOpen('weekjump')}>
+          <Text style={styles.weekLabel}>
+            {rangeStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {rangeEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => { const d = new Date(anchor); d.setDate(d.getDate() + 7); setAnchor(d); }}
+          hitSlop={12}
+        >
+          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.weekStrip}>
+        {week.map((d, i) => {
+          const key = toDateString(d);
+          const selected = key === selectedDay;
+          const today = toDateString(new Date()) === key;
+          const tint = dayTint(theme, i);
+          const count = jobsByDay[key]?.length || 0;
           return (
             <TouchableOpacity
-              style={styles.card}
-              onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: item.id } } as any)}
-              activeOpacity={0.8}
+              key={i}
+              style={[styles.dayCell, selected && { backgroundColor: tint + '22', borderColor: tint + '66' }]}
+              onPress={() => setSelectedDay(key)}
+              activeOpacity={0.7}
             >
-              <View style={styles.cardRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.jobName}>{item.name}</Text>
-                  {item.address ? <Text style={styles.jobAddress}>{item.address}</Text> : null}
-                  <View style={styles.cardMetaRow}>
-                    {sd ? (
-                      <View style={styles.metaChip}>
-                        <Ionicons name="calendar-outline" size={12} color={theme.accent} />
-                        <Text style={styles.metaChipText}>{prettyDate(sd)}</Text>
-                      </View>
-                    ) : null}
-                    {amt > 0 ? (
-                      <View style={styles.metaChip}>
-                        <Ionicons name="cash-outline" size={12} color={theme.success} />
-                        <Text style={[styles.metaChipText, { color: '#4ade80' }]}>${amt.toLocaleString()}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                  <View style={[styles.stageBadge, { backgroundColor: stage.color + '22' }]}>
-                    <Text style={[styles.stageText, { color: stage.color }]}>{stage.label}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
-                </View>
+              <Text style={[styles.dayLetter, { color: selected ? tint : theme.textMuted }]}>
+                {DAY_LETTERS[i]}
+              </Text>
+              <Text style={[
+                styles.dayNumber,
+                { color: selected ? tint : (today ? theme.textPrimary : theme.textSecondary) },
+                (selected || today) && { fontWeight: '800' },
+              ]}>{d.getDate()}</Text>
+              <View style={styles.dayDotRow}>
+                {count > 0 ? <View style={[styles.dayDot, { backgroundColor: tint }]} /> : <View style={{ height: 4 }} />}
               </View>
             </TouchableOpacity>
           );
-        }}
-      />
+        })}
+      </View>
+
+      <View style={styles.selectedHeader}>
+        <Text style={styles.selectedLabel}>{friendlyDayLabel(selectedDay)}</Text>
+        <Text style={styles.selectedCount}>
+          {jobsForSelected.length === 0 ? 'No jobs' : `${jobsForSelected.length} job${jobsForSelected.length === 1 ? '' : 's'}`}
+        </Text>
+      </View>
+
+      {view === 'list' ? (
+        <ListView
+          theme={theme}
+          jobs={jobsForSelected}
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); load(); }}
+          onAddJob={() => setShowAdd(true)}
+        />
+      ) : (
+        <CalendarView
+          theme={theme}
+          jobs={jobsForSelected}
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); load(); }}
+          allJobsWeek={jobs.length > 0}
+        />
+      )}
 
       {/* Add Job Modal */}
       <Modal visible={showAdd} transparent animationType="slide">
@@ -399,10 +319,10 @@ export default function OwnerJobs() {
         >
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom }]}>
             <Text style={styles.modalTitle}>New Job Site</Text>
-            <TextInput style={styles.input} placeholder="Job name" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
-            <TextInput style={styles.input} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
+            <TextInput style={styles.modalInput} placeholder="Job name" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+            <TextInput style={styles.modalInput} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
             <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+              style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
               placeholder="Scope of work / description"
               placeholderTextColor={theme.textMuted}
               value={newDesc}
@@ -410,7 +330,7 @@ export default function OwnerJobs() {
               multiline
             />
             <TextInput
-              style={styles.input}
+              style={styles.modalInput}
               placeholder="Estimate amount (e.g. 2500)"
               placeholderTextColor={theme.textMuted}
               value={newEstimate}
@@ -443,10 +363,280 @@ export default function OwnerJobs() {
         onClose={() => setPickerOpen(null)}
         onSelect={(v) => {
           if (pickerOpen === 'new') setNewScheduledDate(v);
-          else if (pickerOpen === 'weekjump' && v) setSelectedDay(v);
+          else if (pickerOpen === 'weekjump' && v) {
+            setSelectedDay(v);
+            const parsed = fromDateString(v);
+            if (parsed) setAnchor(parsed);
+          }
         }}
       />
     </View>
+  );
+}
+
+// ─── LIST VIEW ─────────────────────────────────────────────────────
+
+function ListView({
+  theme, jobs, refreshing, onRefresh, onAddJob,
+}: {
+  theme: Theme;
+  jobs: ScheduleJob[];
+  refreshing: boolean;
+  onRefresh: () => void;
+  onAddJob: () => void;
+}) {
+  const styles = makeStyles(theme);
+  return (
+    <FlatList
+      data={jobs}
+      keyExtractor={j => j.id}
+      contentContainerStyle={{ paddingBottom: 140 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+      ListEmptyComponent={
+        <View style={styles.empty}>
+          <Ionicons name="calendar-outline" size={30} color={theme.textMuted} />
+          <Text style={styles.emptyTitle}>Nothing scheduled</Text>
+          <TouchableOpacity onPress={onAddJob}>
+            <Text style={styles.emptyCta}>+ Schedule a job</Text>
+          </TouchableOpacity>
+        </View>
+      }
+      ItemSeparatorComponent={() => <View style={styles.listSep} />}
+      renderItem={({ item }) => {
+        const p = colorForJob(theme, item);
+        const stamp = statusStamp(theme, item);
+        return (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.listRow}
+            onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: item.id } } as any)}
+          >
+            <View style={[styles.listBar, { backgroundColor: p.border }]} />
+            <View style={{ flex: 1, paddingLeft: 14, paddingVertical: 14, paddingRight: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.listJobName} numberOfLines={1}>{item.name}</Text>
+                  {item.client_name ? <Text style={styles.listJobClient} numberOfLines={1}>{item.client_name}</Text> : null}
+                  {item.address ? <Text style={styles.listJobAddress} numberOfLines={1}>{item.address}</Text> : null}
+                </View>
+                {stamp ? (
+                  <View style={[styles.listStamp, { borderColor: stamp.color + '88' }]}>
+                    <Text style={[styles.listStampText, { color: stamp.color }]}>{stamp.label}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {item.crew && item.crew.length > 0 ? (
+                <View style={styles.crewRow}>
+                  {item.crew.slice(0, 4).map((c, i) => {
+                    const tc = crewColor(theme, c.name);
+                    return (
+                      <View
+                        key={`${c.employee_id}-${i}`}
+                        style={[styles.crewChip, { backgroundColor: tc + '22', borderColor: tc + '55' }]}
+                      >
+                        <View style={[styles.crewInitial, { backgroundColor: tc }]}>
+                          <Text style={styles.crewInitialText}>{c.name.charAt(0).toUpperCase()}</Text>
+                        </View>
+                        <Text style={[styles.crewChipName, { color: tc }]}>
+                          {c.name.split(' ')[0]}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                  {item.crew.length > 4 ? (
+                    <Text style={styles.crewMore}>+{item.crew.length - 4}</Text>
+                  ) : null}
+                </View>
+              ) : (
+                <Text style={styles.unassigned}>Unassigned</Text>
+              )}
+              <View style={styles.statusFoot}>
+                <Ionicons name={statusMeta(item.status).icon} size={13} color={p.text} />
+                <Text style={[styles.statusLabel, { color: p.text }]}>{statusMeta(item.status).label}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        );
+      }}
+    />
+  );
+}
+
+// ─── CALENDAR GRID VIEW ─────────────────────────────────────────────
+
+function CalendarView({
+  theme, jobs, refreshing, onRefresh, allJobsWeek,
+}: {
+  theme: Theme;
+  jobs: ScheduleJob[];
+  refreshing: boolean;
+  onRefresh: () => void;
+  allJobsWeek: boolean;
+}) {
+  const styles = makeStyles(theme);
+
+  const { cards, allCrew } = useMemo(() => {
+    const perCrew = new Map<string, ScheduleJob[]>();
+    const seenOrder: string[] = [];
+    for (const j of jobs) {
+      const people = j.crew && j.crew.length > 0 ? j.crew.map(c => c.name) : ['Unassigned'];
+      for (const name of people) {
+        if (!perCrew.has(name)) { perCrew.set(name, []); seenOrder.push(name); }
+        perCrew.get(name)!.push(j);
+      }
+    }
+    type Placed = { job: ScheduleJob; colIndex: number; startHour: number; endHour: number };
+    const out: Placed[] = [];
+    for (const name of seenOrder) {
+      const colIndex = seenOrder.indexOf(name);
+      const list = perCrew.get(name) || [];
+      let cursor = 8;
+      for (const j of list) {
+        const duration = 2;
+        const startHour = cursor;
+        const endHour = Math.min(HOUR_END, startHour + duration);
+        out.push({ job: j, colIndex, startHour, endHour });
+        cursor = endHour;
+        if (cursor >= HOUR_END) cursor = HOUR_START + 1;
+      }
+    }
+    return { cards: out, allCrew: seenOrder };
+  }, [jobs]);
+
+  const gridWidth = Math.max(allCrew.length, 1) * COL_WIDTH;
+  const gridHeight = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+    >
+      <View style={{ flexDirection: 'row' }}>
+        {/* Fixed time gutter */}
+        <View style={[styles.gutter, { width: GUTTER_WIDTH, height: gridHeight + 44 }]}>
+          <View style={{ height: 44 }} />
+          {Array.from({ length: HOUR_END - HOUR_START }).map((_, i) => {
+            const h = HOUR_START + i;
+            const display = h === 12 ? '12 PM' : h > 12 ? `${h - 12} PM` : `${h} AM`;
+            return (
+              <View key={i} style={[styles.hourTick, { height: HOUR_HEIGHT }]}>
+                <Text style={styles.hourLabel}>{display}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces style={{ flex: 1 }}>
+          <View style={{ width: gridWidth }}>
+            <View style={[styles.crewHeaderRow, { width: gridWidth, height: 44 }]}>
+              {allCrew.length > 0 ? allCrew.map((name, idx) => {
+                const color = crewColor(theme, name);
+                return (
+                  <View
+                    key={`${name}-${idx}`}
+                    style={[styles.crewHeader, { width: COL_WIDTH, borderLeftColor: theme.border }]}
+                  >
+                    <View style={[styles.crewAvatar, { backgroundColor: color }]}>
+                      <Text style={styles.crewAvatarLetter}>{name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <Text style={[styles.crewHeaderName, { color: theme.textPrimary }]} numberOfLines={1}>
+                      {name}
+                    </Text>
+                  </View>
+                );
+              }) : (
+                <View style={[styles.crewHeader, { width: COL_WIDTH, borderLeftColor: 'transparent' }]}>
+                  <View style={[styles.crewAvatar, { backgroundColor: theme.surfaceInset }]}>
+                    <Ionicons name="people-outline" size={14} color={theme.textMuted} />
+                  </View>
+                  <Text style={[styles.crewHeaderName, { color: theme.textMuted }]} numberOfLines={1}>
+                    No crew yet
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={{ width: gridWidth, height: gridHeight, position: 'relative' }}>
+              {Array.from({ length: HOUR_END - HOUR_START }).map((_, i) => (
+                <View
+                  key={`hl-${i}`}
+                  style={{
+                    position: 'absolute',
+                    top: i * HOUR_HEIGHT, left: 0, right: 0,
+                    height: StyleSheet.hairlineWidth,
+                    backgroundColor: theme.border,
+                  }}
+                />
+              ))}
+              {(allCrew.length > 0 ? allCrew : ['']).map((_, i) => (
+                <View
+                  key={`vl-${i}`}
+                  style={{
+                    position: 'absolute',
+                    top: 0, bottom: 0, left: i * COL_WIDTH,
+                    width: StyleSheet.hairlineWidth,
+                    backgroundColor: theme.border,
+                  }}
+                />
+              ))}
+
+              {jobs.length === 0 ? (
+                <View style={styles.gridHint} pointerEvents="none">
+                  <Ionicons name="calendar-outline" size={22} color={theme.textMuted} />
+                  <Text style={styles.gridHintTitle}>Nothing scheduled</Text>
+                  <Text style={styles.gridHintSub}>
+                    {allJobsWeek ? 'Tap a dotted day above' : 'Set scheduled dates on jobs to see them here'}
+                  </Text>
+                </View>
+              ) : null}
+
+              {cards.map((c, i) => {
+                const p = colorForJob(theme, c.job);
+                const top = (c.startHour - HOUR_START) * HOUR_HEIGHT;
+                const height = (c.endHour - c.startHour) * HOUR_HEIGHT - 4;
+                const left = c.colIndex * COL_WIDTH + 4;
+                const w = COL_WIDTH - 8;
+                const stamp = statusStamp(theme, c.job);
+                return (
+                  <TouchableOpacity
+                    key={`${c.job.id}-${c.colIndex}-${i}`}
+                    activeOpacity={0.8}
+                    onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: c.job.id } } as any)}
+                    style={[
+                      styles.card,
+                      { top, height, left, width: w, backgroundColor: p.bg, borderLeftColor: p.border },
+                    ]}
+                  >
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={2}>{c.job.name}</Text>
+                    {c.job.client_name ? (
+                      <Text style={styles.cardClient} numberOfLines={1}>{c.job.client_name}</Text>
+                    ) : null}
+                    {c.job.address ? (
+                      <Text style={styles.cardAddress} numberOfLines={1}>{c.job.address}</Text>
+                    ) : null}
+                    {stamp ? (
+                      <View style={[styles.cardStamp, { borderColor: stamp.color + '88' }]}>
+                        <Text style={[styles.cardStampText, { color: stamp.color }]}>{stamp.label}</Text>
+                      </View>
+                    ) : null}
+                    {c.job.crew && c.job.crew.length > 1 ? (
+                      <View style={styles.cardDots}>
+                        {c.job.crew.slice(0, 3).map((cc, k) => (
+                          <View
+                            key={k}
+                            style={[styles.cardDot, { backgroundColor: crewColor(theme, cc.name) }]}
+                          />
+                        ))}
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -455,40 +645,156 @@ function makeStyles(t: Theme) {
     container: { flex: 1, backgroundColor: t.bg },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
 
-    offlineBar: { backgroundColor: t.dangerMuted, paddingVertical: 8, paddingHorizontal: 16 },
-    offlineText: { color: t.danger, fontSize: 12, fontWeight: '600', textAlign: 'center' },
+    viewToggle: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6,
+    },
+    viewPill: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      height: 30, paddingHorizontal: 12,
+      borderRadius: 999,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1, borderColor: 'transparent',
+    },
+    viewPillText: { color: t.textSecondary, fontSize: 13, fontWeight: '700' },
+    pingBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      paddingHorizontal: 10, height: 30, borderRadius: 999,
+      backgroundColor: t.accentMuted,
+    },
+    pingBtnText: { color: t.accent, fontSize: 12, fontWeight: '800' },
 
-    dayModeControls: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
-    dayModeLink: { color: t.accent, fontSize: 13, fontWeight: '700' },
+    weekNav: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 16, paddingVertical: 6,
+    },
+    weekLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '800' },
 
-    filterRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, flexWrap: 'wrap', alignItems: 'center' },
-    filterChip: { borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface },
-    filterChipActive: { backgroundColor: t.accentMuted, borderColor: t.accent },
-    filterChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },
-    filterChipTextActive: { color: t.accent },
+    weekStrip: {
+      flexDirection: 'row', gap: 4,
+      paddingVertical: 8, paddingHorizontal: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
+    },
+    dayCell: {
+      flex: 1, alignItems: 'center', paddingVertical: 6,
+      borderRadius: 10,
+      borderWidth: 1, borderColor: 'transparent',
+    },
+    dayLetter: { fontSize: 11, fontWeight: '700', marginBottom: 2 },
+    dayNumber: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
+    dayDotRow: { height: 6, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
+    dayDot: { width: 4, height: 4, borderRadius: 2 },
 
-    card: { backgroundColor: t.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: t.border },
-    cardRow: { flexDirection: 'row', alignItems: 'flex-start' },
-    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
-    jobAddress: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
-    stageBadge: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
-    stageText: { fontSize: 11, fontWeight: '700' },
-    cardMetaRow: { flexDirection: 'row', gap: 10, marginTop: 8, flexWrap: 'wrap' },
-    metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    metaChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
+    selectedHeader: {
+      flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+      paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
+    },
+    selectedLabel: { color: t.textPrimary, fontSize: 18, fontWeight: '800' },
+    selectedCount: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
 
-    footerLabel: { color: t.textSecondary, fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-    dayBadge: { backgroundColor: t.accentMuted, borderWidth: 1, borderColor: t.accent + '55', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
-    dayBadgeText: { color: t.accent, fontSize: 10, fontWeight: '800' },
+    // List view
+    listRow: { flexDirection: 'row', backgroundColor: t.surface },
+    listBar: { width: 4 },
+    listSep: { height: StyleSheet.hairlineWidth, backgroundColor: t.border, marginLeft: 20 },
+    listJobName: { color: t.textPrimary, fontSize: 15, fontWeight: '700' },
+    listJobClient: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    listJobAddress: { color: t.textMuted, fontSize: 12, marginTop: 2 },
+    listStamp: {
+      borderWidth: 1, borderRadius: 6,
+      paddingVertical: 3, paddingHorizontal: 6,
+      transform: [{ rotate: '-6deg' }],
+      marginLeft: 8, marginTop: 2,
+    },
+    listStampText: { fontSize: 10, fontWeight: '900', letterSpacing: 1 },
 
-    emptyCard: { backgroundColor: t.surface, borderRadius: 12, borderWidth: 1, borderColor: t.border, padding: 20, alignItems: 'center', marginTop: 8 },
-    emptyText: { color: t.textSecondary, fontSize: 14, marginBottom: 10 },
-    emptyAction: { color: t.accent, fontSize: 13, fontWeight: '700' },
+    crewRow: {
+      flexDirection: 'row', flexWrap: 'wrap',
+      gap: 6, marginTop: 10, alignItems: 'center',
+    },
+    crewChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      height: 26, paddingRight: 8,
+      borderRadius: 999, borderWidth: 1,
+    },
+    crewInitial: {
+      width: 22, height: 22, borderRadius: 11,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    crewInitialText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+    crewChipName: { fontSize: 11, fontWeight: '800' },
+    crewMore: { color: t.textMuted, fontSize: 12, fontWeight: '700', marginLeft: 2 },
+    unassigned: { color: t.textMuted, fontSize: 12, fontStyle: 'italic', marginTop: 10 },
 
+    statusFoot: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+    statusLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+
+    empty: { padding: 60, alignItems: 'center', gap: 8 },
+    emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '700' },
+    emptyCta: { color: t.accent, fontSize: 14, fontWeight: '800', marginTop: 4 },
+
+    // Calendar grid
+    gutter: {
+      backgroundColor: t.bg,
+      borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: t.border,
+    },
+    hourTick: {
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border,
+      alignItems: 'flex-end', paddingRight: 8, paddingTop: 4,
+    },
+    hourLabel: { color: t.textMuted, fontSize: 10, fontWeight: '700', fontVariant: ['tabular-nums'] },
+
+    crewHeaderRow: {
+      flexDirection: 'row',
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
+      backgroundColor: t.bg,
+    },
+    crewHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingHorizontal: 10,
+      borderLeftWidth: StyleSheet.hairlineWidth,
+    },
+    crewAvatar: {
+      width: 28, height: 28, borderRadius: 14,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    crewAvatarLetter: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    crewHeaderName: { fontSize: 13, fontWeight: '700', flex: 1 },
+
+    card: {
+      position: 'absolute',
+      borderLeftWidth: 3,
+      borderRadius: 8,
+      paddingVertical: 8, paddingHorizontal: 10,
+    },
+    cardTitle: { fontSize: 13, fontWeight: '800' },
+    cardClient: { color: t.textSecondary, fontSize: 11, marginTop: 2 },
+    cardAddress: { color: t.textMuted, fontSize: 10, marginTop: 1 },
+    cardStamp: {
+      position: 'absolute', top: 6, right: 6,
+      borderWidth: 1, borderRadius: 5,
+      paddingVertical: 1, paddingHorizontal: 4,
+      transform: [{ rotate: '-6deg' }],
+    },
+    cardStampText: { fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+    cardDots: {
+      position: 'absolute', bottom: 6, right: 8,
+      flexDirection: 'row', gap: 3,
+    },
+    cardDot: { width: 6, height: 6, borderRadius: 3 },
+
+    gridHint: {
+      position: 'absolute',
+      top: 40, left: 16, right: 16,
+      alignItems: 'center', gap: 6,
+    },
+    gridHintTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
+    gridHintSub: { color: t.textMuted, fontSize: 12, textAlign: 'center' },
+
+    // Add-job modal
     modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
     modal: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
     modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
-    input: {
+    modalInput: {
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
       borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 12,
     },
@@ -497,7 +803,6 @@ function makeStyles(t: Theme) {
     cancelText: { color: t.textSecondary, fontWeight: '700' },
     saveBtn: { flex: 1, backgroundColor: t.accent, borderRadius: 10, padding: 14, alignItems: 'center' },
     saveText: { color: t.accentContrast, fontWeight: '800' },
-
     scheduleField: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
