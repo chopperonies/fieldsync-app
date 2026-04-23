@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  RefreshControl, TouchableOpacity,
+  RefreshControl, TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { mobileGet } from '../../lib/mobileApi';
+import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { router } from 'expo-router';
 import { getUser } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
@@ -355,7 +355,62 @@ export default function OwnerOverview() {
           })}
         </>
       )}
+
+      {/* Open on desktop — owner/manager only. One tap emails a magic link. */}
+      {(role === 'owner' || role === 'manager' || role === 'supervisor') && (
+        <DesktopHandoffCard />
+      )}
     </ScrollView>
+  );
+}
+
+function DesktopHandoffCard() {
+  const theme = useTheme();
+  const [sending, setSending] = useState(false);
+  async function send() {
+    if (sending) return;
+    setSending(true);
+    try {
+      const resp = await mobilePost<{ ok: boolean; emailed: boolean; to?: string; magic_url?: string; error?: string }>(
+        '/api/mobile/me/desktop-magic-link', {}
+      );
+      if (resp.emailed) {
+        Alert.alert('Check your email', `Magic link sent to ${resp.to}. It opens the dashboard without asking for a password.`);
+      } else if (resp.magic_url) {
+        Alert.alert('Desktop link', `Email delivery is off, but the link is ready:\n\n${resp.magic_url}`);
+      } else {
+        Alert.alert('Sent', 'Check your email for the desktop link.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not generate link.');
+    } finally {
+      setSending(false);
+    }
+  }
+  return (
+    <View style={{ marginHorizontal: 16, marginTop: 10, marginBottom: 20 }}>
+      <TouchableOpacity
+        onPress={send}
+        disabled={sending}
+        activeOpacity={0.8}
+        style={{
+          flexDirection: 'row', alignItems: 'center', gap: 12,
+          padding: 14, borderRadius: 12,
+          backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
+        }}
+      >
+        <Ionicons name="laptop-outline" size={22} color={theme.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 14 }}>Open on desktop</Text>
+          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+            Email yourself a one-tap link to the web dashboard.
+          </Text>
+        </View>
+        {sending
+          ? <ActivityIndicator color={theme.accent} />
+          : <Ionicons name="mail-outline" size={18} color={theme.textSecondary} />}
+      </TouchableOpacity>
+    </View>
   );
 }
 

@@ -19,7 +19,8 @@ export default function Index() {
       // entry point anymore. Restricted views are handled by useRole().
       router.replace('/(owner)' as any);
     } else {
-      router.replace('/login');
+      // First-launch chooser: "Start a new business" vs "Join my team".
+      router.replace('/landing' as any);
     }
   }, [rootNavState?.key, user]);
 

@@ -283,6 +283,40 @@ export default function OwnerSettings() {
       >
         <Text style={[styles.supportBtnText, { color: theme.danger }]}>Sign Out</Text>
       </TouchableOpacity>
+
+      <View style={styles.divider} />
+
+      <TouchableOpacity
+        style={[styles.supportBtn, { borderColor: theme.danger }]}
+        onPress={() => {
+          Alert.alert(
+            'Delete account?',
+            'This permanently deletes your account and, if you are the sole owner, the entire company workspace and all jobs, clients, and invoices. This cannot be undone.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete forever',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    const res = await mobilePost('/api/mobile/me/delete-account', { confirm: 'DELETE' });
+                    await clearUser();
+                    Alert.alert('Account deleted', 'Your account has been removed.');
+                    router.replace('/landing' as any);
+                  } catch (e: any) {
+                    Alert.alert('Error', e?.message || 'Could not delete account.');
+                  }
+                },
+              },
+            ],
+          );
+        }}
+      >
+        <Text style={[styles.supportBtnText, { color: theme.danger }]}>Delete Account</Text>
+      </TouchableOpacity>
+      <Text style={[styles.hint, { marginTop: 6, textAlign: 'center' }]}>
+        Required by app-store guidelines.
+      </Text>
     </ScrollView>
   );
 }

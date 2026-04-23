@@ -150,8 +150,16 @@ export default function Login() {
                 : <Text style={{ fontSize: 16, fontWeight: '700', color: theme.accentContrast }}>Sign In</Text>}
             </TouchableOpacity>
             <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 18 }}>
-              Your account owner adds you by phone number.{'\n'}New? Sign up at linkcrew.io/app.
+              Your account owner adds you by phone number.
             </Text>
+            <TouchableOpacity
+              onPress={() => router.replace('/signup' as any)}
+              style={{ padding: 14, alignItems: 'center', marginTop: 4 }}
+            >
+              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>
+                Starting a new business? Create account
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setMode('email')}
               style={{ padding: 14, alignItems: 'center', marginTop: 4 }}
