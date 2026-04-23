@@ -194,14 +194,27 @@ export default function OwnerJobs() {
 
   // Called by the type picker. Presets the form state, then opens the
   // add-job modal with the chosen type already configured.
+  // Every tap resets the name + other fields so a previous "Repair" default
+  // doesn't bleed into a new Install/Quote.
   function startCreate(typeLabel: string, status: string, workflowId: string | null, defaultName: string) {
     setNewTypeLabel(typeLabel);
     setNewStatus(status);
     setNewWorkflowId(workflowId);
-    if (!newName.trim()) setNewName(defaultName);
-    setNewScheduledDate(prev => prev || selectedDay);
+    setNewName(defaultName);
+    setNewAddress('');
+    setNewDesc('');
+    setNewEstimate('');
+    setNewScheduledDate(selectedDay);
     setShowTypePicker(false);
     setShowAdd(true);
+  }
+
+  function closeAddModal() {
+    setShowAdd(false);
+    // Reset so next open starts clean.
+    setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
+    setNewScheduledDate(null); setNewWorkflowId(null); setNewStatus('scheduled');
+    setNewTypeLabel('New job');
   }
 
   function openTypePicker() {
@@ -439,40 +452,46 @@ export default function OwnerJobs() {
       </Modal>
 
       {/* Add Job Modal */}
-      <Modal visible={showAdd} transparent animationType="slide">
+      <Modal visible={showAdd} transparent animationType="slide" onRequestClose={closeAddModal}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
         >
-          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom }]}>
+          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>{newTypeLabel}</Text>
-            <TextInput style={styles.modalInput} placeholder={newStatus === 'quoted' ? 'Quote name' : 'Job name'} placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
-            <TextInput style={styles.modalInput} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
-            <TextInput
-              style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
-              placeholder="Scope of work / description"
-              placeholderTextColor={theme.textMuted}
-              value={newDesc}
-              onChangeText={setNewDesc}
-              multiline
-            />
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Estimate amount (e.g. 2500)"
-              placeholderTextColor={theme.textMuted}
-              value={newEstimate}
-              onChangeText={setNewEstimate}
-              keyboardType="decimal-pad"
-            />
-            <TouchableOpacity style={styles.scheduleField} onPress={() => setPickerOpen('new')}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.scheduleLabel}>Schedule</Text>
-                <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
-              </View>
-              <Ionicons name="calendar-outline" size={20} color={theme.accent} />
-            </TouchableOpacity>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 12 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <TextInput style={styles.modalInput} placeholder={newStatus === 'quoted' ? 'Quote name' : 'Job name'} placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+              <TextInput style={styles.modalInput} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
+              <TextInput
+                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
+                placeholder="Scope of work / description"
+                placeholderTextColor={theme.textMuted}
+                value={newDesc}
+                onChangeText={setNewDesc}
+                multiline
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Estimate amount (e.g. 2500)"
+                placeholderTextColor={theme.textMuted}
+                value={newEstimate}
+                onChangeText={setNewEstimate}
+                keyboardType="decimal-pad"
+              />
+              <TouchableOpacity style={styles.scheduleField} onPress={() => setPickerOpen('new')}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.scheduleLabel}>Schedule</Text>
+                  <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
+                </View>
+                <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+              </TouchableOpacity>
+            </ScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdd(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeAddModal}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={addJob} disabled={saving}>
