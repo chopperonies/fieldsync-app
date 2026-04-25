@@ -14,11 +14,13 @@ import { setCache, getStaleCache } from '../../lib/cache';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
 import { Row, RowAvatar, Divider, SectionHeader } from '../../components/Flat';
 
 export default function OwnerClients() {
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const kbVisible = useKeyboardVisible();
   const [clients, setClients] = useState<Client[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -260,7 +262,10 @@ export default function OwnerClients() {
         visible={showAdd}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); resetForm(); setShowAdd(false); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          resetForm(); setShowAdd(false);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -298,7 +303,10 @@ export default function OwnerClients() {
         visible={!!editClient}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setEditClient(null); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setEditClient(null);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

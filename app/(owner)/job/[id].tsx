@@ -11,6 +11,7 @@ import { mobileGet, mobilePatch, mobilePost } from '../../../lib/mobileApi';
 import { Job, Employee } from '../../../lib/supabase';
 import CalendarPicker, { prettyDate } from '../../../components/CalendarPicker';
 import { useTheme } from '../../../lib/themeContext';
+import { useKeyboardVisible } from '../../../lib/useKeyboardVisible';
 import { Theme } from '../../../lib/theme';
 import { STATUS_META, normalizeStatusKey, lifecycleIndex, LIFECYCLE_ORDER, JobStatusKey } from '../../../lib/jobStatus';
 import { callNumber, textNumber } from '../../../lib/phone';
@@ -54,6 +55,7 @@ export default function OwnerJobDetail() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const kbVisible = useKeyboardVisible();
 
   const role = useRole();
   const isApprover = role === 'owner' || role === 'manager' || role === 'supervisor';
@@ -851,7 +853,10 @@ export default function OwnerJobDetail() {
         visible={picker === 'estimate'}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setPicker(null); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setPicker(null);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -885,7 +890,10 @@ export default function OwnerJobDetail() {
         visible={picker === 'details'}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setPicker(null); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setPicker(null);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -949,7 +957,10 @@ export default function OwnerJobDetail() {
         visible={picker === 'invoice'}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setPicker(null); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setPicker(null);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -998,7 +1009,10 @@ export default function OwnerJobDetail() {
         visible={picker === 'assign'}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setPicker(null); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setPicker(null);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { paddingBottom: 24 + insets.bottom, maxHeight: '80%' }]}>

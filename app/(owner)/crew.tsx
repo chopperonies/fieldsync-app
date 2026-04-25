@@ -13,6 +13,7 @@ import { Employee, Role } from '../../lib/supabase';
 import { getPlan } from '../../lib/storage';
 import { mobileGet, mobilePost, mobilePatch, mobileDelete } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
+import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
 import { Theme } from '../../lib/theme';
 
 const ROLES: Role[] = ['crew', 'supervisor', 'manager', 'owner'];
@@ -22,6 +23,7 @@ export default function OwnerCrew() {
   const role = useRole();
   const canEdit = canManageCrew(role);
   const styles = makeStyles(theme);
+  const kbVisible = useKeyboardVisible();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -258,7 +260,10 @@ export default function OwnerCrew() {
         visible={showAdd}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setShowAdd(false); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setShowAdd(false);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -297,7 +302,10 @@ export default function OwnerCrew() {
         visible={!!editMember}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setEditMember(null); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setEditMember(null);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

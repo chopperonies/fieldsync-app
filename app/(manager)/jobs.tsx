@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { Job, Employee } from '../../lib/supabase';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
+import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
 
 const PIPELINE = [
   { key: 'quoted',      label: 'Quoted',      color: '#6366f1' },
@@ -31,6 +32,7 @@ interface AssignedEmployee {
 }
 
 export default function ManagerJobs() {
+  const kbVisible = useKeyboardVisible();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -224,7 +226,10 @@ export default function ManagerJobs() {
         visible={showAdd}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setShowAdd(false); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setShowAdd(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
@@ -248,7 +253,10 @@ export default function ManagerJobs() {
         visible={!!assignJobId}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setAssignJobId(null); }}
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          setAssignJobId(null);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { maxHeight: '70%' }]}>

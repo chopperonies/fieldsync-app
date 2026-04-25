@@ -12,6 +12,7 @@ import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { statusMeta } from '../../lib/jobStatus';
 import { useRole, canManageCrew } from '../../lib/useRole';
+import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
 import CalendarPicker, { toDateString, fromDateString, prettyDate } from '../../components/CalendarPicker';
 
 type CrewMember = { employee_id: string; name: string };
@@ -94,6 +95,7 @@ export default function OwnerJobs() {
   const insets = useSafeAreaInsets();
   const role = useRole();
   const canPingCrew = canManageCrew(role) || role === 'manager';
+  const kbVisible = useKeyboardVisible();
 
   const [anchor, setAnchor] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [selectedDay, setSelectedDay] = useState<string>(toDateString(new Date()));
@@ -453,7 +455,15 @@ export default function OwnerJobs() {
       </Modal>
 
       {/* Add Job Modal */}
-      <Modal visible={showAdd} transparent animationType="slide" onRequestClose={closeAddModal}>
+      <Modal
+        visible={showAdd}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (kbVisible) { Keyboard.dismiss(); return; }
+          closeAddModal();
+        }}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
