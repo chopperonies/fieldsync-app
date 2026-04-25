@@ -277,7 +277,7 @@ export default function OwnerClients() {
           resetForm(); setShowAdd(false);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
             <Text style={styles.modalTitle}>New Client</Text>
             <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }}>
@@ -303,7 +303,7 @@ export default function OwnerClients() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -315,7 +315,7 @@ export default function OwnerClients() {
           setEditClient(null);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
             <Text style={styles.modalTitle}>Edit {editClient?.name || 'Client'}</Text>
             <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }}>
@@ -342,7 +342,7 @@ export default function OwnerClients() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
