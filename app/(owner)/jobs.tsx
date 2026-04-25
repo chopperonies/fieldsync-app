@@ -156,10 +156,13 @@ export default function OwnerJobs() {
       setNewTypeLabel('New quote');
       setShowAdd(true);
       setOpenedViaDeepLink(true);
+      // Clear so re-tapping the pill triggers this again next time.
+      setTimeout(() => router.setParams({ open: undefined } as any), 100);
     } else if (params.open === 'new') {
       // Deep link from OwnerFab's Job action — show the type picker.
       setShowTypePicker(true);
       setOpenedViaDeepLink(true);
+      setTimeout(() => router.setParams({ open: undefined } as any), 100);
     }
   }, [params.open]);
   useEffect(() => {
@@ -493,10 +496,7 @@ export default function OwnerJobs() {
           closeAddModal();
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>{newTypeLabel}</Text>
             <ScrollView

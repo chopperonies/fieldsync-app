@@ -107,6 +107,8 @@ export default function OwnerClients() {
     if (params.open === 'new') {
       setShowAdd(true);
       setOpenedViaDeepLink(true);
+      // Clear so re-tapping the pill triggers this again next time.
+      setTimeout(() => router.setParams({ open: undefined } as any), 100);
     }
   }, [params.open]);
 

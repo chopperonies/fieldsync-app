@@ -135,10 +135,14 @@ export default function OwnerInvoices() {
   // leaving them on the invoices list.
   const [openedViaDeepLink, setOpenedViaDeepLink] = useState(false);
   useEffect(() => {
-    if (params.open === 'record_payment') setFilter('unpaid');
+    if (params.open === 'record_payment') {
+      setFilter('unpaid');
+      setTimeout(() => router.setParams({ open: undefined } as any), 100);
+    }
     if (params.open === 'quick_invoice') {
       openCreateModal();
       setOpenedViaDeepLink(true);
+      setTimeout(() => router.setParams({ open: undefined } as any), 100);
     }
   }, [params.open, openCreateModal]);
 
