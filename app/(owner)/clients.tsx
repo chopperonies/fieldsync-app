@@ -256,7 +256,12 @@ export default function OwnerClients() {
         }}
       />
 
-      <Modal visible={showAdd} transparent animationType="slide">
+      <Modal
+        visible={showAdd}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { resetForm(); setShowAdd(false); }}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
@@ -289,7 +294,12 @@ export default function OwnerClients() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={!!editClient} transparent animationType="slide">
+      <Modal
+        visible={!!editClient}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditClient(null)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}

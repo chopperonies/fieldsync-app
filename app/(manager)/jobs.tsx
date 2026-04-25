@@ -220,7 +220,12 @@ export default function ManagerJobs() {
       </TouchableOpacity>
 
       {/* Add Job Modal */}
-      <Modal visible={showAdd} transparent animationType="slide">
+      <Modal
+        visible={showAdd}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAdd(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>New Job Site</Text>
@@ -239,7 +244,12 @@ export default function ManagerJobs() {
       </Modal>
 
       {/* Assign Crew Modal */}
-      <Modal visible={!!assignJobId} transparent animationType="slide">
+      <Modal
+        visible={!!assignJobId}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAssignJobId(null)}
+      >
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { maxHeight: '70%' }]}>
             <Text style={styles.modalTitle}>Assign Crew</Text>

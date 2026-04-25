@@ -135,7 +135,16 @@ export default function ExpenseNew() {
       contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
       keyboardShouldPersistTaps="handled"
     >
-      <Stack.Screen options={{ title: 'New expense' }} />
+      <Stack.Screen
+        options={{
+          title: 'New expense',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ paddingHorizontal: 12 }}>
+              <Ionicons name="close" size={24} color={theme.textPrimary} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
       <Text style={styles.label}>Amount</Text>
       <View style={styles.amountRow}>
@@ -222,15 +231,24 @@ export default function ExpenseNew() {
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity
-        onPress={save}
-        disabled={saving}
-        style={[styles.saveBtn, { backgroundColor: theme.accent }]}
-      >
-        {saving
-          ? <ActivityIndicator color={theme.accentContrast} />
-          : <Text style={[styles.saveBtnText, { color: theme.accentContrast }]}>Save expense</Text>}
-      </TouchableOpacity>
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          disabled={saving}
+          style={[styles.cancelBtn, { borderColor: theme.border }]}
+        >
+          <Text style={[styles.cancelBtnText, { color: theme.textSecondary }]}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={save}
+          disabled={saving}
+          style={[styles.saveBtn, { backgroundColor: theme.accent }]}
+        >
+          {saving
+            ? <ActivityIndicator color={theme.accentContrast} />
+            : <Text style={[styles.saveBtnText, { color: theme.accentContrast }]}>Save expense</Text>}
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -283,8 +301,17 @@ function makeStyles(t: Theme) {
     },
     receiptBtnText: { fontSize: 12, fontWeight: '800' },
 
+    actionRow: {
+      flexDirection: 'row', gap: 10, marginTop: 24,
+    },
+    cancelBtn: {
+      flex: 1, borderRadius: 14, paddingVertical: 16,
+      alignItems: 'center',
+      borderWidth: 1,
+    },
+    cancelBtnText: { fontSize: 16, fontWeight: '700' },
     saveBtn: {
-      marginTop: 24, borderRadius: 14,
+      flex: 2, borderRadius: 14,
       paddingVertical: 16, alignItems: 'center',
     },
     saveBtnText: { fontSize: 16, fontWeight: '800' },

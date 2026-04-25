@@ -847,7 +847,12 @@ export default function OwnerJobDetail() {
       />
 
       {/* Estimate modal */}
-      <Modal visible={picker === 'estimate'} transparent animationType="slide">
+      <Modal
+        visible={picker === 'estimate'}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPicker(null)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
@@ -876,7 +881,12 @@ export default function OwnerJobDetail() {
       </Modal>
 
       {/* Details (scope) modal */}
-      <Modal visible={picker === 'details'} transparent animationType="slide">
+      <Modal
+        visible={picker === 'details'}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPicker(null)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
@@ -935,7 +945,12 @@ export default function OwnerJobDetail() {
       </Modal>
 
       {/* Send invoice modal */}
-      <Modal visible={picker === 'invoice'} transparent animationType="slide">
+      <Modal
+        visible={picker === 'invoice'}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPicker(null)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
@@ -979,7 +994,12 @@ export default function OwnerJobDetail() {
       </Modal>
 
       {/* Assign crew modal */}
-      <Modal visible={picker === 'assign'} transparent animationType="slide">
+      <Modal
+        visible={picker === 'assign'}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPicker(null)}
+      >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { paddingBottom: 24 + insets.bottom, maxHeight: '80%' }]}>
             <Text style={styles.modalTitle}>Assign Crew</Text>

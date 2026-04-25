@@ -178,7 +178,7 @@ export default function OwnerSearch() {
         ))}
       </PillRow>
 
-      {(kind !== 'invoices' || canCreateFinancials) ? (
+      {(kind !== 'invoices' || canCreateFinancials || !role) ? (
         <TouchableOpacity style={styles.createBar} onPress={active.createFn} activeOpacity={0.7}>
           <View style={[styles.createIcon, { backgroundColor: activeTint + '22' }]}>
             <Ionicons name="add" size={18} color={activeTint} />

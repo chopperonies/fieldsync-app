@@ -454,7 +454,7 @@ export default function OwnerJobs() {
       {/* Add Job Modal */}
       <Modal visible={showAdd} transparent animationType="slide" onRequestClose={closeAddModal}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>

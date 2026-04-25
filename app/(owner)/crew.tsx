@@ -254,7 +254,12 @@ export default function OwnerCrew() {
         )}
       />
 
-      <Modal visible={showAdd} transparent animationType="slide">
+      <Modal
+        visible={showAdd}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAdd(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
@@ -288,7 +293,12 @@ export default function OwnerCrew() {
       </Modal>
 
       {/* Edit member modal — tap crew card */}
-      <Modal visible={!!editMember} transparent animationType="slide">
+      <Modal
+        visible={!!editMember}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditMember(null)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
