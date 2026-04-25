@@ -146,15 +146,20 @@ export default function OwnerJobs() {
   }, []);
 
   const params = useLocalSearchParams<{ open?: string; day?: string }>();
+  // When a "Create X" pill from Search routes here, track it so cancel
+  // sends the user back to Search instead of stranding them on Schedule.
+  const [openedViaDeepLink, setOpenedViaDeepLink] = useState(false);
   useEffect(() => {
     if (params.open === 'new_quote') {
       // Deep link from OwnerFab's Quote action — preload a quote.
       setNewStatus('quoted');
       setNewTypeLabel('New quote');
       setShowAdd(true);
+      setOpenedViaDeepLink(true);
     } else if (params.open === 'new') {
       // Deep link from OwnerFab's Job action — show the type picker.
       setShowTypePicker(true);
+      setOpenedViaDeepLink(true);
     }
   }, [params.open]);
   useEffect(() => {
@@ -218,6 +223,10 @@ export default function OwnerJobs() {
     setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
     setNewScheduledDate(null); setNewWorkflowId(null); setNewStatus('scheduled');
     setNewTypeLabel('New job');
+    if (openedViaDeepLink && router.canGoBack()) {
+      setOpenedViaDeepLink(false);
+      setTimeout(() => router.back(), 50);
+    }
   }
 
   function openTypePicker() {
@@ -374,12 +383,32 @@ export default function OwnerJobs() {
       )}
 
       {/* Type picker — Job / Quote / Install / Repair + Service PRO workflows */}
-      <Modal visible={showTypePicker} transparent animationType="slide" onRequestClose={() => setShowTypePicker(false)}>
+      <Modal
+        visible={showTypePicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowTypePicker(false);
+          if (openedViaDeepLink && router.canGoBack()) {
+            setOpenedViaDeepLink(false);
+            setTimeout(() => router.back(), 50);
+          }
+        }}
+      >
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '85%' }]}>
             <View style={styles.typeHeader}>
               <Text style={styles.modalTitle}>What are you adding?</Text>
-              <TouchableOpacity onPress={() => setShowTypePicker(false)} hitSlop={8}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowTypePicker(false);
+                  if (openedViaDeepLink && router.canGoBack()) {
+                    setOpenedViaDeepLink(false);
+                    setTimeout(() => router.back(), 50);
+                  }
+                }}
+                hitSlop={8}
+              >
                 <Ionicons name="close" size={22} color={theme.textMuted} />
               </TouchableOpacity>
             </View>

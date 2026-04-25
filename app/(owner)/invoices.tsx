@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert,
   StyleSheet, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
@@ -130,9 +130,25 @@ export default function OwnerInvoices() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const params = useLocalSearchParams<{ open?: string }>();
+  // Track when the New Invoice modal was opened from a Search "Create
+  // invoice" pill so cancel sends the user back to Search instead of
+  // leaving them on the invoices list.
+  const [openedViaDeepLink, setOpenedViaDeepLink] = useState(false);
   useEffect(() => {
     if (params.open === 'record_payment') setFilter('unpaid');
-  }, [params.open]);
+    if (params.open === 'quick_invoice') {
+      openCreateModal();
+      setOpenedViaDeepLink(true);
+    }
+  }, [params.open, openCreateModal]);
+
+  function closeCreateModal() {
+    setModalOpen(false);
+    if (openedViaDeepLink && router.canGoBack()) {
+      setOpenedViaDeepLink(false);
+      setTimeout(() => router.back(), 50);
+    }
+  }
 
   const filtered = jobs.filter(j => {
     if (filter === 'all') return true;
@@ -218,15 +234,12 @@ export default function OwnerInvoices() {
       />
 
 
-      <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={() => setModalOpen(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalBackdrop}
-        >
+      <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeCreateModal}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New Invoice</Text>
-              <TouchableOpacity onPress={() => setModalOpen(false)} disabled={submitting}>
+              <TouchableOpacity onPress={closeCreateModal} disabled={submitting}>
                 <Text style={styles.modalClose}>Close</Text>
               </TouchableOpacity>
             </View>

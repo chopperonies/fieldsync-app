@@ -5,7 +5,7 @@ import {
   Modal, ScrollView, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { callNumber, textNumber } from '../../lib/phone';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Client } from '../../lib/supabase';
@@ -102,9 +102,26 @@ export default function OwnerClients() {
 
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ open?: string }>();
+  const [openedViaDeepLink, setOpenedViaDeepLink] = useState(false);
   useEffect(() => {
-    if (params.open === 'new') setShowAdd(true);
+    if (params.open === 'new') {
+      setShowAdd(true);
+      setOpenedViaDeepLink(true);
+    }
   }, [params.open]);
+
+  // When a deep-link-opened modal is cancelled, return to wherever the
+  // user came from (typically Search). Save paths stay put so the user
+  // sees the new record in the list.
+  function cancelAdd() {
+    Keyboard.dismiss();
+    resetForm();
+    setShowAdd(false);
+    if (openedViaDeepLink && router.canGoBack()) {
+      setOpenedViaDeepLink(false);
+      setTimeout(() => router.back(), 50);
+    }
+  }
 
   // Android focus quirk: when a Modal dismisses, the underlying screen's
   // first TextInput (the search field) auto-grabs focus, popping the
@@ -274,7 +291,7 @@ export default function OwnerClients() {
         animationType="slide"
         onRequestClose={() => {
           if (kbVisible.current) { Keyboard.dismiss(); return; }
-          resetForm(); setShowAdd(false);
+          cancelAdd();
         }}
       >
         <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
@@ -295,7 +312,7 @@ export default function OwnerClients() {
               />
             </ScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); resetForm(); setShowAdd(false); }}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={cancelAdd}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={addClient} disabled={saving}>
