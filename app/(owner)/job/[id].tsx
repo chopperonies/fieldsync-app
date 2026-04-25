@@ -854,7 +854,7 @@ export default function OwnerJobDetail() {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          if (kbVisible) { Keyboard.dismiss(); return; }
+          if (kbVisible.current) { Keyboard.dismiss(); return; }
           setPicker(null);
         }}
       >
@@ -891,7 +891,7 @@ export default function OwnerJobDetail() {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          if (kbVisible) { Keyboard.dismiss(); return; }
+          if (kbVisible.current) { Keyboard.dismiss(); return; }
           setPicker(null);
         }}
       >
@@ -958,7 +958,7 @@ export default function OwnerJobDetail() {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          if (kbVisible) { Keyboard.dismiss(); return; }
+          if (kbVisible.current) { Keyboard.dismiss(); return; }
           setPicker(null);
         }}
       >
@@ -1010,7 +1010,7 @@ export default function OwnerJobDetail() {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          if (kbVisible) { Keyboard.dismiss(); return; }
+          if (kbVisible.current) { Keyboard.dismiss(); return; }
           setPicker(null);
         }}
       >

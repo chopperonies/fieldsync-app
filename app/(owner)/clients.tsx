@@ -263,7 +263,7 @@ export default function OwnerClients() {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          if (kbVisible) { Keyboard.dismiss(); return; }
+          if (kbVisible.current) { Keyboard.dismiss(); return; }
           resetForm(); setShowAdd(false);
         }}
       >
@@ -304,7 +304,7 @@ export default function OwnerClients() {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          if (kbVisible) { Keyboard.dismiss(); return; }
+          if (kbVisible.current) { Keyboard.dismiss(); return; }
           setEditClient(null);
         }}
       >

@@ -261,7 +261,7 @@ export default function OwnerCrew() {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          if (kbVisible) { Keyboard.dismiss(); return; }
+          if (kbVisible.current) { Keyboard.dismiss(); return; }
           setShowAdd(false);
         }}
       >
@@ -303,7 +303,7 @@ export default function OwnerCrew() {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          if (kbVisible) { Keyboard.dismiss(); return; }
+          if (kbVisible.current) { Keyboard.dismiss(); return; }
           setEditMember(null);
         }}
       >
