@@ -106,6 +106,16 @@ export default function OwnerClients() {
     if (params.open === 'new') setShowAdd(true);
   }, [params.open]);
 
+  // Android focus quirk: when a Modal dismisses, the underlying screen's
+  // first TextInput (the search field) auto-grabs focus, popping the
+  // keyboard back up. Force it down once the modal is fully closed.
+  useEffect(() => {
+    if (!showAdd && !editClient) {
+      const t = setTimeout(() => Keyboard.dismiss(), 120);
+      return () => clearTimeout(t);
+    }
+  }, [showAdd, editClient]);
+
   async function addClient() {
     if (!newName.trim()) return Alert.alert('Name is required');
     setSaving(true);
