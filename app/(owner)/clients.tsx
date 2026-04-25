@@ -277,13 +277,10 @@ export default function OwnerClients() {
           resetForm(); setShowAdd(false);
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
+        <View style={styles.modalOverlay}>
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.modalTitle}>New Client</Text>
+            <Text style={styles.modalTitle}>New Client</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }}>
               <TextInput style={styles.modalInput} placeholder="Full name *" placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
               <TextInput style={styles.modalInput} placeholder="Company (optional)" placeholderTextColor={theme.textMuted} value={newCompany} onChangeText={setNewCompany} />
               <TextInput style={styles.modalInput} placeholder="Email (optional)" placeholderTextColor={theme.textMuted} value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" />
@@ -296,17 +293,17 @@ export default function OwnerClients() {
                 onChangeText={setNewNotes}
                 multiline
               />
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); resetForm(); setShowAdd(false); }}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={addClient} disabled={saving}>
-                  {saving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Add Client</Text>}
-                </TouchableOpacity>
-              </View>
             </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); resetForm(); setShowAdd(false); }}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={addClient} disabled={saving}>
+                {saving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Add Client</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <Modal
@@ -318,13 +315,10 @@ export default function OwnerClients() {
           setEditClient(null);
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
+        <View style={styles.modalOverlay}>
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '92%' }]}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.modalTitle}>Edit {editClient?.name || 'Client'}</Text>
+            <Text style={styles.modalTitle}>Edit {editClient?.name || 'Client'}</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }}>
               <TextInput style={styles.modalInput} placeholder="Full name *" placeholderTextColor={theme.textMuted} value={editName} onChangeText={setEditName} />
               <TextInput style={styles.modalInput} placeholder="Company" placeholderTextColor={theme.textMuted} value={editCompany} onChangeText={setEditCompany} />
               <TextInput style={styles.modalInput} placeholder="Email" placeholderTextColor={theme.textMuted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
@@ -338,17 +332,17 @@ export default function OwnerClients() {
                 onChangeText={setEditNotes}
                 multiline
               />
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setEditClient(null); }} disabled={editSaving}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={editSaving}>
-                  {editSaving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Save</Text>}
-                </TouchableOpacity>
-              </View>
             </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setEditClient(null); }} disabled={editSaving}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={editSaving}>
+                {editSaving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Save</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
