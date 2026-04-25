@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Linking, Modal, TextInput, Share,
-  KeyboardAvoidingView, Platform, Image, RefreshControl,
+  KeyboardAvoidingView, Platform, Image, RefreshControl, Keyboard,
 } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -851,7 +851,7 @@ export default function OwnerJobDetail() {
         visible={picker === 'estimate'}
         transparent
         animationType="slide"
-        onRequestClose={() => setPicker(null)}
+        onRequestClose={() => { Keyboard.dismiss(); setPicker(null); }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -869,7 +869,7 @@ export default function OwnerJobDetail() {
               autoFocus
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setPicker(null)} disabled={saving}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => { Keyboard.dismiss(); setPicker(null); }} disabled={saving}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSave} onPress={saveEstimate} disabled={saving}>
@@ -885,7 +885,7 @@ export default function OwnerJobDetail() {
         visible={picker === 'details'}
         transparent
         animationType="slide"
-        onRequestClose={() => setPicker(null)}
+        onRequestClose={() => { Keyboard.dismiss(); setPicker(null); }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -932,7 +932,7 @@ export default function OwnerJobDetail() {
               </TouchableOpacity>
 
               <View style={[styles.modalActions, { marginTop: 18 }]}>
-                <TouchableOpacity style={styles.modalCancel} onPress={() => setPicker(null)} disabled={saving}>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => { Keyboard.dismiss(); setPicker(null); }} disabled={saving}>
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.modalSave} onPress={saveDetails} disabled={saving}>
@@ -949,7 +949,7 @@ export default function OwnerJobDetail() {
         visible={picker === 'invoice'}
         transparent
         animationType="slide"
-        onRequestClose={() => setPicker(null)}
+        onRequestClose={() => { Keyboard.dismiss(); setPicker(null); }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -970,7 +970,7 @@ export default function OwnerJobDetail() {
               autoFocus
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setPicker(null)} disabled={saving}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => { Keyboard.dismiss(); setPicker(null); }} disabled={saving}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSave} onPress={sendInvoice} disabled={saving}>
@@ -998,7 +998,7 @@ export default function OwnerJobDetail() {
         visible={picker === 'assign'}
         transparent
         animationType="slide"
-        onRequestClose={() => setPicker(null)}
+        onRequestClose={() => { Keyboard.dismiss(); setPicker(null); }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { paddingBottom: 24 + insets.bottom, maxHeight: '80%' }]}>

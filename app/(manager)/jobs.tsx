@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Modal, ScrollView
+  Modal, ScrollView, Keyboard,
 } from 'react-native';
 import { Job, Employee } from '../../lib/supabase';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
@@ -224,7 +224,7 @@ export default function ManagerJobs() {
         visible={showAdd}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowAdd(false)}
+        onRequestClose={() => { Keyboard.dismiss(); setShowAdd(false); }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
@@ -232,7 +232,7 @@ export default function ManagerJobs() {
             <TextInput style={styles.input} placeholder="Job name" placeholderTextColor="#555" value={newName} onChangeText={setNewName} />
             <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#555" value={newAddress} onChangeText={setNewAddress} />
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdd(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setShowAdd(false); }}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={addJob} disabled={saving}>
@@ -248,7 +248,7 @@ export default function ManagerJobs() {
         visible={!!assignJobId}
         transparent
         animationType="slide"
-        onRequestClose={() => setAssignJobId(null)}
+        onRequestClose={() => { Keyboard.dismiss(); setAssignJobId(null); }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { maxHeight: '70%' }]}>

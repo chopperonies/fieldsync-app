@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList, TextInput,
-  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform,
+  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -210,6 +210,7 @@ export default function OwnerJobs() {
   }
 
   function closeAddModal() {
+    Keyboard.dismiss();
     setShowAdd(false);
     // Reset so next open starts clean.
     setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');

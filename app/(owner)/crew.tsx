@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert, Modal,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { callNumber, textNumber } from '../../lib/phone';
@@ -258,7 +258,7 @@ export default function OwnerCrew() {
         visible={showAdd}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowAdd(false)}
+        onRequestClose={() => { Keyboard.dismiss(); setShowAdd(false); }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -281,7 +281,7 @@ export default function OwnerCrew() {
               ))}
             </View>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdd(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setShowAdd(false); }}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={addEmployee} disabled={saving}>
@@ -297,7 +297,7 @@ export default function OwnerCrew() {
         visible={!!editMember}
         transparent
         animationType="slide"
-        onRequestClose={() => setEditMember(null)}
+        onRequestClose={() => { Keyboard.dismiss(); setEditMember(null); }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -344,7 +344,7 @@ export default function OwnerCrew() {
             </View>
 
             <View style={[styles.modalActions, { marginTop: 16 }]}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditMember(null)} disabled={editSaving}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setEditMember(null); }} disabled={editSaving}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={editSaving}>

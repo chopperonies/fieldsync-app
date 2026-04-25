@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Modal, ScrollView, KeyboardAvoidingView, Platform,
+  Modal, ScrollView, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { callNumber, textNumber } from '../../lib/phone';
 import { useLocalSearchParams } from 'expo-router';
@@ -260,7 +260,7 @@ export default function OwnerClients() {
         visible={showAdd}
         transparent
         animationType="slide"
-        onRequestClose={() => { resetForm(); setShowAdd(false); }}
+        onRequestClose={() => { Keyboard.dismiss(); resetForm(); setShowAdd(false); }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -282,7 +282,7 @@ export default function OwnerClients() {
                 multiline
               />
               <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => { resetForm(); setShowAdd(false); }}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); resetForm(); setShowAdd(false); }}>
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={addClient} disabled={saving}>
@@ -298,7 +298,7 @@ export default function OwnerClients() {
         visible={!!editClient}
         transparent
         animationType="slide"
-        onRequestClose={() => setEditClient(null)}
+        onRequestClose={() => { Keyboard.dismiss(); setEditClient(null); }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -321,7 +321,7 @@ export default function OwnerClients() {
                 multiline
               />
               <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditClient(null)} disabled={editSaving}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setEditClient(null); }} disabled={editSaving}>
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={editSaving}>
