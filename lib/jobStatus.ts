@@ -23,7 +23,7 @@ type Meta = {
 
 // Ordered roughly left-to-right for the pipeline strip.
 export const STATUS_META: Meta[] = [
-  { key: 'quoted',      label: 'Quoted',      icon: 'document-text-outline',    tone: 'stageIndigo', description: 'Estimate sent. Not on the books yet.' },
+  { key: 'quoted',      label: 'Estimate',    icon: 'document-text-outline',    tone: 'stageIndigo', description: 'Estimate sent. Not on the books yet.' },
   { key: 'scheduled',   label: 'Booked',      icon: 'calendar-outline',         tone: 'stageBlue',   description: 'Sold. Pick an appointment date below.' },
   { key: 'on_the_way',  label: 'On the way',  icon: 'navigate-outline',         tone: 'stagePurple', description: 'Crew is en route to the site.' },
   { key: 'in_progress', label: 'In progress', icon: 'construct-outline',        tone: 'stageCyan',   description: 'Crew on site, clocked in.' },

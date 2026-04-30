@@ -23,6 +23,7 @@ import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import CalendarPicker, { prettyDate } from '../../components/CalendarPicker';
 import LineItemsPicker, { LineItem, lineItemsSummary, lineItemsTotal } from '../../components/LineItemsPicker';
+import TimePickerSheet, { formatTimeLabel } from '../../components/TimePickerSheet';
 
 type RequestJob = {
   id: string;
@@ -62,13 +63,17 @@ export default function OwnerRequests() {
   const [saving, setSaving] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [bookDate, setBookDate] = useState<string | null>(null);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [bookTime, setBookTime] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState<null | 'create' | 'book'>(null);
+  const [timePickerOpen, setTimePickerOpen] = useState<null | 'create' | 'book'>(null);
 
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [description, setDescription] = useState('');
   const [estimate, setEstimate] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [scheduleDate, setScheduleDate] = useState<string | null>(null);
+  const [scheduleTime, setScheduleTime] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -97,6 +102,8 @@ export default function OwnerRequests() {
     setDescription('');
     setEstimate('');
     setLineItems([]);
+    setScheduleDate(null);
+    setScheduleTime(null);
   }
 
   function closeCreate() {
@@ -124,6 +131,8 @@ export default function OwnerRequests() {
         address: address.trim(),
         description: finalDescription,
         estimate_amount: finalEstimate,
+        scheduled_date: scheduleDate,
+        scheduled_time: scheduleTime,
       });
       setRequests(prev => [created, ...prev.filter(r => r.id !== created.id)]);
       closeCreate();
@@ -137,6 +146,7 @@ export default function OwnerRequests() {
   async function bookRequest(request: RequestJob) {
     setBookingId(request.id);
     setBookDate(request.scheduled_date || null);
+    setBookTime(request.scheduled_time || null);
   }
 
   async function saveBooking() {
@@ -146,6 +156,7 @@ export default function OwnerRequests() {
       const updated = await mobilePatch<RequestJob>(`/api/mobile/owner/requests/${bookingId}/action`, {
         action: 'book',
         scheduled_date: bookDate,
+        scheduled_time: bookTime,
       });
       setRequests(prev => prev.filter(r => r.id !== updated.id));
       setBookingId(null);
@@ -236,11 +247,12 @@ export default function OwnerRequests() {
 
               {item.description ? <Text style={styles.description} numberOfLines={2}>{item.description}</Text> : null}
 
+              <View style={styles.assessmentBlock}>
+                <Text style={styles.assessmentLabel}>Assessment schedule</Text>
+                <Text style={styles.assessmentValue}>{dateLabel(item.scheduled_date)} at {formatTimeLabel(item.scheduled_time)}</Text>
+              </View>
+
               <View style={styles.metaRow}>
-                <View style={styles.metaPill}>
-                  <Ionicons name="calendar-outline" size={13} color={theme.textSecondary} />
-                  <Text style={styles.metaText}>{dateLabel(item.scheduled_date)}</Text>
-                </View>
                 {amount ? (
                   <View style={styles.metaPill}>
                     <Ionicons name="cash-outline" size={13} color={theme.textSecondary} />
@@ -256,6 +268,13 @@ export default function OwnerRequests() {
                 <TouchableOpacity style={styles.primaryBtn} onPress={() => bookRequest(item)} activeOpacity={0.7}>
                   <Ionicons name="calendar" size={15} color={theme.accentContrast} />
                   <Text style={styles.primaryBtnText}>Book job</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryIconBtn}
+                  onPress={() => router.push({ pathname: '/(owner)/request/[id]', params: { id: item.id } } as any)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="paper-plane-outline" size={16} color={theme.accent} />
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -298,6 +317,22 @@ export default function OwnerRequests() {
                 label="Product / Service"
                 emptyLabel="Add services from your catalog or enter a custom request item."
               />
+              <View style={styles.scheduleRow}>
+                <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalf]} onPress={() => setCalendarOpen('create')} activeOpacity={0.7}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.scheduleLabel}>Assessment date</Text>
+                    <Text style={styles.scheduleValue}>{prettyDate(scheduleDate)}</Text>
+                  </View>
+                  <Ionicons name="calendar-outline" size={19} color={theme.accent} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalf]} onPress={() => setTimePickerOpen('create')} activeOpacity={0.7}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.scheduleLabel}>Time</Text>
+                    <Text style={styles.scheduleValue}>{formatTimeLabel(scheduleTime)}</Text>
+                  </View>
+                  <Ionicons name="time-outline" size={19} color={theme.accent} />
+                </TouchableOpacity>
+              </View>
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={closeCreate}>
@@ -323,13 +358,22 @@ export default function OwnerRequests() {
             {booking ? (
               <View style={{ gap: 12 }}>
                 <Text style={styles.bookingName}>{booking.name}</Text>
-                <TouchableOpacity style={styles.scheduleField} onPress={() => setCalendarOpen(true)} activeOpacity={0.7}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.scheduleLabel}>Schedule</Text>
-                    <Text style={styles.scheduleValue}>{prettyDate(bookDate)}</Text>
-                  </View>
-                  <Ionicons name="calendar-outline" size={20} color={theme.accent} />
-                </TouchableOpacity>
+                <View style={styles.scheduleRow}>
+                  <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalf]} onPress={() => setCalendarOpen('book')} activeOpacity={0.7}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.scheduleLabel}>Schedule date</Text>
+                      <Text style={styles.scheduleValue}>{prettyDate(bookDate)}</Text>
+                    </View>
+                    <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalf]} onPress={() => setTimePickerOpen('book')} activeOpacity={0.7}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.scheduleLabel}>Time</Text>
+                      <Text style={styles.scheduleValue}>{formatTimeLabel(bookTime)}</Text>
+                    </View>
+                    <Ionicons name="time-outline" size={20} color={theme.accent} />
+                  </TouchableOpacity>
+                </View>
               </View>
             ) : null}
             <View style={styles.modalActions}>
@@ -345,11 +389,24 @@ export default function OwnerRequests() {
       </Modal>
 
       <CalendarPicker
-        visible={calendarOpen}
-        value={bookDate}
-        title="Schedule date"
-        onClose={() => setCalendarOpen(false)}
-        onSelect={setBookDate}
+        visible={calendarOpen !== null}
+        value={calendarOpen === 'create' ? scheduleDate : bookDate}
+        title={calendarOpen === 'create' ? 'Assessment date' : 'Schedule date'}
+        onClose={() => setCalendarOpen(null)}
+        onSelect={(v) => {
+          if (calendarOpen === 'create') setScheduleDate(v);
+          else if (calendarOpen === 'book') setBookDate(v);
+        }}
+      />
+      <TimePickerSheet
+        visible={timePickerOpen !== null}
+        value={timePickerOpen === 'create' ? scheduleTime : bookTime}
+        title={timePickerOpen === 'create' ? 'Assessment time' : 'Schedule time'}
+        onClose={() => setTimePickerOpen(null)}
+        onSelect={(v) => {
+          if (timePickerOpen === 'create') setScheduleTime(v);
+          else if (timePickerOpen === 'book') setBookTime(v);
+        }}
       />
     </View>
   );
@@ -402,6 +459,16 @@ function makeStyles(theme: Theme) {
     },
     badgeText: { color: theme.stageAmber, fontSize: 10, fontWeight: '900' },
     description: { color: theme.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 12 },
+    assessmentBlock: {
+      marginTop: 12,
+      padding: 11,
+      borderRadius: 8,
+      backgroundColor: theme.surfaceInset,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    assessmentLabel: { color: theme.textMuted, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+    assessmentValue: { color: theme.textPrimary, fontSize: 14, fontWeight: '800', marginTop: 4 },
     metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
     metaPill: {
       flexDirection: 'row',
@@ -432,6 +499,16 @@ function makeStyles(theme: Theme) {
       paddingVertical: 9,
     },
     primaryBtnText: { color: theme.accentContrast, fontSize: 13, fontWeight: '800' },
+    secondaryIconBtn: {
+      width: 38,
+      minHeight: 38,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.accent + '55',
+      backgroundColor: theme.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     empty: { alignItems: 'center', paddingTop: 100, gap: 10 },
     emptyTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '800' },
     emptyCta: { color: theme.accent, fontSize: 14, fontWeight: '800' },
@@ -495,6 +572,8 @@ function makeStyles(theme: Theme) {
       borderRadius: 8,
       padding: 13,
     },
+    scheduleRow: { flexDirection: 'row', gap: 10 },
+    scheduleHalf: { flex: 1 },
     scheduleLabel: { color: theme.textMuted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
     scheduleValue: { color: theme.textPrimary, fontSize: 15, fontWeight: '700', marginTop: 3 },
   });

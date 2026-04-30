@@ -368,7 +368,7 @@ export default function OwnerJobDetail() {
     case 'quoted':
       nextStep = {
         tone: 'stageIndigo', icon: 'document-text-outline',
-        title: 'Quote is out',
+        title: 'Estimate is out',
         body: 'Client hasn\'t accepted yet. Mark Booked once they say yes.',
         ctaLabel: 'Mark as Booked', onCta: () => advance('scheduled'),
       };

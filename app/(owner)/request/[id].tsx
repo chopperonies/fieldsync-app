@@ -18,6 +18,7 @@ import { mobileGet, mobilePatch, mobilePost } from '../../../lib/mobileApi';
 import { useTheme } from '../../../lib/themeContext';
 import { Theme } from '../../../lib/theme';
 import CalendarPicker, { prettyDate } from '../../../components/CalendarPicker';
+import TimePickerSheet, { formatTimeLabel } from '../../../components/TimePickerSheet';
 import { callNumber, textNumber } from '../../../lib/phone';
 
 type RequestJob = {
@@ -55,7 +56,9 @@ export default function OwnerRequestDetail() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [bookDate, setBookDate] = useState<string | null>(null);
+  const [bookTime, setBookTime] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) { setLoading(false); return; }
@@ -63,6 +66,7 @@ export default function OwnerRequestDetail() {
       const data = await mobileGet<RequestJob>(`/api/mobile/owner/requests/${id}`);
       setRequest(data);
       setBookDate(data.scheduled_date || null);
+      setBookTime(data.scheduled_time || null);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not load request');
       setRequest(null);
@@ -81,6 +85,7 @@ export default function OwnerRequestDetail() {
       const updated = await mobilePatch<RequestJob>(`/api/mobile/owner/requests/${request.id}/action`, {
         action: 'book',
         scheduled_date: bookDate,
+        scheduled_time: bookTime,
       });
       Alert.alert('Booked', 'Request moved to Schedule.', [
         {
@@ -177,6 +182,13 @@ export default function OwnerRequestDetail() {
               <Text style={styles.valueText}>{prettyDate(bookDate)}</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity style={styles.timeBox} onPress={() => setTimePickerOpen(true)} activeOpacity={0.7}>
+            <View>
+              <Text style={styles.valueLabel}>Appointment time</Text>
+              <Text style={styles.valueText}>{formatTimeLabel(bookTime)}</Text>
+            </View>
+            <Ionicons name="time-outline" size={18} color={theme.accent} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.actionRow}>
@@ -279,6 +291,13 @@ export default function OwnerRequestDetail() {
         onClose={() => setCalendarOpen(false)}
         onSelect={setBookDate}
       />
+      <TimePickerSheet
+        visible={timePickerOpen}
+        value={bookTime}
+        title="Appointment time"
+        onClose={() => setTimePickerOpen(false)}
+        onSelect={setBookTime}
+      />
     </View>
   );
 }
@@ -321,6 +340,17 @@ function makeStyles(theme: Theme) {
     },
     valueLabel: { color: theme.textMuted, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
     valueText: { color: theme.textPrimary, fontSize: 14, fontWeight: '800', marginTop: 4 },
+    timeBox: {
+      marginTop: 10,
+      backgroundColor: theme.surfaceInset,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
     actionRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
     primaryAction: {
       flex: 1.4,

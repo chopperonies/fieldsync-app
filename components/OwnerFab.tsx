@@ -21,7 +21,7 @@ const ALL_ACTIONS: Action[] = [
   { key: 'request', label: 'Request', icon: 'file-tray-full', color: '#b7791f', path: '/(owner)/requests?open=new' },
   { key: 'job',     label: 'Job',     icon: 'hammer',         color: '#2f7d20', path: '/(owner)/jobs?open=new' },
   { key: 'client',  label: 'Client',  icon: 'person-add',     color: '#0f766e', path: '/(owner)/clients?open=new' },
-  { key: 'quote',   label: 'Quote',   icon: 'pricetag',       color: '#9d174d', path: '/(owner)/jobs?open=new_quote' },
+  { key: 'estimate', label: 'Estimate', icon: 'document-text', color: '#0e7490', path: '/(owner)/jobs?open=new_estimate' },
   { key: 'invoice', label: 'Invoice', icon: 'document-text',  color: '#1d4ed8', quick: 'invoice' },
   { key: 'expense', label: 'Expense', icon: 'receipt',        color: '#7c3aed', path: '/(owner)/expense-new' },
   { key: 'message', label: 'Message', icon: 'chatbubble',     color: '#0e7490', path: '/(owner)/message-new' },
@@ -43,7 +43,7 @@ export default function OwnerFab() {
   const actions = ALL_ACTIONS.filter(a => {
     if (a.key === 'crew') return canManageCrew(role);
     if (a.key === 'invoice' || a.key === 'expense') return canCreateInvoices(role);
-    if (a.key === 'quote')   return canCreateInvoices(role);
+    if (a.key === 'estimate') return canCreateInvoices(role);
     if (a.key === 'client' || a.key === 'job') return canCreateInvoices(role); // manager+
     if (a.key === 'request') return canCreateInvoices(role);
     return true;

@@ -15,6 +15,7 @@ import { useRole, canManageCrew } from '../../lib/useRole';
 import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
 import CalendarPicker, { toDateString, fromDateString, prettyDate } from '../../components/CalendarPicker';
 import LineItemsPicker, { LineItem, lineItemsSummary, lineItemsTotal } from '../../components/LineItemsPicker';
+import TimePickerSheet from '../../components/TimePickerSheet';
 
 type CrewMember = { employee_id: string; name: string };
 type ScheduleJob = {
@@ -96,7 +97,7 @@ function statusStamp(theme: Theme, job: ScheduleJob): { label: string; color: st
   const s = String(job.status || '').toLowerCase();
   if (s === 'invoiced') return { label: 'INVOICED', color: theme.stagePurple };
   if (s === 'complete' || s === 'completed') return { label: 'DONE', color: theme.stageGreen };
-  if (s === 'quote' || s === 'quoted') return { label: 'QUOTE', color: theme.stageIndigo };
+  if (s === 'quote' || s === 'quoted') return { label: 'ESTIMATE', color: theme.stageIndigo };
   if (s === 'canceled' || s === 'cancelled') return { label: 'CANCELED', color: theme.danger };
   return null;
 }
@@ -117,9 +118,10 @@ export default function OwnerJobs() {
   const [refreshing, setRefreshing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState<null | 'new' | 'weekjump'>(null);
 
-  // Add-job modal (triggered by ?open=new / ?open=new_quote via OwnerFab)
+  // Add-job modal (triggered by ?open=new / ?open=new_estimate via OwnerFab)
   const [showAdd, setShowAdd] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [choiceOpen, setChoiceOpen] = useState<null | 'job' | 'estimate'>(null);
   const [workflows, setWorkflows] = useState<Array<{ id: string; name: string; description?: string | null; industry?: string | null }>>([]);
   const [newName, setNewName] = useState('');
   const [newAddress, setNewAddress] = useState('');
@@ -127,10 +129,12 @@ export default function OwnerJobs() {
   const [newEstimate, setNewEstimate] = useState('');
   const [newLineItems, setNewLineItems] = useState<LineItem[]>([]);
   const [newScheduledDate, setNewScheduledDate] = useState<string | null>(null);
+  const [newScheduledTime, setNewScheduledTime] = useState<string | null>(null);
   const [newWorkflowId, setNewWorkflowId] = useState<string | null>(null);
   const [newStatus, setNewStatus] = useState<string>('scheduled');
   const [newTypeLabel, setNewTypeLabel] = useState<string>('New job');
   const [saving, setSaving] = useState(false);
+  const [timePickerOpen, setTimePickerOpen] = useState<null | 'new'>(null);
 
   const week = useMemo(() => weekStripDays(anchor), [anchor]);
   const rangeStart = week[0];
@@ -163,11 +167,9 @@ export default function OwnerJobs() {
   // sends the user back to Search instead of stranding them on Schedule.
   const [openedViaDeepLink, setOpenedViaDeepLink] = useState(false);
   useEffect(() => {
-    if (params.open === 'new_quote') {
-      // Deep link from OwnerFab's Quote action — preload a quote.
-      setNewStatus('quoted');
-      setNewTypeLabel('New quote');
-      setShowAdd(true);
+    if (params.open === 'new_estimate' || params.open === 'new_quote') {
+      setNewScheduledDate(selectedDay);
+      setChoiceOpen('estimate');
       setOpenedViaDeepLink(true);
       // Clear so re-tapping the pill triggers this again next time.
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
@@ -209,6 +211,7 @@ export default function OwnerJobs() {
         description: finalDescription,
         estimate_amount: finalEstimate,
         scheduled_date: newScheduledDate,
+        scheduled_time: newScheduledTime,
         workflow_id: newWorkflowId,
         status: newStatus,
       });
@@ -219,7 +222,7 @@ export default function OwnerJobs() {
       }
       setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
       setNewLineItems([]);
-      setNewScheduledDate(null); setNewWorkflowId(null); setNewStatus('scheduled');
+      setNewScheduledDate(null); setNewScheduledTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
       setNewTypeLabel('New job');
       setShowAdd(false);
       load();
@@ -232,19 +235,21 @@ export default function OwnerJobs() {
 
   // Called by the type picker. Presets the form state, then opens the
   // add-job modal with the chosen type already configured.
-  // Every tap resets the name + other fields so a previous "Repair" default
-  // doesn't bleed into a new Install/Quote.
-  function startCreate(typeLabel: string, status: string, workflowId: string | null, defaultName: string) {
+  // Every tap resets the name + other fields so a previous default
+  // doesn't bleed into a new Install/Estimate.
+  function startCreate(typeLabel: string, status: string, workflowId: string | null, defaultName: string, defaultDesc = '') {
     setNewTypeLabel(typeLabel);
     setNewStatus(status);
     setNewWorkflowId(workflowId);
     setNewName(defaultName);
     setNewAddress('');
-    setNewDesc('');
+    setNewDesc(defaultDesc);
     setNewEstimate('');
     setNewLineItems([]);
     setNewScheduledDate(selectedDay);
+    setNewScheduledTime(null);
     setShowTypePicker(false);
+    setChoiceOpen(null);
     setShowAdd(true);
   }
 
@@ -254,7 +259,7 @@ export default function OwnerJobs() {
     // Reset so next open starts clean.
     setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
     setNewLineItems([]);
-    setNewScheduledDate(null); setNewWorkflowId(null); setNewStatus('scheduled');
+    setNewScheduledDate(null); setNewScheduledTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
     setNewTypeLabel('New job');
     if (openedViaDeepLink && router.canGoBack()) {
       setOpenedViaDeepLink(false);
@@ -440,7 +445,7 @@ export default function OwnerJobs() {
         />
       )}
 
-      {/* Type picker — Job / Quote / Install / Repair + Service PRO workflows */}
+      {/* Type picker - Job / Estimate / Install / Repair + Service PRO workflows */}
       <Modal
         visible={showTypePicker}
         transparent
@@ -480,15 +485,21 @@ export default function OwnerJobs() {
                   color={theme.stageGreen}
                   label="Job"
                   hint="Scheduled work"
-                  onPress={() => startCreate('New job', 'scheduled', null, '')}
+                  onPress={() => {
+                    setShowTypePicker(false);
+                    setChoiceOpen('job');
+                  }}
                 />
                 <TypeTile
                   theme={theme}
-                  icon="pricetag-outline"
-                  color={theme.stageIndigo}
-                  label="Quote"
+                  icon="document-text-outline"
+                  color={theme.stageCyan}
+                  label="Estimate"
                   hint="Pricing proposal"
-                  onPress={() => startCreate('New quote', 'quoted', null, '')}
+                  onPress={() => {
+                    setShowTypePicker(false);
+                    setChoiceOpen('estimate');
+                  }}
                 />
                 <TypeTile
                   theme={theme}
@@ -541,6 +552,72 @@ export default function OwnerJobs() {
         </View>
       </Modal>
 
+      <CreateChoiceModal
+        visible={choiceOpen === 'job'}
+        theme={theme}
+        title="Start your job"
+        leadIcon="hammer-outline"
+        options={[
+          {
+            title: 'Build a job for me',
+            subtitle: 'Start with a field-ready scope, checklist notes, schedule, and services you can adjust.',
+            icon: 'sparkles-outline',
+            color: theme.stageGreen,
+            onPress: () => startCreate(
+              'Build job',
+              'scheduled',
+              null,
+              'Assessment - ',
+              'Confirm client needs, site access, materials, photos, safety notes, and next steps before work starts.'
+            ),
+          },
+          {
+            title: 'Create my own job',
+            subtitle: 'Start blank and enter the client work, schedule, and line items yourself.',
+            icon: 'create-outline',
+            color: theme.accent,
+            onPress: () => startCreate('New job', 'scheduled', null, ''),
+          },
+        ]}
+        onClose={() => {
+          setChoiceOpen(null);
+          if (openedViaDeepLink && router.canGoBack()) {
+            setOpenedViaDeepLink(false);
+            setTimeout(() => router.back(), 50);
+          }
+        }}
+      />
+
+      <CreateChoiceModal
+        visible={choiceOpen === 'estimate'}
+        theme={theme}
+        title="Start your estimate"
+        leadIcon="document-text-outline"
+        options={[
+          {
+            title: 'Send yourself a test estimate',
+            subtitle: 'Preview the estimate workflow before sending pricing to a real client.',
+            icon: 'mail-outline',
+            color: theme.stageCyan,
+            onPress: () => startCreate('New estimate', 'quoted', null, 'Test estimate', 'Test estimate for reviewing client-facing pricing and scope.'),
+          },
+          {
+            title: 'Send a real estimate to a client',
+            subtitle: 'Create pricing for a potential job and send it to one of your clients.',
+            icon: 'person-outline',
+            color: theme.stageGreen,
+            onPress: () => startCreate('New estimate', 'quoted', null, ''),
+          },
+        ]}
+        onClose={() => {
+          setChoiceOpen(null);
+          if (openedViaDeepLink && router.canGoBack()) {
+            setOpenedViaDeepLink(false);
+            setTimeout(() => router.back(), 50);
+          }
+        }}
+      />
+
       {/* Add Job Modal */}
       <Modal
         visible={showAdd}
@@ -559,7 +636,7 @@ export default function OwnerJobs() {
               contentContainerStyle={{ paddingBottom: 12 }}
               showsVerticalScrollIndicator={false}
             >
-              <TextInput style={styles.modalInput} placeholder={newStatus === 'quoted' ? 'Quote name' : 'Job name'} placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+              <TextInput style={styles.modalInput} placeholder={newStatus === 'quoted' ? 'Estimate title' : 'Job title'} placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
               <TextInput style={styles.modalInput} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
               <TextInput
                 style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
@@ -584,13 +661,22 @@ export default function OwnerJobs() {
                 label="Product / Service"
                 emptyLabel="Add services from your catalog or enter a custom line item."
               />
-              <TouchableOpacity style={styles.scheduleField} onPress={() => setPickerOpen('new')}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.scheduleLabel}>Schedule</Text>
-                  <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
-                </View>
-                <Ionicons name="calendar-outline" size={20} color={theme.accent} />
-              </TouchableOpacity>
+              <View style={styles.scheduleRowFields}>
+                <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalfField]} onPress={() => setPickerOpen('new')}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.scheduleLabel}>Date</Text>
+                    <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
+                  </View>
+                  <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalfField]} onPress={() => setTimePickerOpen('new')}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.scheduleLabel}>Time</Text>
+                    <Text style={styles.scheduleValue}>{formatVisitTime(newScheduledTime)}</Text>
+                  </View>
+                  <Ionicons name="time-outline" size={20} color={theme.accent} />
+                </TouchableOpacity>
+              </View>
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={closeAddModal}>
@@ -618,7 +704,60 @@ export default function OwnerJobs() {
           }
         }}
       />
+      <TimePickerSheet
+        visible={timePickerOpen === 'new'}
+        value={newScheduledTime}
+        title="Schedule time"
+        onClose={() => setTimePickerOpen(null)}
+        onSelect={setNewScheduledTime}
+      />
     </View>
+  );
+}
+
+// ─── CREATE CHOICE SHEET ───────────────────────────────────────────
+
+function CreateChoiceModal({
+  visible, theme, title, leadIcon, options, onClose,
+}: {
+  visible: boolean;
+  theme: Theme;
+  title: string;
+  leadIcon: any;
+  options: Array<{ title: string; subtitle: string; icon: any; color: string; onPress: () => void }>;
+  onClose: () => void;
+}) {
+  const styles = makeStyles(theme);
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.choiceModal}>
+          <View style={styles.choiceHeader}>
+            <View style={[styles.choiceLeadIcon, { backgroundColor: theme.accentMuted }]}>
+              <Ionicons name={leadIcon} size={20} color={theme.accent} />
+            </View>
+            <Text style={styles.choiceTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.choiceClose}>
+              <Ionicons name="close" size={20} color={theme.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.choiceOptionList}>
+            {options.map((option) => (
+              <TouchableOpacity key={option.title} style={styles.choiceOption} onPress={option.onPress} activeOpacity={0.75}>
+                <View style={[styles.choiceOptionIcon, { backgroundColor: option.color + '18' }]}>
+                  <Ionicons name={option.icon} size={19} color={option.color} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.choiceOptionTitle}>{option.title}</Text>
+                  <Text style={styles.choiceOptionSub}>{option.subtitle}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={17} color={theme.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -704,7 +843,7 @@ function ListView({
                   <Ionicons name="time-outline" size={13} color={p.text} />
                   <Text style={[styles.visitTimeText, { color: p.text }]}>{formatVisitTime(item.scheduled_time)}</Text>
                 </View>
-                <Text style={styles.visitTypeText}>{item.crew?.length ? `${item.crew.length} assigned` : 'Needs crew'}</Text>
+                <Text style={styles.visitTypeText}>Visit</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -743,9 +882,15 @@ function ListView({
               ) : (
                 <Text style={styles.unassigned}>Unassigned</Text>
               )}
-              <View style={styles.statusFoot}>
-                <Ionicons name={statusMeta(item.status).icon} size={13} color={p.text} />
-                <Text style={[styles.statusLabel, { color: p.text }]}>{statusMeta(item.status).label}</Text>
+              <View style={styles.detailBlock}>
+                <View style={styles.detailLine}>
+                  <Ionicons name="calendar-outline" size={14} color={theme.textSecondary} />
+                  <Text style={styles.detailText}>{item.scheduled_date || 'No date'} at {formatVisitTime(item.scheduled_time)}</Text>
+                </View>
+                <View style={styles.detailLine}>
+                  <Ionicons name={statusMeta(item.status).icon} size={14} color={p.text} />
+                  <Text style={[styles.detailText, { color: p.text }]}>{statusMeta(item.status).label}</Text>
+                </View>
               </View>
               <View style={styles.visitActionRow}>
                 <TouchableOpacity
@@ -762,6 +907,13 @@ function ListView({
                 >
                   <Ionicons name="navigate-outline" size={14} color={theme.accent} />
                   <Text style={styles.visitActionText}>Directions</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.visitActionBtn}
+                  onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: item.id } } as any)}
+                >
+                  <Ionicons name="paper-plane-outline" size={14} color={theme.accent} />
+                  <Text style={styles.visitActionText}>Confirm</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1092,6 +1244,15 @@ function makeStyles(t: Theme) {
 
     statusFoot: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
     statusLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+    detailBlock: {
+      gap: 6,
+      marginTop: 10,
+      paddingTop: 10,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.border,
+    },
+    detailLine: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    detailText: { color: t.textSecondary, fontSize: 12, fontWeight: '800' },
     visitActionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
     visitActionBtn: {
       flex: 1,
@@ -1173,6 +1334,32 @@ function makeStyles(t: Theme) {
     modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
     modal: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
     modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+    choiceModal: {
+      backgroundColor: t.surfaceElevated,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 18,
+      borderTopWidth: 1,
+      borderColor: t.border,
+    },
+    choiceHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+    choiceLeadIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+    choiceTitle: { flex: 1, color: t.textPrimary, fontSize: 20, fontWeight: '800' },
+    choiceClose: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+    choiceOptionList: { gap: 10 },
+    choiceOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 13,
+      borderRadius: 8,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    choiceOptionIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+    choiceOptionTitle: { color: t.textPrimary, fontSize: 15, fontWeight: '900' },
+    choiceOptionSub: { color: t.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
     typeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     typeHint: { color: t.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 14, marginTop: -8 },
     typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },
@@ -1201,6 +1388,8 @@ function makeStyles(t: Theme) {
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
       borderRadius: 10, padding: 14, marginBottom: 12,
     },
+    scheduleRowFields: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+    scheduleHalfField: { flex: 1, marginBottom: 0 },
     scheduleLabel: { color: t.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     scheduleValue: { color: t.textPrimary, fontSize: 15, fontWeight: '600', marginTop: 2 },
   });

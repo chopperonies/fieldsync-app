@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, ScrollView, Alert,
+  ActivityIndicator, ScrollView,
 } from 'react-native';
 import { callNumber, textNumber } from '../../lib/phone';
 import { useRole, canCreateInvoices } from '../../lib/useRole';
@@ -12,14 +12,9 @@ import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { Pill, PillRow, Row, RowAvatar, SectionHeader, Divider } from '../../components/Flat';
 
-type Kind = 'clients' | 'quotes' | 'estimates' | 'jobs' | 'invoices' | 'expenses';
+type Kind = 'clients' | 'estimates' | 'jobs' | 'invoices' | 'expenses';
 
 type Client = { id: string; name: string; company?: string | null; email?: string | null; phone?: string | null };
-type QuoteRow = {
-  id: string; name: string; frequency?: string | null;
-  price?: number | null; next_due?: string | null; status?: string | null;
-  clients?: { name: string } | null;
-};
 type JobHit = {
   id: string; name: string; address?: string | null; status: string;
   invoice_amount?: number | null; payment_status?: string | null;
@@ -34,7 +29,7 @@ type ExpenseRow = {
 
 type SearchResponse = {
   clients: Client[];
-  quotes: QuoteRow[];
+  quotes: unknown[];
   estimates: JobHit[];
   jobs: JobHit[];
   invoices: JobHit[];
@@ -48,14 +43,9 @@ const PILLS: Array<{ kind: Kind; label: string; icon: keyof typeof import('@expo
     createFn: () => router.push('/(owner)/clients?open=new' as any),
   },
   {
-    kind: 'quotes', label: 'Quotes', icon: 'pricetag-outline',
-    tintKey: 'stageIndigo', createLabel: 'Create quote',
-    createFn: () => router.push('/(owner)/jobs?open=new_quote' as any),
-  },
-  {
     kind: 'estimates', label: 'Estimates', icon: 'document-text-outline',
     tintKey: 'stageCyan', createLabel: 'Create estimate',
-    createFn: () => router.push('/(owner)/jobs?open=new_quote' as any),
+    createFn: () => router.push('/(owner)/jobs?open=new_estimate' as any),
   },
   {
     kind: 'jobs', label: 'Jobs', icon: 'hammer-outline',
@@ -133,7 +123,6 @@ export default function OwnerSearch() {
   const placeholder = (() => {
     switch (kind) {
       case 'clients':   return 'Search clients';
-      case 'quotes':    return 'Search quotes';
       case 'estimates': return 'Search estimates';
       case 'jobs':      return 'Search jobs';
       case 'invoices':  return 'Search invoices';
@@ -207,12 +196,6 @@ export default function OwnerSearch() {
             <ClientRow theme={theme} c={c} />
           </View>
         ))}
-        {kind === 'quotes' && data.quotes.map((r, i) => (
-          <View key={r.id}>
-            {i > 0 ? <Divider inset={64} /> : null}
-            <QuoteRowView theme={theme} r={r} />
-          </View>
-        ))}
         {kind === 'estimates' && data.estimates.map((j, i) => (
           <View key={j.id}>
             {i > 0 ? <Divider inset={64} /> : null}
@@ -270,26 +253,6 @@ function ClientRow({ theme, c }: { theme: Theme; c: Client }) {
         ) : null
       }
       onPress={() => router.push('/(owner)/clients' as any)}
-    />
-  );
-}
-
-function QuoteRowView({ theme, r }: { theme: Theme; r: QuoteRow }) {
-  return (
-    <Row
-      leading={<RowAvatar icon="pricetag-outline" tint={theme.stageIndigo} />}
-      title={r.name}
-      subtitle={[
-        r.clients?.name,
-        r.frequency ? `every ${r.frequency}` : null,
-        r.next_due ? `next ${r.next_due}` : null,
-      ].filter(Boolean).join(' · ') || 'Service agreement'}
-      trailing={Number(r.price || 0) > 0 ? (
-        <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: '700' }}>
-          ${Number(r.price).toLocaleString()}
-        </Text>
-      ) : null}
-      onPress={() => Alert.alert('Service agreement', 'Mobile edit is on the roadmap.')}
     />
   );
 }
