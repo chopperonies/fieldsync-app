@@ -9,7 +9,7 @@ import { useTheme } from '../lib/themeContext';
 import { useRole, canCreateInvoices, canSeeFinancials, canManageCrew } from '../lib/useRole';
 import QuickInvoiceModal from './QuickInvoiceModal';
 
-const TAB_BAR_HEIGHT = 60;      // keep in sync with (owner)/_layout.tsx
+const TAB_BAR_HEIGHT = 62;      // keep in sync with (owner)/_layout.tsx
 const FAB_GAP_ABOVE_TABS = 16;  // clear space above the bottom nav
 const FAB_SIZE = 60;
 
@@ -18,12 +18,13 @@ type Action = { label: string; icon: any; color: string; path?: string; quick?: 
 // Full action catalog. Filtered per-role at render time — crew sees
 // only the actions they're allowed to take.
 const ALL_ACTIONS: Action[] = [
-  { key: 'invoice', label: 'Invoice',  icon: 'document-text', color: '#4ade80', quick: 'invoice' },
-  { key: 'job',     label: 'Job',      icon: 'hammer',        color: '#0ea5e9', path: '/(owner)/jobs?open=new' },
-  { key: 'client',  label: 'Client',   icon: 'person-add',    color: '#a78bfa', path: '/(owner)/clients?open=new' },
-  { key: 'quote',   label: 'Quote',    icon: 'pricetag',      color: '#6366f1', path: '/(owner)/jobs?open=new_quote' },
-  { key: 'payment', label: 'Payment',  icon: 'cash',          color: '#facc15', path: '/(owner)/invoices?open=record_payment' },
-  { key: 'crew',    label: 'Crew',     icon: 'person-circle', color: '#f472b6', path: '/(owner)/crew?open=new' },
+  { key: 'request', label: 'Request', icon: 'file-tray-full', color: '#b7791f', path: '/(owner)/requests?open=new' },
+  { key: 'job',     label: 'Job',     icon: 'hammer',         color: '#2f7d20', path: '/(owner)/jobs?open=new' },
+  { key: 'client',  label: 'Client',  icon: 'person-add',     color: '#0f766e', path: '/(owner)/clients?open=new' },
+  { key: 'quote',   label: 'Quote',   icon: 'pricetag',       color: '#9d174d', path: '/(owner)/jobs?open=new_quote' },
+  { key: 'invoice', label: 'Invoice', icon: 'document-text',  color: '#1d4ed8', quick: 'invoice' },
+  { key: 'expense', label: 'Expense', icon: 'receipt',        color: '#7c3aed', path: '/(owner)/expense-new' },
+  { key: 'message', label: 'Message', icon: 'chatbubble',     color: '#0e7490', path: '/(owner)/message-new' },
 ];
 
 export default function OwnerFab() {
@@ -40,10 +41,11 @@ export default function OwnerFab() {
   // completely (returning null). Manager gets everything except Crew
   // management. Owner gets everything.
   const actions = ALL_ACTIONS.filter(a => {
-    if (a.key === 'crew')    return canManageCrew(role);
-    if (a.key === 'invoice' || a.key === 'payment') return canCreateInvoices(role);
+    if (a.key === 'crew') return canManageCrew(role);
+    if (a.key === 'invoice' || a.key === 'expense') return canCreateInvoices(role);
     if (a.key === 'quote')   return canCreateInvoices(role);
     if (a.key === 'client' || a.key === 'job') return canCreateInvoices(role); // manager+
+    if (a.key === 'request') return canCreateInvoices(role);
     return true;
   });
   if (actions.length === 0) return null;
@@ -71,7 +73,7 @@ export default function OwnerFab() {
   return (
     <>
       <TouchableOpacity
-        style={[styles.fab, { bottom: fabBottom, backgroundColor: theme.accent }]}
+        style={[styles.fab, { bottom: fabBottom, backgroundColor: '#244457' }]}
         activeOpacity={0.85}
         onPress={() => toggle(!open)}
       >
@@ -82,33 +84,47 @@ export default function OwnerFab() {
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => toggle(false)}>
         <Pressable style={[styles.backdrop, { backgroundColor: theme.overlay }]} onPress={() => toggle(false)}>
-          <View pointerEvents="box-none" style={styles.stackContainer}>
-            <View style={[styles.stack, { bottom: fabBottom + FAB_SIZE + 16, right: 20 }]}>
-              {actions.map((a, i) => (
+          <View pointerEvents="box-none" style={styles.sheetWrap}>
+            <Pressable
+              style={[
+                styles.sheet,
+                {
+                  backgroundColor: theme.surfaceElevated,
+                  paddingBottom: Math.max(18, insets.bottom + 12),
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <View style={styles.grabber} />
+              <View style={styles.sheetHeader}>
+                <View>
+                  <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Create</Text>
+                  <Text style={[styles.sheetSub, { color: theme.textSecondary }]}>Start a client, request, job, or billing workflow.</Text>
+                </View>
+                <TouchableOpacity onPress={() => toggle(false)} hitSlop={10} style={[styles.closeBtn, { backgroundColor: theme.surfaceInset }]}>
+                  <Ionicons name="close" size={18} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.actionGrid}>
+                {actions.map((a) => (
                 <Pressable
                   key={a.label}
                   onPress={() => pick(a)}
                   style={({ pressed }) => [
-                    styles.row,
+                    styles.tile,
+                    { backgroundColor: theme.surfaceInset, borderColor: theme.border },
                     pressed && { opacity: 0.6 },
-                    { marginBottom: 14 },
                   ]}
                 >
-                  <View style={[
-                    styles.labelWrap,
-                    { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-                  ]}>
-                    <Text style={[styles.label, { color: theme.textPrimary }]}>{a.label}</Text>
-                  </View>
-                  <View style={[
-                    styles.iconCircle,
-                    { backgroundColor: theme.surfaceElevated, borderColor: a.color + '66' },
-                  ]}>
+                  <View style={[styles.iconCircle, { backgroundColor: a.color + '18' }]}>
                     <Ionicons name={a.icon} size={22} color={a.color} />
                   </View>
+                  <Text style={[styles.label, { color: theme.textPrimary }]}>{a.label}</Text>
                 </Pressable>
               ))}
-            </View>
+              </View>
+            </Pressable>
           </View>
         </Pressable>
       </Modal>
@@ -131,21 +147,55 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   backdrop: { flex: 1 },
-  stackContainer: { flex: 1 },
-  stack: { position: 'absolute', alignItems: 'flex-end' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  labelWrap: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 8, paddingHorizontal: 14,
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+  sheetWrap: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: 1,
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 12,
   },
-  label: { fontSize: 15, fontWeight: '700' },
+  grabber: {
+    alignSelf: 'center',
+    width: 38,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: '#d4d4d8',
+    marginBottom: 14,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 16,
+  },
+  sheetTitle: { fontSize: 20, fontWeight: '800' },
+  sheetSub: { fontSize: 13, lineHeight: 18, marginTop: 3, maxWidth: 250 },
+  closeBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  actionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  tile: {
+    width: '31.7%',
+    minHeight: 92,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 6,
+  },
+  label: { fontSize: 13, fontWeight: '800', textAlign: 'center' },
   iconCircle: {
-    width: 46, height: 46, borderRadius: 23, borderWidth: 1,
+    width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
 });

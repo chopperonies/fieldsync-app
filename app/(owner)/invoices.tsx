@@ -7,6 +7,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import LineItemsPicker, { LineItem, lineItemsTotal } from '../../components/LineItemsPicker';
 
 type InvoiceJob = {
   id: string;
@@ -50,6 +51,7 @@ export default function OwnerInvoices() {
   const [jobsLoading, setJobsLoading] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobLite | null>(null);
   const [amount, setAmount] = useState('');
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const [actionJob, setActionJob] = useState<InvoiceJob | null>(null);
@@ -72,6 +74,7 @@ export default function OwnerInvoices() {
     setModalOpen(true);
     setSelectedJob(null);
     setAmount('');
+    setLineItems([]);
     setJobsLoading(true);
     try {
       const allJobs = await mobileGet<JobLite[]>('/api/mobile/owner/jobs');
@@ -86,7 +89,8 @@ export default function OwnerInvoices() {
 
   const submitInvoice = useCallback(async () => {
     if (!selectedJob) return Alert.alert('Pick a job first');
-    const amt = parseFloat(amount);
+    const catalogTotal = lineItemsTotal(lineItems);
+    const amt = catalogTotal > 0 ? catalogTotal : parseFloat(amount);
     if (!amt || amt <= 0) return Alert.alert('Enter a valid amount');
     setSubmitting(true);
     try {
@@ -103,7 +107,7 @@ export default function OwnerInvoices() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedJob, amount, loadData]);
+  }, [selectedJob, amount, lineItems, loadData]);
 
   const markPaid = useCallback(async (withEmail: boolean) => {
     if (!actionJob) return;
@@ -126,6 +130,20 @@ export default function OwnerInvoices() {
       setMarkingPaid(false);
     }
   }, [actionJob, loadData]);
+
+  const resendInvoice = useCallback(async () => {
+    if (!actionJob) return;
+    setMarkingPaid(true);
+    try {
+      const resp: any = await mobilePost(`/api/mobile/owner/jobs/${actionJob.id}/invoice/resend`);
+      Alert.alert('Sent', `Invoice re-emailed to ${resp?.emailed_to || actionJob.clients?.email || 'client'}.`);
+      setActionJob(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not resend invoice');
+    } finally {
+      setMarkingPaid(false);
+    }
+  }, [actionJob]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -169,6 +187,16 @@ export default function OwnerInvoices() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Invoices</Text>
+          <Text style={styles.subtitle}>{jobs.length} total · {jobs.filter(j => !isPaid(j)).length} open</Text>
+        </View>
+        <TouchableOpacity style={styles.newBtn} onPress={openCreateModal} activeOpacity={0.75}>
+          <Text style={styles.newBtnText}>New</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.summary}>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryValue}>${totalPaid.toLocaleString()}</Text>
@@ -227,7 +255,7 @@ export default function OwnerInvoices() {
                   Invoiced {new Date(item.updated_at || item.created_at).toLocaleDateString()}
                 </Text>
                 {item.address ? <Text style={styles.metaText} numberOfLines={1}>{item.address}</Text> : null}
-                {!paid && <Text style={styles.tapHint}>Tap to record payment</Text>}
+                {!paid && <Text style={styles.tapHint}>Tap for actions</Text>}
               </View>
             </View>
           );
@@ -268,20 +296,28 @@ export default function OwnerInvoices() {
               </ScrollView>
             )}
 
+            <LineItemsPicker
+              items={lineItems}
+              onChange={setLineItems}
+              label="Product / Service"
+              emptyLabel="Add catalog services or enter a custom invoice item."
+            />
+
             <Text style={styles.label}>Amount</Text>
             <TextInput
               style={styles.input}
-              placeholder="0.00"
+              placeholder={lineItems.length ? 'Amount set from line items' : '0.00'}
               placeholderTextColor={theme.textMuted}
               keyboardType="decimal-pad"
-              value={amount}
+              value={lineItems.length ? lineItemsTotal(lineItems).toFixed(2) : amount}
               onChangeText={setAmount}
+              editable={lineItems.length === 0}
             />
 
             <TouchableOpacity
-              style={[styles.submit, (!selectedJob || !amount || submitting) && { opacity: 0.4 }]}
+              style={[styles.submit, (!selectedJob || (!amount && lineItems.length === 0) || submitting) && { opacity: 0.4 }]}
               onPress={submitInvoice}
-              disabled={!selectedJob || !amount || submitting}
+              disabled={!selectedJob || (!amount && lineItems.length === 0) || submitting}
             >
               {submitting
                 ? <ActivityIndicator color={theme.accentContrast} />
@@ -301,6 +337,16 @@ export default function OwnerInvoices() {
 
             {actionJob?.clients?.email && (
               <TouchableOpacity
+                style={[styles.submitGhost, markingPaid && { opacity: 0.4 }]}
+                onPress={resendInvoice}
+                disabled={markingPaid}
+              >
+                <Text style={styles.submitGhostText}>Resend Invoice Email</Text>
+              </TouchableOpacity>
+            )}
+
+            {actionJob?.clients?.email && (
+              <TouchableOpacity
                 style={[styles.submit, markingPaid && { opacity: 0.4 }]}
                 onPress={() => markPaid(true)}
                 disabled={markingPaid}
@@ -315,6 +361,19 @@ export default function OwnerInvoices() {
               disabled={markingPaid}
             >
               <Text style={styles.submitGhostText}>Mark Paid (no email)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.submitGhost}
+              onPress={() => {
+                if (!actionJob) return;
+                const id = actionJob.id;
+                setActionJob(null);
+                router.push({ pathname: '/(owner)/job/[id]', params: { id } } as any);
+              }}
+              disabled={markingPaid}
+            >
+              <Text style={styles.submitGhostText}>Open Job</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setActionJob(null)} disabled={markingPaid}>
@@ -333,7 +392,24 @@ function makeStyles(t: Theme) {
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
     empty: { color: t.textMuted, textAlign: 'center', marginTop: 40, fontSize: 15 },
     err: { color: t.danger, textAlign: 'center', marginTop: 8, fontSize: 13 },
-    summary: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0 },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 4,
+    },
+    title: { color: t.textPrimary, fontSize: 22, fontWeight: '800' },
+    subtitle: { color: t.textSecondary, fontSize: 13, marginTop: 4 },
+    newBtn: {
+      backgroundColor: t.accent,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    newBtnText: { color: t.accentContrast, fontSize: 13, fontWeight: '900' },
+    summary: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0, paddingTop: 10 },
     summaryCard: {
       flex: 1, backgroundColor: t.surface, borderRadius: 12,
       padding: 14, borderWidth: 1, borderColor: t.success + '44',

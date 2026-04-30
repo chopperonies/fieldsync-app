@@ -6,6 +6,7 @@ import {
 import { mobileGet, mobilePost } from '../lib/mobileApi';
 import { useTheme } from '../lib/themeContext';
 import { Theme } from '../lib/theme';
+import LineItemsPicker, { LineItem, lineItemsSummary, lineItemsTotal } from './LineItemsPicker';
 
 type Client = {
   id: string;
@@ -36,6 +37,7 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
   const [newPhone, setNewPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const reset = useCallback(() => {
@@ -43,6 +45,7 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
     setSearch(''); setSelectedClient(null);
     setNewName(''); setNewEmail(''); setNewPhone('');
     setAmount(''); setDescription('');
+    setLineItems([]);
   }, []);
 
   useEffect(() => {
@@ -66,12 +69,17 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
     : clients;
 
   async function submit() {
-    const amt = parseFloat(amount);
+    const catalogTotal = lineItemsTotal(lineItems);
+    const amt = catalogTotal > 0 ? catalogTotal : parseFloat(amount);
     if (!amt || amt <= 0) return Alert.alert('Enter a valid amount');
     setSubmitting(true);
     try {
       const body: any = { amount: amt };
-      if (description.trim()) body.description = description.trim();
+      const invoiceDescription = [
+        description.trim() || null,
+        lineItems.length ? lineItemsSummary(lineItems) : null,
+      ].filter(Boolean).join('\n\n');
+      if (invoiceDescription) body.description = invoiceDescription;
       if (selectedClient) body.client_id = selectedClient.id;
       else body.new_client = {
         name: newName.trim(),
@@ -96,7 +104,8 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
     }
   }
 
-  const canSubmit = !!(amount && parseFloat(amount) > 0 && (selectedClient || (mode === 'new' && newName.trim())));
+  const payableAmount = lineItemsTotal(lineItems) || parseFloat(amount) || 0;
+  const canSubmit = !!(payableAmount > 0 && (selectedClient || (mode === 'new' && newName.trim())));
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -185,15 +194,23 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
               </>
             )}
 
+            <LineItemsPicker
+              items={lineItems}
+              onChange={setLineItems}
+              label="Product / Service"
+              emptyLabel="Add catalog services or enter a custom invoice item."
+            />
+
             {/* Amount + description */}
             <Text style={styles.label}>Amount</Text>
             <TextInput
               style={styles.input}
-              placeholder="0.00"
+              placeholder={lineItems.length ? 'Amount set from line items' : '0.00'}
               placeholderTextColor={theme.textMuted}
               keyboardType="decimal-pad"
-              value={amount}
+              value={lineItems.length ? lineItemsTotal(lineItems).toFixed(2) : amount}
               onChangeText={setAmount}
+              editable={lineItems.length === 0}
             />
 
             <Text style={styles.label}>Description (optional)</Text>

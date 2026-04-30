@@ -312,6 +312,8 @@ export default function OwnerJobDetail() {
   const invoiceAmtExisting = Number((job as any).invoice_amount) || 0;
   const paid = String((job as any).payment_status || '').toLowerCase() === 'paid';
   const hasDate = !!((job as any).scheduled_date);
+  const clientPhone = client?.phone || null;
+  const clientEmail = client?.email || null;
 
   function handlePipePress(target: JobStatusKey) {
     const targetIdx = LIFECYCLE_ORDER.indexOf(target);
@@ -470,6 +472,57 @@ export default function OwnerJobDetail() {
           {job.address ? <Text style={styles.subtitle}>{job.address}</Text> : null}
           {client?.name ? <Text style={styles.clientLine}>{client.name}</Text> : null}
         </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.visitActionsScroll}>
+          <View style={styles.visitActions}>
+            <TouchableOpacity
+              style={[styles.visitActionChip, !job.address && styles.visitActionDisabled]}
+              disabled={!job.address}
+              onPress={() => job.address && Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(job.address)}`)}
+            >
+              <Ionicons name="navigate-outline" size={15} color={job.address ? theme.accent : theme.textMuted} />
+              <Text style={[styles.visitActionText, !job.address && styles.visitActionTextDisabled]}>Directions</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.visitActionChip, !clientPhone && styles.visitActionDisabled]}
+              disabled={!clientPhone}
+              onPress={() => textNumber(clientPhone)}
+            >
+              <Ionicons name="chatbubble-outline" size={15} color={clientPhone ? theme.accent : theme.textMuted} />
+              <Text style={[styles.visitActionText, !clientPhone && styles.visitActionTextDisabled]}>Text client</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.visitActionChip, !clientPhone && styles.visitActionDisabled]}
+              disabled={!clientPhone}
+              onPress={() => callNumber(clientPhone)}
+            >
+              <Ionicons name="call-outline" size={15} color={clientPhone ? theme.accent : theme.textMuted} />
+              <Text style={[styles.visitActionText, !clientPhone && styles.visitActionTextDisabled]}>Call</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.visitActionChip} onPress={shareWorkOrder}>
+              <Ionicons name="share-outline" size={15} color={theme.accent} />
+              <Text style={styles.visitActionText}>Share</Text>
+            </TouchableOpacity>
+            {clientEmail ? (
+              <TouchableOpacity style={styles.visitActionChip} onPress={emailWorkOrder}>
+                <Ionicons name="mail-outline" size={15} color={theme.accent} />
+                <Text style={styles.visitActionText}>Email</Text>
+              </TouchableOpacity>
+            ) : null}
+            {statusKey === 'scheduled' ? (
+              <TouchableOpacity style={styles.visitActionChip} onPress={() => handlePipePress('in_progress')}>
+                <Ionicons name="play-circle-outline" size={15} color={theme.stageGreen} />
+                <Text style={[styles.visitActionText, { color: theme.stageGreen }]}>Start</Text>
+              </TouchableOpacity>
+            ) : null}
+            {statusKey === 'in_progress' ? (
+              <TouchableOpacity style={styles.visitActionChip} onPress={() => advance('complete')}>
+                <Ionicons name="checkmark-circle-outline" size={15} color={theme.stageGreen} />
+                <Text style={[styles.visitActionText, { color: theme.stageGreen }]}>Complete</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </ScrollView>
 
         {/* Next step card (replaces the old hero status pill) */}
         {nextStep && (() => {
@@ -1070,6 +1123,25 @@ function makeStyles(t: Theme) {
     title: { color: t.textPrimary, fontSize: 20, fontWeight: '800' },
     subtitle: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
     clientLine: { color: t.accent, fontSize: 13, marginTop: 4, fontWeight: '600' },
+    visitActionsScroll: { marginTop: 14 },
+    visitActions: { flexDirection: 'row', gap: 8 },
+    visitActionChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      minHeight: 36,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.accent + '44',
+      backgroundColor: t.accentSoft,
+      paddingHorizontal: 12,
+    },
+    visitActionDisabled: {
+      borderColor: t.border,
+      backgroundColor: t.surfaceInset,
+    },
+    visitActionText: { color: t.accent, fontSize: 12, fontWeight: '900' },
+    visitActionTextDisabled: { color: t.textMuted },
     nextStep: {
       marginTop: 14,
       borderWidth: 1, borderRadius: 14,

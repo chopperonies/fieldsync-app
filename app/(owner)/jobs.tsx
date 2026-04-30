@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList, TextInput,
-  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard,
+  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard, Linking,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { statusMeta } from '../../lib/jobStatus';
 import { useRole, canManageCrew } from '../../lib/useRole';
 import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
 import CalendarPicker, { toDateString, fromDateString, prettyDate } from '../../components/CalendarPicker';
+import LineItemsPicker, { LineItem, lineItemsSummary, lineItemsTotal } from '../../components/LineItemsPicker';
 
 type CrewMember = { employee_id: string; name: string };
 type ScheduleJob = {
@@ -22,6 +23,7 @@ type ScheduleJob = {
   address: string | null;
   status: string;
   scheduled_date: string | null;
+  scheduled_time?: string | null;
   payment_status?: string | null;
   invoice_amount?: number | null;
   client_id?: string | null;
@@ -57,6 +59,16 @@ function friendlyDayLabel(iso: string): string {
   if (diff === 1) return 'Tomorrow';
   if (diff === -1) return 'Yesterday';
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function formatVisitTime(value?: string | null): string {
+  if (!value) return 'Anytime';
+  const [hhRaw, mmRaw = '00'] = String(value).split(':');
+  const hh = Number(hhRaw);
+  if (!Number.isFinite(hh)) return 'Anytime';
+  const suffix = hh >= 12 ? 'PM' : 'AM';
+  const hour = hh % 12 || 12;
+  return `${hour}:${mmRaw.padStart(2, '0').slice(0, 2)} ${suffix}`;
 }
 
 function colorForJob(theme: Theme, job: ScheduleJob): { bg: string; border: string; text: string } {
@@ -113,6 +125,7 @@ export default function OwnerJobs() {
   const [newAddress, setNewAddress] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newEstimate, setNewEstimate] = useState('');
+  const [newLineItems, setNewLineItems] = useState<LineItem[]>([]);
   const [newScheduledDate, setNewScheduledDate] = useState<string | null>(null);
   const [newWorkflowId, setNewWorkflowId] = useState<string | null>(null);
   const [newStatus, setNewStatus] = useState<string>('scheduled');
@@ -158,6 +171,14 @@ export default function OwnerJobs() {
       setOpenedViaDeepLink(true);
       // Clear so re-tapping the pill triggers this again next time.
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
+    } else if (params.open === 'new_request') {
+      // Backwards-compatible old deep link. New request creation lives at
+      // /(owner)/requests?open=new.
+      setNewStatus('quoted');
+      setNewTypeLabel('New request');
+      setShowAdd(true);
+      setOpenedViaDeepLink(true);
+      setTimeout(() => router.setParams({ open: undefined } as any), 100);
     } else if (params.open === 'new') {
       // Deep link from OwnerFab's Job action — show the type picker.
       setShowTypePicker(true);
@@ -175,12 +196,18 @@ export default function OwnerJobs() {
 
   async function addJob() {
     if (!newName.trim() || !newAddress.trim()) return Alert.alert('Fill in name and address');
+    const catalogTotal = lineItemsTotal(newLineItems);
+    const finalEstimate = catalogTotal > 0 ? catalogTotal : (newEstimate ? parseFloat(newEstimate) : null);
+    const finalDescription = [
+      newDesc.trim() || null,
+      newLineItems.length ? `Line items:\n${lineItemsSummary(newLineItems)}` : null,
+    ].filter(Boolean).join('\n\n') || null;
     setSaving(true);
     try {
       const data = await mobilePost<Job>('/api/mobile/owner/jobs', {
         name: newName.trim(), address: newAddress.trim(),
-        description: newDesc.trim() || null,
-        estimate_amount: newEstimate ? parseFloat(newEstimate) : null,
+        description: finalDescription,
+        estimate_amount: finalEstimate,
         scheduled_date: newScheduledDate,
         workflow_id: newWorkflowId,
         status: newStatus,
@@ -191,6 +218,7 @@ export default function OwnerJobs() {
         if (parsed) setAnchor(parsed);
       }
       setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
+      setNewLineItems([]);
       setNewScheduledDate(null); setNewWorkflowId(null); setNewStatus('scheduled');
       setNewTypeLabel('New job');
       setShowAdd(false);
@@ -214,6 +242,7 @@ export default function OwnerJobs() {
     setNewAddress('');
     setNewDesc('');
     setNewEstimate('');
+    setNewLineItems([]);
     setNewScheduledDate(selectedDay);
     setShowTypePicker(false);
     setShowAdd(true);
@@ -224,6 +253,7 @@ export default function OwnerJobs() {
     setShowAdd(false);
     // Reset so next open starts clean.
     setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
+    setNewLineItems([]);
     setNewScheduledDate(null); setNewWorkflowId(null); setNewStatus('scheduled');
     setNewTypeLabel('New job');
     if (openedViaDeepLink && router.canGoBack()) {
@@ -268,7 +298,12 @@ export default function OwnerJobs() {
     if (!k) continue;
     (jobsByDay[k] = jobsByDay[k] || []).push(j);
   }
-  const jobsForSelected = jobsByDay[selectedDay] || [];
+  const jobsForSelected = [...(jobsByDay[selectedDay] || [])].sort((a, b) =>
+    String(a.scheduled_time || '99:99').localeCompare(String(b.scheduled_time || '99:99'))
+  );
+  const assignedCount = jobsForSelected.filter(j => j.crew?.length > 0).length;
+  const unassignedCount = Math.max(0, jobsForSelected.length - assignedCount);
+  const scheduledRevenue = jobsForSelected.reduce((sum, j) => sum + (Number(j.invoice_amount) || 0), 0);
 
   if (loading && jobs.length === 0) {
     return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
@@ -354,7 +389,12 @@ export default function OwnerJobs() {
       </View>
 
       <View style={styles.selectedHeader}>
-        <Text style={styles.selectedLabel}>{friendlyDayLabel(selectedDay)}</Text>
+        <View>
+          <Text style={styles.selectedLabel}>{friendlyDayLabel(selectedDay)}</Text>
+          <Text style={styles.selectedCount}>
+            {jobsForSelected.length} visit{jobsForSelected.length === 1 ? '' : 's'} · {assignedCount} assigned
+          </Text>
+        </View>
         <TouchableOpacity
           onPress={openTypePicker}
           style={styles.newJobBtn}
@@ -364,6 +404,21 @@ export default function OwnerJobs() {
           <Ionicons name="add-circle" size={18} color={theme.accent} />
           <Text style={styles.newJobBtnText}>New</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.daySummary}>
+        <View style={styles.summaryCell}>
+          <Text style={styles.summaryValue}>{jobsForSelected.length}</Text>
+          <Text style={styles.summaryLabel}>Visits</Text>
+        </View>
+        <View style={styles.summaryCell}>
+          <Text style={[styles.summaryValue, { color: unassignedCount ? theme.warning : theme.success }]}>{unassignedCount}</Text>
+          <Text style={styles.summaryLabel}>Unassigned</Text>
+        </View>
+        <View style={styles.summaryCell}>
+          <Text style={styles.summaryValue}>${scheduledRevenue.toLocaleString()}</Text>
+          <Text style={styles.summaryLabel}>Scheduled</Text>
+        </View>
       </View>
 
       {view === 'list' ? (
@@ -516,11 +571,18 @@ export default function OwnerJobs() {
               />
               <TextInput
                 style={styles.modalInput}
-                placeholder="Estimate amount (e.g. 2500)"
+                placeholder={newLineItems.length ? 'Estimate set from line items' : 'Estimate amount (e.g. 2500)'}
                 placeholderTextColor={theme.textMuted}
-                value={newEstimate}
+                value={newLineItems.length ? String(lineItemsTotal(newLineItems).toFixed(2)) : newEstimate}
                 onChangeText={setNewEstimate}
                 keyboardType="decimal-pad"
+                editable={newLineItems.length === 0}
+              />
+              <LineItemsPicker
+                items={newLineItems}
+                onChange={setNewLineItems}
+                label="Product / Service"
+                emptyLabel="Add services from your catalog or enter a custom line item."
               />
               <TouchableOpacity style={styles.scheduleField} onPress={() => setPickerOpen('new')}>
                 <View style={{ flex: 1 }}>
@@ -535,7 +597,7 @@ export default function OwnerJobs() {
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={addJob} disabled={saving}>
-                {saving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>Add Job</Text>}
+                {saving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>{newTypeLabel.replace('New ', 'Add ')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -637,6 +699,13 @@ function ListView({
           >
             <View style={[styles.listBar, { backgroundColor: p.border }]} />
             <View style={{ flex: 1, paddingLeft: 14, paddingVertical: 14, paddingRight: 14 }}>
+              <View style={styles.visitMetaRow}>
+                <View style={[styles.visitTimePill, { backgroundColor: p.bg }]}>
+                  <Ionicons name="time-outline" size={13} color={p.text} />
+                  <Text style={[styles.visitTimeText, { color: p.text }]}>{formatVisitTime(item.scheduled_time)}</Text>
+                </View>
+                <Text style={styles.visitTypeText}>{item.crew?.length ? `${item.crew.length} assigned` : 'Needs crew'}</Text>
+              </View>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.listJobName} numberOfLines={1}>{item.name}</Text>
@@ -678,6 +747,23 @@ function ListView({
                 <Ionicons name={statusMeta(item.status).icon} size={13} color={p.text} />
                 <Text style={[styles.statusLabel, { color: p.text }]}>{statusMeta(item.status).label}</Text>
               </View>
+              <View style={styles.visitActionRow}>
+                <TouchableOpacity
+                  style={styles.visitActionBtn}
+                  onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: item.id } } as any)}
+                >
+                  <Ionicons name="clipboard-outline" size={14} color={theme.accent} />
+                  <Text style={styles.visitActionText}>Details</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.visitActionBtn, !item.address && { opacity: 0.45 }]}
+                  disabled={!item.address}
+                  onPress={() => item.address && Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(item.address)}`)}
+                >
+                  <Ionicons name="navigate-outline" size={14} color={theme.accent} />
+                  <Text style={styles.visitActionText}>Directions</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         );
@@ -714,11 +800,16 @@ function CalendarView({
     const out: Placed[] = [];
     for (const name of seenOrder) {
       const colIndex = seenOrder.indexOf(name);
-      const list = perCrew.get(name) || [];
+      const list = [...(perCrew.get(name) || [])].sort((a, b) =>
+        String(a.scheduled_time || '99:99').localeCompare(String(b.scheduled_time || '99:99'))
+      );
       let cursor = 8;
       for (const j of list) {
         const duration = 2;
-        const startHour = cursor;
+        const scheduledHour = j.scheduled_time ? Number(String(j.scheduled_time).split(':')[0]) : NaN;
+        const startHour = Number.isFinite(scheduledHour)
+          ? Math.max(HOUR_START, Math.min(HOUR_END - 1, scheduledHour))
+          : cursor;
         const endHour = Math.min(HOUR_END, startHour + duration);
         out.push({ job: j, colIndex, startHour, endHour });
         cursor = endHour;
@@ -937,6 +1028,23 @@ function makeStyles(t: Theme) {
     selectedCount: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
     newJobBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     newJobBtnText: { color: t.accent, fontSize: 13, fontWeight: '800' },
+    daySummary: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingBottom: 10,
+    },
+    summaryCell: {
+      flex: 1,
+      backgroundColor: t.surface,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+    },
+    summaryValue: { color: t.textPrimary, fontSize: 16, fontWeight: '900' },
+    summaryLabel: { color: t.textMuted, fontSize: 11, fontWeight: '800', marginTop: 2 },
 
     // List view
     listRow: { flexDirection: 'row', backgroundColor: t.surface },
@@ -952,6 +1060,17 @@ function makeStyles(t: Theme) {
       marginLeft: 8, marginTop: 2,
     },
     listStampText: { fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+    visitMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    visitTimePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderRadius: 999,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+    },
+    visitTimeText: { fontSize: 12, fontWeight: '900' },
+    visitTypeText: { color: t.textMuted, fontSize: 11, fontWeight: '800' },
 
     crewRow: {
       flexDirection: 'row', flexWrap: 'wrap',
@@ -973,6 +1092,20 @@ function makeStyles(t: Theme) {
 
     statusFoot: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
     statusLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+    visitActionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+    visitActionBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      minHeight: 36,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: t.accent + '44',
+      backgroundColor: t.accentSoft,
+    },
+    visitActionText: { color: t.accent, fontSize: 12, fontWeight: '900' },
 
     empty: { padding: 60, alignItems: 'center', gap: 8 },
     emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '700' },

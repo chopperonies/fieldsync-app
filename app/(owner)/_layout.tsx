@@ -90,10 +90,17 @@ export default function OwnerLayout() {
     <Tabs
       backBehavior="history"
       screenOptions={{
-        tabBarStyle: { backgroundColor: theme.bg, borderTopColor: theme.border, height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom },
-        tabBarActiveTintColor: theme.accent,
+        tabBarStyle: {
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
+          height: 62 + insets.bottom,
+          paddingTop: 7,
+          paddingBottom: 7 + insets.bottom,
+        },
+        tabBarActiveTintColor: theme.textPrimary,
         tabBarInactiveTintColor: theme.textSecondary,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
+        tabBarItemStyle: { paddingVertical: 2 },
         headerStyle: { backgroundColor: theme.bg },
         headerTintColor: theme.textPrimary,
         headerTitleStyle: { fontWeight: '700', color: theme.textPrimary },
@@ -119,6 +126,15 @@ export default function OwnerLayout() {
         }}
       />
       <Tabs.Screen
+        name="timesheet"
+        options={{
+          title: 'Timesheet',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'time' : 'time-outline'} size={size} color={color} />,
+          headerTitle: 'Timesheet',
+        }}
+      />
+      <Tabs.Screen
         name="search"
         options={{
           title: 'Search',
@@ -128,12 +144,7 @@ export default function OwnerLayout() {
       />
       <Tabs.Screen
         name="messages"
-        options={{
-          title: 'Messages',
-          tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={size} color={color} />,
-          headerTitle: 'Messages',
-        }}
+        options={{ href: null, title: 'Messages' }}
       />
       <Tabs.Screen
         name="more"
@@ -148,11 +159,13 @@ export default function OwnerLayout() {
       <Tabs.Screen name="clients"   options={{ href: null }} />
       <Tabs.Screen name="crew"      options={{ href: null }} />
       <Tabs.Screen name="invoices"  options={{ href: null }} />
+      <Tabs.Screen name="requests"  options={{ href: null, title: 'Requests' }} />
       <Tabs.Screen name="photos"    options={{ href: null }} />
       <Tabs.Screen name="supplies"  options={{ href: null }} />
       <Tabs.Screen name="dashboard" options={{ href: null }} />
       <Tabs.Screen name="settings"  options={{ href: null }} />
       <Tabs.Screen name="job/[id]"  options={{ href: null, title: 'Job' }} />
+      <Tabs.Screen name="request/[id]"  options={{ href: null, title: 'Request' }} />
       <Tabs.Screen name="message/[id]"  options={{ href: null, title: 'Message' }} />
       <Tabs.Screen name="message-new"   options={{ href: null, title: 'New message' }} />
       <Tabs.Screen name="expense-new"   options={{ href: null, title: 'New expense' }} />
