@@ -20,6 +20,10 @@ const SLOT_VALUES = [
   }),
 ];
 
+const SLOT_ROWS = Array.from({ length: Math.ceil(SLOT_VALUES.length / 2) }, (_, index) =>
+  SLOT_VALUES.slice(index * 2, index * 2 + 2)
+);
+
 export function formatTimeLabel(value?: string | null): string {
   if (!value) return 'Anytime';
   const [hhRaw, mmRaw = '00'] = String(value).split(':');
@@ -52,36 +56,45 @@ export default function TimePickerSheet({ visible, value, title = 'Schedule time
               <Ionicons name="close" size={18} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.grid}>
-            {SLOT_VALUES.map((slot) => {
-              const selected = (slot || null) === (value || null);
-              return (
-                <TouchableOpacity
-                  key={slot || 'anytime'}
-                  style={[
-                    styles.slot,
-                    {
-                      backgroundColor: selected ? theme.accentMuted : theme.surfaceInset,
-                      borderColor: selected ? theme.accent + '66' : theme.border,
-                    },
-                  ]}
-                  activeOpacity={0.75}
-                  onPress={() => {
-                    onSelect(slot);
-                    onClose();
-                  }}
-                >
-                  <Ionicons
-                    name={slot ? 'time-outline' : 'sunny-outline'}
-                    size={16}
-                    color={selected ? theme.accent : theme.textSecondary}
-                  />
-                  <Text style={[styles.slotText, { color: selected ? theme.accent : theme.textPrimary }]}>
-                    {formatTimeLabel(slot)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+          <ScrollView
+            showsVerticalScrollIndicator
+            contentContainerStyle={styles.grid}
+            keyboardShouldPersistTaps="handled"
+          >
+            {SLOT_ROWS.map((row, rowIndex) => (
+              <View key={`row-${rowIndex}`} style={styles.slotRow}>
+                {row.map((slot) => {
+                  const selected = (slot || null) === (value || null);
+                  return (
+                    <TouchableOpacity
+                      key={slot || 'anytime'}
+                      style={[
+                        styles.slot,
+                        {
+                          backgroundColor: selected ? theme.accentMuted : theme.surfaceInset,
+                          borderColor: selected ? theme.accent + '66' : theme.border,
+                        },
+                      ]}
+                      activeOpacity={0.75}
+                      onPress={() => {
+                        onSelect(slot);
+                        onClose();
+                      }}
+                    >
+                      <Ionicons
+                        name={slot ? 'time-outline' : 'sunny-outline'}
+                        size={16}
+                        color={selected ? theme.accent : theme.textSecondary}
+                      />
+                      <Text style={[styles.slotText, { color: selected ? theme.accent : theme.textPrimary }]}>
+                        {formatTimeLabel(slot)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {row.length === 1 ? <View style={styles.slotSpacer} /> : null}
+              </View>
+            ))}
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -102,9 +115,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   title: { fontSize: 20, fontWeight: '800' },
   closeBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 10 },
+  grid: { gap: 8, paddingBottom: 10 },
+  slotRow: { flexDirection: 'row', gap: 8 },
   slot: {
-    width: '48.7%',
+    flex: 1,
     minHeight: 44,
     borderRadius: 8,
     borderWidth: 1,
@@ -113,5 +127,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  slotSpacer: { flex: 1 },
   slotText: { fontSize: 14, fontWeight: '800' },
 });

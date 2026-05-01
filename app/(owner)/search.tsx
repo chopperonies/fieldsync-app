@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, ScrollView,
+  ActivityIndicator, BackHandler, ScrollView,
 } from 'react-native';
 import { callNumber, textNumber } from '../../lib/phone';
 import { useRole, canCreateInvoices } from '../../lib/useRole';
@@ -127,6 +127,18 @@ export default function OwnerSearch() {
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [q, kind, run]);
 
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (focusedKind === 'estimates') {
+        setFocusedKind(null);
+        setEstimateFilter('all');
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [focusedKind]);
+
   const active = PILLS.find(p => p.kind === kind)!;
   const activeTint = (theme as any)[active.tintKey] as string;
 
@@ -184,7 +196,7 @@ export default function OwnerSearch() {
             activeOpacity={0.75}
           >
             <Ionicons name="document-text-outline" size={15} color={activeTint} />
-            <Text style={[styles.focusRootText, { color: activeTint }]}>Estimates</Text>
+            <Text style={[styles.focusRootText, { color: activeTint }]} numberOfLines={1} allowFontScaling={false}>Estimates</Text>
             <Ionicons name="close" size={14} color={activeTint} />
           </TouchableOpacity>
           {ESTIMATE_FILTERS.map(filter => {
@@ -202,7 +214,13 @@ export default function OwnerSearch() {
                 activeOpacity={0.75}
               >
                 <Ionicons name={filter.icon} size={14} color={selected ? activeTint : theme.textSecondary} />
-                <Text style={[styles.filterPillText, { color: selected ? activeTint : theme.textSecondary }]}>{filter.label}</Text>
+                <Text
+                  style={[styles.filterPillText, { color: selected ? activeTint : theme.textSecondary }]}
+                  numberOfLines={1}
+                  allowFontScaling={false}
+                >
+                  {filter.label}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -429,30 +447,35 @@ function makeStyles(t: Theme) {
     },
     createText: { fontSize: 14, fontWeight: '800' },
     focusPills: {
+      alignItems: 'center',
       paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingVertical: 6,
       gap: 8,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: t.border,
     },
     focusRoot: {
-      minHeight: 34,
+      height: 30,
+      maxHeight: 30,
       borderRadius: 999,
       borderWidth: 1,
-      paddingHorizontal: 11,
+      paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
+      flexShrink: 0,
     },
     focusRootText: { fontSize: 13, fontWeight: '900' },
     filterPill: {
-      minHeight: 34,
+      height: 30,
+      maxHeight: 30,
       borderRadius: 999,
       borderWidth: 1,
-      paddingHorizontal: 11,
+      paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
+      flexShrink: 0,
     },
     filterPillText: { fontSize: 13, fontWeight: '800' },
 
