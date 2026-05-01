@@ -13,29 +13,11 @@ type Props = {
 
 const SLOT_VALUES = [
   null,
-  '07:00',
-  '07:30',
-  '08:00',
-  '08:30',
-  '09:00',
-  '09:30',
-  '10:00',
-  '10:30',
-  '11:00',
-  '11:30',
-  '12:00',
-  '12:30',
-  '13:00',
-  '13:30',
-  '14:00',
-  '14:30',
-  '15:00',
-  '15:30',
-  '16:00',
-  '16:30',
-  '17:00',
-  '17:30',
-  '18:00',
+  ...Array.from({ length: 48 }, (_, index) => {
+    const hour = Math.floor(index / 2);
+    const minute = index % 2 === 0 ? '00' : '30';
+    return `${String(hour).padStart(2, '0')}:${minute}`;
+  }),
 ];
 
 export function formatTimeLabel(value?: string | null): string {

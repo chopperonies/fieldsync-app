@@ -13,6 +13,7 @@ import { Theme } from '../../lib/theme';
 import { Pill, PillRow, Row, RowAvatar, SectionHeader, Divider } from '../../components/Flat';
 
 type Kind = 'clients' | 'estimates' | 'jobs' | 'invoices' | 'expenses';
+type EstimateFilter = 'all' | 'unassigned' | 'awaiting' | 'changes';
 
 type Client = { id: string; name: string; company?: string | null; email?: string | null; phone?: string | null };
 type JobHit = {
@@ -60,8 +61,15 @@ const PILLS: Array<{ kind: Kind; label: string; icon: keyof typeof import('@expo
   {
     kind: 'expenses', label: 'Expenses', icon: 'receipt-outline',
     tintKey: 'stageGreen', createLabel: 'Log expense',
-    createFn: () => router.push('/(owner)/expense-new' as any),
+    createFn: () => router.push({ pathname: '/(owner)/expense-new', params: { ts: String(Date.now()) } } as any),
   },
+];
+
+const ESTIMATE_FILTERS: Array<{ key: EstimateFilter; label: string; icon: keyof typeof import('@expo/vector-icons/build/Ionicons').default.glyphMap }> = [
+  { key: 'all', label: 'All', icon: 'albums-outline' },
+  { key: 'unassigned', label: 'Unassigned', icon: 'person-add-outline' },
+  { key: 'awaiting', label: 'Awaiting response', icon: 'hourglass-outline' },
+  { key: 'changes', label: 'Change requested', icon: 'repeat-outline' },
 ];
 
 export default function OwnerSearch() {
@@ -71,6 +79,8 @@ export default function OwnerSearch() {
   const canCreateFinancials = canCreateInvoices(role); // manager+ (invoices)
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<Kind>('clients');
+  const [focusedKind, setFocusedKind] = useState<Kind | null>(null);
+  const [estimateFilter, setEstimateFilter] = useState<EstimateFilter>('all');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<SearchResponse>({ clients: [], quotes: [], estimates: [], jobs: [], invoices: [], expenses: [] });
 
@@ -131,7 +141,17 @@ export default function OwnerSearch() {
   })();
 
   const list = data[kind];
-  const total = list.length;
+  const displayList = kind === 'estimates'
+    ? data.estimates.filter((item) => {
+        const status = String(item.status || '').toLowerCase();
+        if (estimateFilter === 'all') return true;
+        if (estimateFilter === 'unassigned') return !item.clients?.name;
+        if (estimateFilter === 'awaiting') return status === 'quoted' || status === 'quote' || status === 'estimate';
+        if (estimateFilter === 'changes') return status.includes('change') || status.includes('revision');
+        return true;
+      })
+    : list;
+  const total = displayList.length;
 
   return (
     <View style={styles.container}>
@@ -153,19 +173,59 @@ export default function OwnerSearch() {
         )}
       </View>
 
-      <PillRow>
-        {PILLS.map(p => (
-          <Pill
-            key={p.kind}
-            label={p.label}
-            active={kind === p.kind}
-            onPress={() => setKind(p.kind)}
-            icon={p.icon}
-            showIcon="active-only"
-            tint={(theme as any)[p.tintKey]}
-          />
-        ))}
-      </PillRow>
+      {focusedKind === 'estimates' ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.focusPills}>
+          <TouchableOpacity
+            style={[styles.focusRoot, { backgroundColor: activeTint + '18', borderColor: activeTint + '55' }]}
+            onPress={() => {
+              setFocusedKind(null);
+              setEstimateFilter('all');
+            }}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="document-text-outline" size={15} color={activeTint} />
+            <Text style={[styles.focusRootText, { color: activeTint }]}>Estimates</Text>
+            <Ionicons name="close" size={14} color={activeTint} />
+          </TouchableOpacity>
+          {ESTIMATE_FILTERS.map(filter => {
+            const selected = estimateFilter === filter.key;
+            return (
+              <TouchableOpacity
+                key={filter.key}
+                style={[
+                  styles.filterPill,
+                  selected
+                    ? { backgroundColor: activeTint + '18', borderColor: activeTint + '55' }
+                    : { backgroundColor: theme.surfaceInset, borderColor: theme.border },
+                ]}
+                onPress={() => setEstimateFilter(filter.key)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name={filter.icon} size={14} color={selected ? activeTint : theme.textSecondary} />
+                <Text style={[styles.filterPillText, { color: selected ? activeTint : theme.textSecondary }]}>{filter.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      ) : (
+        <PillRow>
+          {PILLS.map(p => (
+            <Pill
+              key={p.kind}
+              label={p.label}
+              active={kind === p.kind}
+              onPress={() => {
+                setKind(p.kind);
+                if (p.kind === 'estimates') setFocusedKind('estimates');
+                else setFocusedKind(null);
+              }}
+              icon={p.icon}
+              showIcon="active-only"
+              tint={(theme as any)[p.tintKey]}
+            />
+          ))}
+        </PillRow>
+      )}
 
       {(kind !== 'invoices' || canCreateFinancials || !role) ? (
         <TouchableOpacity style={styles.createBar} onPress={active.createFn} activeOpacity={0.7}>
@@ -196,25 +256,25 @@ export default function OwnerSearch() {
             <ClientRow theme={theme} c={c} />
           </View>
         ))}
-        {kind === 'estimates' && data.estimates.map((j, i) => (
+        {kind === 'estimates' && (displayList as JobHit[]).map((j, i) => (
           <View key={j.id}>
             {i > 0 ? <Divider inset={64} /> : null}
             <EstimateRow theme={theme} j={j} />
           </View>
         ))}
-        {kind === 'jobs' && data.jobs.map((j, i) => (
+        {kind === 'jobs' && (displayList as JobHit[]).map((j, i) => (
           <View key={j.id}>
             {i > 0 ? <Divider inset={64} /> : null}
             <JobRow theme={theme} j={j} />
           </View>
         ))}
-        {kind === 'invoices' && data.invoices.map((inv, i) => (
+        {kind === 'invoices' && (displayList as JobHit[]).map((inv, i) => (
           <View key={inv.id}>
             {i > 0 ? <Divider inset={64} /> : null}
             <InvoiceRow theme={theme} inv={inv} />
           </View>
         ))}
-        {kind === 'expenses' && data.expenses.map((e, i) => (
+        {kind === 'expenses' && (displayList as ExpenseRow[]).map((e, i) => (
           <View key={e.id}>
             {i > 0 ? <Divider inset={64} /> : null}
             <ExpenseRowView theme={theme} row={e} />
@@ -368,6 +428,33 @@ function makeStyles(t: Theme) {
       alignItems: 'center', justifyContent: 'center',
     },
     createText: { fontSize: 14, fontWeight: '800' },
+    focusPills: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      gap: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.border,
+    },
+    focusRoot: {
+      minHeight: 34,
+      borderRadius: 999,
+      borderWidth: 1,
+      paddingHorizontal: 11,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    focusRootText: { fontSize: 13, fontWeight: '900' },
+    filterPill: {
+      minHeight: 34,
+      borderRadius: 999,
+      borderWidth: 1,
+      paddingHorizontal: 11,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    filterPillText: { fontSize: 13, fontWeight: '800' },
 
     emptyWrap: { paddingTop: 60, paddingHorizontal: 32, alignItems: 'center' },
     emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: 6, textAlign: 'center' },

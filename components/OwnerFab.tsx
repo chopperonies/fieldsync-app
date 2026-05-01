@@ -64,6 +64,7 @@ export default function OwnerFab() {
     toggle(false);
     setTimeout(() => {
       if (action.quick === 'invoice') setQuickInvoiceOpen(true);
+      else if (action.key === 'expense') router.push({ pathname: '/(owner)/expense-new', params: { ts: String(Date.now()) } } as any);
       else if (action.path) router.push(action.path as any);
     }, 80);
   }
@@ -103,6 +104,21 @@ export default function OwnerFab() {
                 </View>
                 <TouchableOpacity onPress={() => toggle(false)} hitSlop={10} style={[styles.closeBtn, { backgroundColor: theme.surfaceInset }]}>
                   <Ionicons name="close" size={18} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.quickStrip}>
+                <TouchableOpacity style={styles.quickLink} onPress={() => pick({ key: 'schedule', label: 'Schedule', icon: 'calendar', color: theme.accent, path: '/(owner)/jobs' })}>
+                  <Ionicons name="calendar-outline" size={15} color={theme.accent} />
+                  <Text style={[styles.quickText, { color: theme.accent }]}>Schedule</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.quickLink} onPress={() => pick({ key: 'requests', label: 'Requests', icon: 'file-tray-full', color: theme.accent, path: '/(owner)/requests' })}>
+                  <Ionicons name="file-tray-full-outline" size={15} color={theme.accent} />
+                  <Text style={[styles.quickText, { color: theme.accent }]}>Requests</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.quickLink} onPress={() => pick({ key: 'search', label: 'Search', icon: 'search', color: theme.accent, path: '/(owner)/search' })}>
+                  <Ionicons name="search-outline" size={15} color={theme.accent} />
+                  <Text style={[styles.quickText, { color: theme.accent }]}>Search</Text>
                 </TouchableOpacity>
               </View>
 
@@ -181,21 +197,37 @@ const styles = StyleSheet.create({
   actionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
+  quickStrip: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  quickLink: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(36, 68, 87, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 5,
+  },
+  quickText: { fontSize: 12, fontWeight: '900' },
   tile: {
-    width: '31.7%',
-    minHeight: 92,
-    borderRadius: 10,
+    width: '31.9%',
+    minHeight: 72,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     paddingHorizontal: 6,
   },
-  label: { fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  label: { fontSize: 12, fontWeight: '900', textAlign: 'center' },
   iconCircle: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 32, height: 32, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center',
   },
 });

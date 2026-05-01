@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, ScrollView, TextInput, StyleSheet,
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { mobileGet } from '../lib/mobileApi';
@@ -171,8 +171,8 @@ export default function LineItemsPicker({
         </View>
       ))}
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
+      <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
           <View style={styles.sheet}>
             <View style={styles.grabber} />
             <View style={styles.sheetHeader}>
@@ -192,10 +192,17 @@ export default function LineItemsPicker({
                 onChangeText={setQuery}
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="search"
+                onSubmitEditing={() => Keyboard.dismiss()}
               />
             </View>
 
-            <ScrollView style={styles.catalogList} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={styles.catalogList}
+              contentContainerStyle={styles.catalogContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            >
               {loading ? (
                 <ActivityIndicator color={theme.accent} style={{ marginVertical: 22 }} />
               ) : filtered.length === 0 ? (
@@ -290,8 +297,8 @@ function makeStyles(t: Theme) {
       borderTopRightRadius: 22,
       paddingHorizontal: 16,
       paddingTop: 10,
-      paddingBottom: 20,
-      maxHeight: '88%',
+      paddingBottom: 14,
+      maxHeight: '94%',
     },
     grabber: {
       alignSelf: 'center',
@@ -315,7 +322,8 @@ function makeStyles(t: Theme) {
       marginBottom: 12,
     },
     searchInput: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 11 },
-    catalogList: { maxHeight: 390, borderTopWidth: 1, borderBottomWidth: 1, borderColor: t.border },
+    catalogList: { maxHeight: 330, borderTopWidth: 1, borderBottomWidth: 1, borderColor: t.border },
+    catalogContent: { paddingBottom: 8 },
     catalogRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
     catalogName: { color: t.textPrimary, fontSize: 14, fontWeight: '800' },
     catalogDesc: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
