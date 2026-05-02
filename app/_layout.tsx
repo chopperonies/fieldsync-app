@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AppState, AppStateStatus } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import { getLockMethod, getLockPrompted, setLockPrompted, getUser, LockMethod } from '../lib/storage';
+import { addNotificationResponseListener } from '../lib/notifications';
 import { ThemeProvider, useTheme } from '../lib/themeContext';
 import LockScreen from '../components/LockScreen';
 import LockSetup from '../components/LockSetup';
@@ -26,7 +26,10 @@ function ThemedRoot() {
   // Route notification taps to the right screen. Scope-update push opens
   // the crew job detail so the tech sees the update + ack banner in one tap.
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener(resp => {
+    let sub: { remove: () => void } | null = null;
+    let mounted = true;
+
+    addNotificationResponseListener(resp => {
       const data: any = resp?.notification?.request?.content?.data || {};
       if (data.type === 'scope_updated' && data.job_id) {
         router.push({ pathname: '/(owner)/job/[id]', params: { id: String(data.job_id) } } as any);
@@ -35,8 +38,18 @@ function ThemedRoot() {
       } else if (data.type === 'assigned' && data.job_id) {
         router.push({ pathname: '/(owner)/job/[id]', params: { id: String(data.job_id) } } as any);
       }
+    }).then(listener => {
+      if (!mounted) {
+        listener?.remove();
+        return;
+      }
+      sub = listener;
     });
-    return () => sub.remove();
+
+    return () => {
+      mounted = false;
+      sub?.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -73,7 +86,9 @@ function ThemedRoot() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="landing" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="signup" options={{ headerShown: false }} />
         <Stack.Screen name="(crew)" options={{ headerShown: false }} />
         <Stack.Screen name="(manager)" options={{ headerShown: false }} />
         <Stack.Screen name="(owner)" options={{ headerShown: false }} />

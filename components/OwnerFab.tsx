@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { useTheme } from '../lib/themeContext';
 import { useRole, canCreateInvoices, canSeeFinancials, canManageCrew } from '../lib/useRole';
 import QuickInvoiceModal from './QuickInvoiceModal';
@@ -31,6 +31,7 @@ export default function OwnerFab() {
   const theme = useTheme();
   const role = useRole();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [quickInvoiceOpen, setQuickInvoiceOpen] = useState(false);
   const rotate = useRef(new Animated.Value(0)).current;
@@ -48,7 +49,7 @@ export default function OwnerFab() {
     if (a.key === 'request') return canCreateInvoices(role);
     return true;
   });
-  if (actions.length === 0) return null;
+  if (actions.length === 0 || pathname.includes('expense-new')) return null;
 
   function toggle(next: boolean) {
     setOpen(next);
@@ -73,15 +74,17 @@ export default function OwnerFab() {
 
   return (
     <>
-      <TouchableOpacity
-        style={[styles.fab, { bottom: fabBottom, backgroundColor: '#244457' }]}
-        activeOpacity={0.85}
-        onPress={() => toggle(!open)}
-      >
-        <Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
-          <Ionicons name="add" size={32} color={theme.accentContrast} />
-        </Animated.View>
-      </TouchableOpacity>
+      {!quickInvoiceOpen ? (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: fabBottom, backgroundColor: '#244457' }]}
+          activeOpacity={0.85}
+          onPress={() => toggle(!open)}
+        >
+          <Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
+            <Ionicons name="add" size={32} color={theme.accentContrast} />
+          </Animated.View>
+        </TouchableOpacity>
+      ) : null}
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => toggle(false)}>
         <Pressable style={[styles.backdrop, { backgroundColor: theme.overlay }]} onPress={() => toggle(false)}>

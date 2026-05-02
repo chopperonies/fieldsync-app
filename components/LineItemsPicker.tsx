@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, ScrollView, TextInput, StyleSheet,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard, ToastAndroid,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { mobileGet } from '../lib/mobileApi';
@@ -67,8 +67,17 @@ export default function LineItemsPicker({
   const [query, setQuery] = useState('');
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
+  const [tip, setTip] = useState<string | null>(null);
+  const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const total = lineItemsTotal(items);
+
+  function showTip(message: string) {
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+    setTip(message);
+    if (Platform.OS === 'android') ToastAndroid.show(message, ToastAndroid.SHORT);
+    tipTimer.current = setTimeout(() => setTip(null), 2200);
+  }
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
@@ -98,26 +107,49 @@ export default function LineItemsPicker({
 
   function addCatalogItem(item: CatalogItem) {
     const unitPrice = Number(item.unit_price) || 0;
-    onChange([
-      ...items,
-      {
-        id: newId(),
-        catalogId: item.id,
-        name: item.name,
-        description: item.description || null,
-        quantity: 1,
-        unitPrice,
-      },
-    ]);
+    const existing = items.find(line => line.catalogId === item.id);
+    if (existing) {
+      onChange(items.map(line =>
+        line.id === existing.id ? { ...line, quantity: line.quantity + 1 } : line
+      ));
+      showTip('Service quantity updated');
+      return;
+    }
+
+    onChange([...items, {
+      id: newId(),
+      catalogId: item.id,
+      name: item.name,
+      description: item.description || null,
+      quantity: 1,
+      unitPrice,
+    }]);
+    showTip('Service added');
   }
 
   function addCustom() {
     const name = customName.trim();
     if (!name) return;
     const price = Number(customPrice) || 0;
+    const existing = items.find(item =>
+      !item.catalogId && item.name.trim().toLowerCase() === name.toLowerCase()
+    );
+    if (existing) {
+      onChange(items.map(item =>
+        item.id === existing.id
+          ? { ...item, quantity: item.quantity + 1, unitPrice: price || item.unitPrice }
+          : item
+      ));
+      setCustomName('');
+      setCustomPrice('');
+      showTip('Custom item quantity updated');
+      return;
+    }
+
     onChange([...items, { id: newId(), name, quantity: 1, unitPrice: price }]);
     setCustomName('');
     setCustomPrice('');
+    showTip('Custom item added');
   }
 
   function updateQuantity(id: string, delta: number) {
@@ -182,6 +214,13 @@ export default function LineItemsPicker({
               </TouchableOpacity>
             </View>
 
+            {tip ? (
+              <View style={styles.tip}>
+                <Ionicons name="checkmark-circle" size={18} color={theme.success} />
+                <Text style={styles.tipText}>{tip}</Text>
+              </View>
+            ) : null}
+
             <View style={styles.searchBox}>
               <Ionicons name="search" size={17} color={theme.textSecondary} />
               <TextInput
@@ -196,31 +235,6 @@ export default function LineItemsPicker({
                 onSubmitEditing={() => Keyboard.dismiss()}
               />
             </View>
-
-            <ScrollView
-              style={styles.catalogList}
-              contentContainerStyle={styles.catalogContent}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-            >
-              {loading ? (
-                <ActivityIndicator color={theme.accent} style={{ marginVertical: 22 }} />
-              ) : filtered.length === 0 ? (
-                <Text style={styles.emptyCatalog}>No catalog items found.</Text>
-              ) : filtered.map((item, index) => (
-                <View key={item.id}>
-                  {index > 0 ? <Divider inset={0} /> : null}
-                  <TouchableOpacity style={styles.catalogRow} onPress={() => addCatalogItem(item)} activeOpacity={0.72}>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.catalogName} numberOfLines={1}>{item.name}</Text>
-                      {item.description ? <Text style={styles.catalogDesc} numberOfLines={1}>{item.description}</Text> : null}
-                    </View>
-                    <Text style={styles.catalogPrice}>{money(Number(item.unit_price) || 0)}</Text>
-                    <Ionicons name="add-circle-outline" size={20} color={theme.success} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
 
             <View style={styles.customBox}>
               <Text style={styles.customTitle}>Custom item</Text>
@@ -245,6 +259,34 @@ export default function LineItemsPicker({
                 </TouchableOpacity>
               </View>
             </View>
+
+            <ScrollView
+              style={styles.catalogList}
+              contentContainerStyle={styles.catalogContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            >
+              {loading ? (
+                <View style={styles.loadingCatalog}>
+                  <ActivityIndicator color={theme.accent} />
+                  <Text style={styles.emptyCatalog}>Loading catalog...</Text>
+                </View>
+              ) : filtered.length === 0 ? (
+                <Text style={styles.emptyCatalog}>No catalog items found.</Text>
+              ) : filtered.map((item, index) => (
+                <View key={item.id}>
+                  {index > 0 ? <Divider inset={0} /> : null}
+                  <TouchableOpacity style={styles.catalogRow} onPress={() => addCatalogItem(item)} activeOpacity={0.72}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.catalogName} numberOfLines={1}>{item.name}</Text>
+                      {item.description ? <Text style={styles.catalogDesc} numberOfLines={1}>{item.description}</Text> : null}
+                    </View>
+                    <Text style={styles.catalogPrice}>{money(Number(item.unit_price) || 0)}</Text>
+                    <Ionicons name="add-circle-outline" size={20} color={theme.success} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -310,6 +352,19 @@ function makeStyles(t: Theme) {
     },
     sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
     sheetTitle: { color: t.textPrimary, fontSize: 20, fontWeight: '800' },
+    tip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderWidth: 1,
+      borderColor: t.success + '55',
+      backgroundColor: t.successMuted,
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      marginBottom: 12,
+    },
+    tipText: { color: t.success, fontSize: 14, fontWeight: '900' },
     searchBox: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -322,14 +377,15 @@ function makeStyles(t: Theme) {
       marginBottom: 12,
     },
     searchInput: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 11 },
-    catalogList: { maxHeight: 330, borderTopWidth: 1, borderBottomWidth: 1, borderColor: t.border },
+    catalogList: { maxHeight: 260, borderTopWidth: 1, borderBottomWidth: 1, borderColor: t.border },
     catalogContent: { paddingBottom: 8 },
     catalogRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
     catalogName: { color: t.textPrimary, fontSize: 14, fontWeight: '800' },
     catalogDesc: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
     catalogPrice: { color: t.textPrimary, fontSize: 13, fontWeight: '800' },
     emptyCatalog: { color: t.textMuted, textAlign: 'center', paddingVertical: 22, fontSize: 13 },
-    customBox: { paddingTop: 14 },
+    loadingCatalog: { alignItems: 'center', paddingVertical: 18 },
+    customBox: { paddingBottom: 14 },
     customTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '800', marginBottom: 8 },
     customRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     customInput: {

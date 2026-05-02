@@ -22,12 +22,12 @@ type Props = {
   onSuccess?: () => void;
 };
 
-type Mode = 'pick' | 'new' | 'amount';
+type Mode = 'pick' | 'new';
 
 export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props) {
   const theme = useTheme();
   const styles = makeStyles(theme);
-  const [mode, setMode] = useState<Mode>('pick');
+  const [mode, setMode] = useState<Mode>('new');
   const [clients, setClients] = useState<Client[]>([]);
   const [clientsLoading, setClientsLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -41,7 +41,7 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
   const [submitting, setSubmitting] = useState(false);
 
   const reset = useCallback(() => {
-    setMode('pick');
+    setMode('new');
     setSearch(''); setSelectedClient(null);
     setNewName(''); setNewEmail(''); setNewPhone('');
     setAmount(''); setDescription('');
@@ -121,7 +121,12 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
             </TouchableOpacity>
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             {/* Client section */}
             <Text style={styles.label}>Client</Text>
             {selectedClient ? (
@@ -178,7 +183,14 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
                 ) : (
                   <View style={styles.clientList}>
                     {filtered.slice(0, 6).map(c => (
-                      <TouchableOpacity key={c.id} style={styles.clientRow} onPress={() => setSelectedClient(c)}>
+                      <TouchableOpacity
+                        key={c.id}
+                        style={styles.clientRow}
+                        onPress={() => {
+                          setSelectedClient(c);
+                          setSearch('');
+                        }}
+                      >
                         <Text style={styles.clientName}>{c.name}</Text>
                         {c.email && <Text style={styles.clientMeta}>{c.email}</Text>}
                       </TouchableOpacity>
@@ -188,8 +200,8 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
                     )}
                   </View>
                 )}
-                <TouchableOpacity onPress={() => setMode('new')} style={styles.switchLink}>
-                  <Text style={styles.switchLinkText}>+ New client (walk-up)</Text>
+                <TouchableOpacity onPress={() => { setSelectedClient(null); setMode('new'); }} style={styles.switchLink}>
+                  <Text style={styles.switchLinkText}>Use new client instead</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -222,7 +234,9 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
               onChangeText={setDescription}
               multiline
             />
+          </ScrollView>
 
+          <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.submit, !canSubmit && { opacity: 0.4 }]}
               onPress={submit}
@@ -230,9 +244,9 @@ export default function QuickInvoiceModal({ visible, onClose, onSuccess }: Props
             >
               {submitting
                 ? <ActivityIndicator color={theme.accentContrast} />
-                : <Text style={styles.submitText}>Create &amp; Send Invoice</Text>}
+                : <Text style={styles.submitText}>Create & Send Invoice</Text>}
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -245,11 +259,14 @@ function makeStyles(t: Theme) {
     sheet: {
       backgroundColor: t.surfaceElevated,
       borderTopLeftRadius: 20, borderTopRightRadius: 20,
-      padding: 20, paddingBottom: 28, maxHeight: '90%',
+      maxHeight: '90%',
+      overflow: 'hidden',
     },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
     title: { color: t.textPrimary, fontSize: 18, fontWeight: '800' },
     close: { color: t.accent, fontWeight: '600' },
+    body: { paddingHorizontal: 20 },
+    bodyContent: { paddingBottom: 18 },
     label: { color: t.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 8 },
     input: {
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
@@ -273,9 +290,13 @@ function makeStyles(t: Theme) {
     selectedName: { color: t.textPrimary, fontSize: 15, fontWeight: '700' },
     selectedMeta: { color: t.accent, fontSize: 12, marginTop: 2 },
     changeLink: { color: t.accent, fontWeight: '600', fontSize: 13 },
+    footer: {
+      paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24,
+      borderTopWidth: 1, borderTopColor: t.border, backgroundColor: t.surfaceElevated,
+    },
     submit: {
       backgroundColor: t.accent, borderRadius: 12, padding: 16,
-      alignItems: 'center', marginTop: 22,
+      alignItems: 'center',
     },
     submitText: { color: t.accentContrast, fontWeight: '800', fontSize: 15 },
   });

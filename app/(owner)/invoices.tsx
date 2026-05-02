@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert,
   StyleSheet, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, ScrollView,
@@ -37,6 +37,15 @@ function isPaid(j: InvoiceJob) {
   return String(j.payment_status || '').toLowerCase() === 'paid';
 }
 
+const INVOICEABLE_JOB_STATUSES = new Set(['active', 'scheduled', 'in_progress', 'complete', 'completed']);
+
+function isInvoiceableJob(j: JobLite) {
+  const status = String(j.status || '').trim().toLowerCase();
+  if (Number(j.invoice_amount) > 0) return false;
+  if (!INVOICEABLE_JOB_STATUSES.has(status)) return false;
+  return true;
+}
+
 export default function OwnerInvoices() {
   const theme = useTheme();
   const styles = makeStyles(theme);
@@ -50,6 +59,8 @@ export default function OwnerInvoices() {
   const [availableJobs, setAvailableJobs] = useState<JobLite[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobLite | null>(null);
+  const [jobPickerOpen, setJobPickerOpen] = useState(true);
+  const [jobQuery, setJobQuery] = useState('');
   const [amount, setAmount] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -73,12 +84,16 @@ export default function OwnerInvoices() {
   const openCreateModal = useCallback(async () => {
     setModalOpen(true);
     setSelectedJob(null);
+    setJobPickerOpen(true);
+    setJobQuery('');
     setAmount('');
     setLineItems([]);
     setJobsLoading(true);
     try {
       const allJobs = await mobileGet<JobLite[]>('/api/mobile/owner/jobs');
-      const eligible = (allJobs || []).filter(j => !(Number(j.invoice_amount) > 0));
+      const eligible = (allJobs || [])
+        .filter(isInvoiceableJob)
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
       setAvailableJobs(eligible);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not load jobs');
@@ -180,6 +195,14 @@ export default function OwnerInvoices() {
 
   const totalPaid = jobs.filter(isPaid).reduce((s, j) => s + (Number(j.invoice_amount) || 0), 0);
   const totalOwed = jobs.filter(j => !isPaid(j)).reduce((s, j) => s + (Number(j.invoice_amount) || 0), 0);
+  const filteredAvailableJobs = useMemo(() => {
+    const q = jobQuery.trim().toLowerCase();
+    if (!q) return availableJobs;
+    return availableJobs.filter(j => (
+      String(j.name || '').toLowerCase().includes(q) ||
+      String(j.clients?.name || '').toLowerCase().includes(q)
+    ));
+  }, [availableJobs, jobQuery]);
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
@@ -267,7 +290,7 @@ export default function OwnerInvoices() {
 
 
       <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeCreateModal}>
-        <KeyboardAvoidingView behavior="padding" style={styles.modalBackdrop}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New Invoice</Text>
@@ -276,53 +299,108 @@ export default function OwnerInvoices() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>Job</Text>
-            {jobsLoading ? (
-              <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />
-            ) : availableJobs.length === 0 ? (
-              <Text style={styles.empty}>No jobs available to invoice.</Text>
-            ) : (
-              <ScrollView style={styles.jobList} keyboardShouldPersistTaps="handled">
-                {availableJobs.map(j => (
-                  <TouchableOpacity
-                    key={j.id}
-                    style={[styles.jobRow, selectedJob?.id === j.id && styles.jobRowActive]}
-                    onPress={() => setSelectedJob(j)}
-                  >
-                    <Text style={styles.jobRowName}>{j.name}</Text>
-                    {j.clients?.name && <Text style={styles.jobRowClient}>{j.clients.name}</Text>}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-
-            <LineItemsPicker
-              items={lineItems}
-              onChange={setLineItems}
-              label="Product / Service"
-              emptyLabel="Add catalog services or enter a custom invoice item."
-            />
-
-            <Text style={styles.label}>Amount</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={lineItems.length ? 'Amount set from line items' : '0.00'}
-              placeholderTextColor={theme.textMuted}
-              keyboardType="decimal-pad"
-              value={lineItems.length ? lineItemsTotal(lineItems).toFixed(2) : amount}
-              onChangeText={setAmount}
-              editable={lineItems.length === 0}
-            />
-
-            <TouchableOpacity
-              style={[styles.submit, (!selectedJob || (!amount && lineItems.length === 0) || submitting) && { opacity: 0.4 }]}
-              onPress={submitInvoice}
-              disabled={!selectedJob || (!amount && lineItems.length === 0) || submitting}
+            <ScrollView
+              style={styles.modalBody}
+              contentContainerStyle={styles.modalBodyContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
             >
-              {submitting
-                ? <ActivityIndicator color={theme.accentContrast} />
-                : <Text style={styles.submitText}>Send Invoice</Text>}
-            </TouchableOpacity>
+              <Text style={styles.label}>Job</Text>
+              {selectedJob ? (
+                <View style={styles.selectedJobBox}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectedJobName}>{selectedJob.name || 'Untitled job'}</Text>
+                    <Text style={styles.selectedJobMeta}>
+                      {[selectedJob.clients?.name, selectedJob.status?.replace(/_/g, ' ')].filter(Boolean).join(' · ')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.clearJobBtn}
+                    onPress={() => {
+                      setSelectedJob(null);
+                      setJobPickerOpen(true);
+                    }}
+                  >
+                    <Text style={styles.clearJobText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {selectedJob ? (
+                <TouchableOpacity style={styles.changeJobBtn} onPress={() => setJobPickerOpen(v => !v)}>
+                  <Text style={styles.changeJobText}>{jobPickerOpen ? 'Hide jobs' : 'Change job'}</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {jobsLoading ? (
+                <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />
+              ) : availableJobs.length === 0 ? (
+                <Text style={styles.modalEmpty}>No active jobs available to invoice.</Text>
+              ) : jobPickerOpen || !selectedJob ? (
+                <>
+                  <TextInput
+                    style={styles.jobSearch}
+                    placeholder="Search active jobs"
+                    placeholderTextColor={theme.textMuted}
+                    value={jobQuery}
+                    onChangeText={setJobQuery}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                  {filteredAvailableJobs.length === 0 ? (
+                    <Text style={styles.modalEmpty}>No matching active jobs.</Text>
+                  ) : (
+                    <ScrollView style={styles.jobList} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                      {filteredAvailableJobs.map(j => (
+                        <TouchableOpacity
+                          key={j.id}
+                          style={[styles.jobRow, selectedJob?.id === j.id && styles.jobRowActive]}
+                          onPress={() => {
+                            setSelectedJob(j);
+                            setJobPickerOpen(false);
+                          }}
+                        >
+                          <Text style={styles.jobRowName}>{j.name || 'Untitled job'}</Text>
+                          <Text style={styles.jobRowClient}>
+                            {[j.clients?.name, j.status?.replace(/_/g, ' ')].filter(Boolean).join(' · ')}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </>
+              ) : null}
+
+              <LineItemsPicker
+                items={lineItems}
+                onChange={setLineItems}
+                label="Product / Service"
+                emptyLabel="Add catalog services or enter a custom invoice item."
+              />
+
+              <Text style={styles.label}>Amount</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={lineItems.length ? 'Amount set from line items' : '0.00'}
+                placeholderTextColor={theme.textMuted}
+                keyboardType="decimal-pad"
+                value={lineItems.length ? lineItemsTotal(lineItems).toFixed(2) : amount}
+                onChangeText={setAmount}
+                editable={lineItems.length === 0}
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.submit, (!selectedJob || (!amount && lineItems.length === 0) || submitting) && { opacity: 0.4 }]}
+                onPress={submitInvoice}
+                disabled={!selectedJob || (!amount && lineItems.length === 0) || submitting}
+              >
+                {submitting
+                  ? <ActivityIndicator color={theme.accentContrast} />
+                  : <Text style={styles.submitText}>Send Invoice</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -446,24 +524,47 @@ function makeStyles(t: Theme) {
     modalBackdrop: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
     modalSheet: {
       backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-      padding: 20, paddingBottom: 32, maxHeight: '85%',
+      maxHeight: '88%', overflow: 'hidden',
     },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
     modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700' },
     modalClose: { color: t.accent, fontWeight: '600' },
     label: { color: t.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
-    jobList: { maxHeight: 260, borderWidth: 1, borderColor: t.border, borderRadius: 10 },
+    modalBody: { paddingHorizontal: 20 },
+    modalBodyContent: { paddingBottom: 18 },
+    modalFooter: {
+      paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24,
+      borderTopWidth: 1, borderTopColor: t.border, backgroundColor: t.surfaceElevated,
+    },
+    modalEmpty: { color: t.textMuted, textAlign: 'center', marginVertical: 14, fontSize: 14 },
+    selectedJobBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.accent + '55',
+      borderRadius: 12, padding: 12,
+    },
+    selectedJobName: { color: t.textPrimary, fontSize: 15, fontWeight: '800' },
+    selectedJobMeta: { color: t.textMuted, fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
+    clearJobBtn: { borderRadius: 8, borderWidth: 1, borderColor: t.border, paddingHorizontal: 10, paddingVertical: 7 },
+    clearJobText: { color: t.textSecondary, fontSize: 12, fontWeight: '800' },
+    changeJobBtn: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 2 },
+    changeJobText: { color: t.accent, fontSize: 13, fontWeight: '800' },
+    jobSearch: {
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11,
+      color: t.textPrimary, fontSize: 15, marginBottom: 8,
+    },
+    jobList: { maxHeight: 190, borderWidth: 1, borderColor: t.border, borderRadius: 10 },
     jobRow: { padding: 12, borderBottomWidth: 1, borderBottomColor: t.border },
     jobRowActive: { backgroundColor: t.accentMuted },
     jobRowName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
-    jobRowClient: { color: t.textMuted, fontSize: 12, marginTop: 2 },
+    jobRowClient: { color: t.textMuted, fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
     input: {
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
       borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 16,
     },
     submit: {
       backgroundColor: t.accent, borderRadius: 12, padding: 16,
-      alignItems: 'center', marginTop: 20,
+      alignItems: 'center',
     },
     submitText: { color: t.accentContrast, fontWeight: '700', fontSize: 16 },
     submitGhost: {

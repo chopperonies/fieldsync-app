@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, Image, Platform, ActionSheetIOS,
+  ScrollView, ActivityIndicator, Alert, Image, Platform, ActionSheetIOS, KeyboardAvoidingView,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -130,10 +130,10 @@ export default function ExpenseNew() {
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
-      keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      style={[styles.screen, { backgroundColor: theme.bg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <Stack.Screen
         options={{
@@ -146,115 +146,124 @@ export default function ExpenseNew() {
         }}
       />
 
-      <Text style={styles.label}>Amount</Text>
-      <View style={styles.amountRow}>
-        <Text style={styles.dollar}>$</Text>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <Text style={styles.label}>Amount</Text>
+        <View style={styles.amountRow}>
+          <Text style={styles.dollar}>$</Text>
+          <TextInput
+            style={styles.amountInput}
+            placeholder="0.00"
+            placeholderTextColor={theme.textMuted}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            autoFocus
+          />
+        </View>
+
+        <Text style={styles.label}>What for?</Text>
         <TextInput
-          style={styles.amountInput}
-          placeholder="0.00"
+          style={styles.input}
+          placeholder="e.g. 2x 90° elbows @ Ferguson"
           placeholderTextColor={theme.textMuted}
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-          autoFocus
+          value={name}
+          onChangeText={setName}
         />
-      </View>
 
-      <Text style={styles.label}>What for?</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 2x 90° elbows @ Ferguson"
-        placeholderTextColor={theme.textMuted}
-        value={name}
-        onChangeText={setName}
-      />
+        <Text style={styles.label}>Category</Text>
+        <View style={styles.catGrid}>
+          {CATEGORIES.map(c => {
+            const active = category === c.key;
+            const tint = c.color(theme);
+            return (
+              <TouchableOpacity
+                key={c.key}
+                style={[
+                  styles.catChip,
+                  active
+                    ? { backgroundColor: tint + '22', borderColor: tint + '66' }
+                    : { backgroundColor: theme.surfaceInset, borderColor: 'transparent' },
+                ]}
+                onPress={() => setCategory(c.key)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={c.icon} size={14} color={active ? tint : theme.textSecondary} />
+                <Text style={[styles.catChipText, { color: active ? tint : theme.textSecondary }]}>{c.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      <Text style={styles.label}>Category</Text>
-      <View style={styles.catGrid}>
-        {CATEGORIES.map(c => {
-          const active = category === c.key;
-          const tint = c.color(theme);
-          return (
+        <Text style={styles.label}>Date</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={theme.textMuted}
+          value={date}
+          onChangeText={setDate}
+        />
+
+        <Text style={styles.label}>Notes (optional)</Text>
+        <TextInput
+          style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+          placeholder="Any extra context"
+          placeholderTextColor={theme.textMuted}
+          value={details}
+          onChangeText={setDetails}
+          multiline
+        />
+
+        <Text style={styles.label}>Receipt (optional)</Text>
+        {receiptUri ? (
+          <View style={styles.receiptWrap}>
+            <Image source={{ uri: receiptUri }} style={styles.receipt} resizeMode="cover" />
             <TouchableOpacity
-              key={c.key}
-              style={[
-                styles.catChip,
-                active
-                  ? { backgroundColor: tint + '22', borderColor: tint + '66' }
-                  : { backgroundColor: theme.surfaceInset, borderColor: 'transparent' },
-              ]}
-              onPress={() => setCategory(c.key)}
-              activeOpacity={0.7}
+              style={[styles.receiptBtn, { backgroundColor: theme.accent }]}
+              onPress={openReceiptMenu}
             >
-              <Ionicons name={c.icon} size={14} color={active ? tint : theme.textSecondary} />
-              <Text style={[styles.catChipText, { color: active ? tint : theme.textSecondary }]}>{c.label}</Text>
+              <Ionicons name="camera" size={14} color={theme.accentContrast} />
+              <Text style={[styles.receiptBtnText, { color: theme.accentContrast }]}>Replace</Text>
             </TouchableOpacity>
-          );
-        })}
-      </View>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.receiptPicker} onPress={openReceiptMenu} activeOpacity={0.7}>
+            <Ionicons name="camera-outline" size={20} color={theme.accent} />
+            <Text style={[styles.receiptPickerText, { color: theme.accent }]}>Attach receipt photo</Text>
+          </TouchableOpacity>
+        )}
 
-      <Text style={styles.label}>Date</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="YYYY-MM-DD"
-        placeholderTextColor={theme.textMuted}
-        value={date}
-        onChangeText={setDate}
-      />
-
-      <Text style={styles.label}>Notes (optional)</Text>
-      <TextInput
-        style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-        placeholder="Any extra context"
-        placeholderTextColor={theme.textMuted}
-        value={details}
-        onChangeText={setDetails}
-        multiline
-      />
-
-      <Text style={styles.label}>Receipt (optional)</Text>
-      {receiptUri ? (
-        <View style={styles.receiptWrap}>
-          <Image source={{ uri: receiptUri }} style={styles.receipt} resizeMode="cover" />
+        <View style={styles.actionRow}>
           <TouchableOpacity
-            style={[styles.receiptBtn, { backgroundColor: theme.accent }]}
-            onPress={openReceiptMenu}
+            onPress={() => router.back()}
+            disabled={saving}
+            style={[styles.cancelBtn, { borderColor: theme.border }]}
           >
-            <Ionicons name="camera" size={14} color={theme.accentContrast} />
-            <Text style={[styles.receiptBtnText, { color: theme.accentContrast }]}>Replace</Text>
+            <Text style={[styles.cancelBtnText, { color: theme.textSecondary }]}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={save}
+            disabled={saving}
+            style={[styles.saveBtn, { backgroundColor: theme.accent }]}
+          >
+            {saving
+              ? <ActivityIndicator color={theme.accentContrast} />
+              : <Text style={[styles.saveBtnText, { color: theme.accentContrast }]}>Save expense</Text>}
           </TouchableOpacity>
         </View>
-      ) : (
-        <TouchableOpacity style={styles.receiptPicker} onPress={openReceiptMenu} activeOpacity={0.7}>
-          <Ionicons name="camera-outline" size={20} color={theme.accent} />
-          <Text style={[styles.receiptPickerText, { color: theme.accent }]}>Attach receipt photo</Text>
-        </TouchableOpacity>
-      )}
-
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          disabled={saving}
-          style={[styles.cancelBtn, { borderColor: theme.border }]}
-        >
-          <Text style={[styles.cancelBtnText, { color: theme.textSecondary }]}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={save}
-          disabled={saving}
-          style={[styles.saveBtn, { backgroundColor: theme.accent }]}
-        >
-          {saving
-            ? <ActivityIndicator color={theme.accentContrast} />
-            : <Text style={[styles.saveBtnText, { color: theme.accentContrast }]}>Save expense</Text>}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 function makeStyles(t: Theme) {
   return StyleSheet.create({
+    screen: { flex: 1 },
+    scrollContent: { padding: 20, paddingBottom: 160 },
     label: { color: t.textSecondary, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 16 },
 
     amountRow: {
@@ -266,7 +275,7 @@ function makeStyles(t: Theme) {
     amountInput: {
       flex: 1, color: t.textPrimary, fontSize: 32, fontWeight: '800',
       fontVariant: ['tabular-nums'],
-      paddingVertical: 0, letterSpacing: -1,
+      paddingVertical: 0, letterSpacing: 0,
     },
 
     input: {

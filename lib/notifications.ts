@@ -1,17 +1,51 @@
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type NotificationsModule = typeof import('expo-notifications');
+
+let notificationsPromise: Promise<NotificationsModule | null> | null = null;
+let notificationHandlerSet = false;
+
+async function getNotifications(): Promise<NotificationsModule | null> {
+  if (Constants.appOwnership === 'expo') return null;
+
+  if (!notificationsPromise) {
+    notificationsPromise = import('expo-notifications').catch(error => {
+      console.warn('Notifications unavailable in this runtime', error);
+      return null;
+    });
+  }
+
+  const Notifications = await notificationsPromise;
+
+  if (Notifications && !notificationHandlerSet) {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+    notificationHandlerSet = true;
+  }
+
+  return Notifications;
+}
+
+export async function addNotificationResponseListener(
+  listener: (response: any) => void,
+): Promise<{ remove: () => void } | null> {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+  return Notifications.addNotificationResponseReceivedListener(listener);
+}
 
 export async function registerPushToken(): Promise<string | null> {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
 

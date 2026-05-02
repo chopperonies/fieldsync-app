@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList, TextInput,
-  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard, Linking,
+  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard, Linking, Switch,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import LineItemsPicker, { LineItem, lineItemsSummary, lineItemsTotal } from '../
 import TimePickerSheet from '../../components/TimePickerSheet';
 
 type CrewMember = { employee_id: string; name: string };
+type EmployeeLite = { id: string; name: string; role?: string | null; status?: string | null };
 type ScheduleJob = {
   id: string;
   name: string;
@@ -27,21 +28,30 @@ type ScheduleJob = {
   scheduled_time?: string | null;
   payment_status?: string | null;
   invoice_amount?: number | null;
+  expected_duration_hours?: number | null;
   client_id?: string | null;
   client_name?: string | null;
   crew: CrewMember[];
 };
 
-type ViewMode = 'list' | 'calendar';
+type ViewMode = 'day' | 'list' | 'map';
+type RepeatOption = 'none' | 'weekly' | 'biweekly' | 'monthly' | 'as_needed';
 
 const DAY_LETTERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Calendar grid dimensions
-const HOUR_START = 7;
-const HOUR_END = 19;
+const HOUR_START = 6;
+const HOUR_END = 21;
 const HOUR_HEIGHT = 72;
-const COL_WIDTH = 180;
+const COL_WIDTH = 154;
 const GUTTER_WIDTH = 56;
+const REPEAT_OPTIONS: Array<{ key: RepeatOption; label: string }> = [
+  { key: 'none', label: 'Does not repeat' },
+  { key: 'weekly', label: 'Every week' },
+  { key: 'biweekly', label: 'Every 2 weeks' },
+  { key: 'monthly', label: 'Every month' },
+  { key: 'as_needed', label: 'As needed' },
+];
 
 function weekStripDays(anchor: Date): Date[] {
   const sunday = new Date(anchor);
@@ -70,6 +80,40 @@ function formatVisitTime(value?: string | null): string {
   const suffix = hh >= 12 ? 'PM' : 'AM';
   const hour = hh % 12 || 12;
   return `${hour}:${mmRaw.padStart(2, '0').slice(0, 2)} ${suffix}`;
+}
+
+function timeToMinutes(value?: string | null): number | null {
+  if (!value) return null;
+  const [hhRaw, mmRaw = '00'] = String(value).split(':');
+  const hh = Number(hhRaw);
+  const mm = Number(mmRaw);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return hh * 60 + mm;
+}
+
+function minutesToTime(total: number): string {
+  const normalized = Math.max(0, Math.min(23 * 60 + 59, total));
+  const hh = Math.floor(normalized / 60);
+  const mm = normalized % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
+}
+
+function defaultEndTime(start?: string | null): string | null {
+  const mins = timeToMinutes(start);
+  if (mins == null) return null;
+  return minutesToTime(mins + 120);
+}
+
+function durationHours(start?: string | null, end?: string | null): number | null {
+  const s = timeToMinutes(start);
+  const e = timeToMinutes(end);
+  if (s == null || e == null || e <= s) return null;
+  return Math.round(((e - s) / 60) * 100) / 100;
+}
+
+function compactTimeRange(start?: string | null, end?: string | null): string {
+  if (!start) return 'Anytime';
+  return end ? `${formatVisitTime(start)} - ${formatVisitTime(end)}` : formatVisitTime(start);
 }
 
 function colorForJob(theme: Theme, job: ScheduleJob): { bg: string; border: string; text: string } {
@@ -112,8 +156,9 @@ export default function OwnerJobs() {
 
   const [anchor, setAnchor] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [selectedDay, setSelectedDay] = useState<string>(toDateString(new Date()));
-  const [view, setView] = useState<ViewMode>('list');
+  const [view, setView] = useState<ViewMode>('day');
   const [jobs, setJobs] = useState<ScheduleJob[]>([]);
+  const [crewMembers, setCrewMembers] = useState<EmployeeLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState<null | 'new' | 'weekjump'>(null);
@@ -130,11 +175,18 @@ export default function OwnerJobs() {
   const [newLineItems, setNewLineItems] = useState<LineItem[]>([]);
   const [newScheduledDate, setNewScheduledDate] = useState<string | null>(null);
   const [newScheduledTime, setNewScheduledTime] = useState<string | null>(null);
+  const [newScheduledEndTime, setNewScheduledEndTime] = useState<string | null>(null);
+  const [newScheduleLater, setNewScheduleLater] = useState(false);
+  const [newRepeat, setNewRepeat] = useState<RepeatOption>('none');
+  const [newInvoiceReminder, setNewInvoiceReminder] = useState(true);
+  const [selectedCrewIds, setSelectedCrewIds] = useState<Set<string>>(new Set());
+  const [pendingCreateTime, setPendingCreateTime] = useState<string | null>(null);
+  const [pendingCreateCrewId, setPendingCreateCrewId] = useState<string | null>(null);
   const [newWorkflowId, setNewWorkflowId] = useState<string | null>(null);
   const [newStatus, setNewStatus] = useState<string>('scheduled');
   const [newTypeLabel, setNewTypeLabel] = useState<string>('New job');
   const [saving, setSaving] = useState(false);
-  const [timePickerOpen, setTimePickerOpen] = useState<null | 'new'>(null);
+  const [timePickerOpen, setTimePickerOpen] = useState<null | 'start' | 'end'>(null);
 
   const week = useMemo(() => weekStripDays(anchor), [anchor]);
   const rangeStart = week[0];
@@ -160,6 +212,12 @@ export default function OwnerJobs() {
     mobileGet<Array<{ id: string; name: string; description?: string | null; industry?: string | null }>>('/api/mobile/owner/workflows')
       .then(ws => setWorkflows(ws || []))
       .catch(() => setWorkflows([]));
+    mobileGet<EmployeeLite[]>('/api/mobile/owner/crew')
+      .then(rows => {
+        const active = (rows || []).filter(e => String(e.status || 'active').toLowerCase() !== 'suspended');
+        setCrewMembers(active);
+      })
+      .catch(() => setCrewMembers([]));
   }, []);
 
   const params = useLocalSearchParams<{ open?: string; day?: string }>();
@@ -200,9 +258,13 @@ export default function OwnerJobs() {
     if (!newName.trim() || !newAddress.trim()) return Alert.alert('Fill in name and address');
     const catalogTotal = lineItemsTotal(newLineItems);
     const finalEstimate = catalogTotal > 0 ? catalogTotal : (newEstimate ? parseFloat(newEstimate) : null);
+    const computedDuration = durationHours(newScheduledTime, newScheduledEndTime);
     const finalDescription = [
       newDesc.trim() || null,
       newLineItems.length ? `Line items:\n${lineItemsSummary(newLineItems)}` : null,
+      computedDuration ? `Scheduled window: ${compactTimeRange(newScheduledTime, newScheduledEndTime)}` : null,
+      newRepeat !== 'none' ? `Repeat preference: ${REPEAT_OPTIONS.find(o => o.key === newRepeat)?.label}` : null,
+      newInvoiceReminder ? 'Reminder: invoice when the job is closed.' : null,
     ].filter(Boolean).join('\n\n') || null;
     setSaving(true);
     try {
@@ -210,11 +272,16 @@ export default function OwnerJobs() {
         name: newName.trim(), address: newAddress.trim(),
         description: finalDescription,
         estimate_amount: finalEstimate,
-        scheduled_date: newScheduledDate,
-        scheduled_time: newScheduledTime,
+        scheduled_date: newScheduleLater ? null : newScheduledDate,
+        scheduled_time: newScheduleLater ? null : newScheduledTime,
+        expected_duration_hours: computedDuration,
         workflow_id: newWorkflowId,
         status: newStatus,
       });
+      const ids = Array.from(selectedCrewIds);
+      if (ids.length && (data as any)?.id) {
+        await mobilePost(`/api/mobile/owner/jobs/${(data as any).id}/assignments`, { employee_ids: ids });
+      }
       if (data && (data as any).scheduled_date) {
         setSelectedDay((data as any).scheduled_date);
         const parsed = fromDateString((data as any).scheduled_date);
@@ -222,7 +289,8 @@ export default function OwnerJobs() {
       }
       setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
       setNewLineItems([]);
-      setNewScheduledDate(null); setNewScheduledTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
+      setNewScheduledDate(null); setNewScheduledTime(null); setNewScheduledEndTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
+      setNewScheduleLater(false); setNewRepeat('none'); setNewInvoiceReminder(true); setSelectedCrewIds(new Set());
       setNewTypeLabel('New job');
       setShowAdd(false);
       load();
@@ -247,10 +315,17 @@ export default function OwnerJobs() {
     setNewEstimate('');
     setNewLineItems([]);
     setNewScheduledDate(selectedDay);
-    setNewScheduledTime(null);
+    setNewScheduledTime(pendingCreateTime);
+    setNewScheduledEndTime(defaultEndTime(pendingCreateTime));
+    setNewScheduleLater(false);
+    setNewRepeat('none');
+    setNewInvoiceReminder(true);
+    setSelectedCrewIds(pendingCreateCrewId ? new Set([pendingCreateCrewId]) : new Set());
     setShowTypePicker(false);
     setChoiceOpen(null);
     setShowAdd(true);
+    setPendingCreateTime(null);
+    setPendingCreateCrewId(null);
   }
 
   function closeAddModal() {
@@ -259,7 +334,8 @@ export default function OwnerJobs() {
     // Reset so next open starts clean.
     setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
     setNewLineItems([]);
-    setNewScheduledDate(null); setNewScheduledTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
+    setNewScheduledDate(null); setNewScheduledTime(null); setNewScheduledEndTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
+    setNewScheduleLater(false); setNewRepeat('none'); setNewInvoiceReminder(true); setSelectedCrewIds(new Set());
     setNewTypeLabel('New job');
     if (openedViaDeepLink && router.canGoBack()) {
       setOpenedViaDeepLink(false);
@@ -267,9 +343,20 @@ export default function OwnerJobs() {
     }
   }
 
-  function openTypePicker() {
+  function openTypePicker(slotTime?: string | null, crewId?: string | null) {
     setNewScheduledDate(selectedDay);
+    setPendingCreateTime(typeof slotTime === 'string' ? slotTime : null);
+    setPendingCreateCrewId(typeof crewId === 'string' ? crewId : null);
     setShowTypePicker(true);
+  }
+
+  function toggleCrewSelection(id: string) {
+    setSelectedCrewIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function pingCrew() {
@@ -309,6 +396,18 @@ export default function OwnerJobs() {
   const assignedCount = jobsForSelected.filter(j => j.crew?.length > 0).length;
   const unassignedCount = Math.max(0, jobsForSelected.length - assignedCount);
   const scheduledRevenue = jobsForSelected.reduce((sum, j) => sum + (Number(j.invoice_amount) || 0), 0);
+  const canSubmitNewJob = Boolean(newName.trim() && newAddress.trim()) && !saving;
+  const missingNewJobFields = [
+    !newName.trim() ? (newStatus === 'quoted' ? 'estimate title' : 'job title') : null,
+    !newAddress.trim() ? 'address' : null,
+  ].filter(Boolean).join(' and ');
+
+  function updateNewLineItems(nextItems: LineItem[]) {
+    setNewLineItems(nextItems);
+    if (!newName.trim() && nextItems.length > 0) {
+      setNewName(nextItems[0].name);
+    }
+  }
 
   if (loading && jobs.length === 0) {
     return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
@@ -316,31 +415,37 @@ export default function OwnerJobs() {
 
   return (
     <View style={styles.container}>
-      {/* View toggle */}
-      <View style={styles.viewToggle}>
-        <TouchableOpacity
-          style={[styles.viewPill, view === 'list' && { backgroundColor: theme.accentMuted, borderColor: theme.accent + '55' }]}
-          onPress={() => setView('list')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="list" size={14} color={view === 'list' ? theme.accent : theme.textSecondary} />
-          <Text style={[styles.viewPillText, view === 'list' && { color: theme.accent }]}>List</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.viewPill, view === 'calendar' && { backgroundColor: theme.accentMuted, borderColor: theme.accent + '55' }]}
-          onPress={() => setView('calendar')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="grid" size={14} color={view === 'calendar' ? theme.accent : theme.textSecondary} />
-          <Text style={[styles.viewPillText, view === 'calendar' && { color: theme.accent }]}>Calendar</Text>
+      <View style={styles.scheduleTopBar}>
+        <TouchableOpacity onPress={() => setPickerOpen('weekjump')} style={styles.monthBtn} activeOpacity={0.7}>
+          <Text style={styles.monthTitle}>{anchor.toLocaleDateString(undefined, { month: 'long' })}</Text>
+          <Ionicons name="chevron-down" size={17} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
         {canPingCrew && (selectedDay === toDateString(new Date()) || selectedDay === toDateString((() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })())) ? (
-          <TouchableOpacity onPress={pingCrew} style={styles.pingBtn} activeOpacity={0.7}>
+          <TouchableOpacity onPress={pingCrew} style={styles.iconToolBtn} activeOpacity={0.7}>
             <Ionicons name="notifications-outline" size={14} color={theme.accent} />
-            <Text style={styles.pingBtnText}>Ping crew</Text>
           </TouchableOpacity>
         ) : null}
+        <TouchableOpacity onPress={() => openTypePicker()} style={styles.iconToolBtn} activeOpacity={0.7}>
+          <Ionicons name="calendar-outline" size={16} color={theme.accent} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.viewSegment}>
+        {([
+          { key: 'day', label: 'Day' },
+          { key: 'list', label: 'List' },
+          { key: 'map', label: 'Map' },
+        ] as Array<{ key: ViewMode; label: string }>).map(item => (
+          <TouchableOpacity
+            key={item.key}
+            style={[styles.segmentItem, view === item.key && styles.segmentItemActive]}
+            onPress={() => setView(item.key)}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.segmentText, view === item.key && styles.segmentTextActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Week strip */}
@@ -401,7 +506,7 @@ export default function OwnerJobs() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={openTypePicker}
+          onPress={() => openTypePicker()}
           style={styles.newJobBtn}
           activeOpacity={0.7}
           hitSlop={6}
@@ -434,10 +539,20 @@ export default function OwnerJobs() {
           onRefresh={() => { setRefreshing(true); load(); }}
           onAddJob={openTypePicker}
         />
+      ) : view === 'map' ? (
+        <MapScheduleView
+          theme={theme}
+          jobs={jobsForSelected}
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); load(); }}
+          onAddJob={openTypePicker}
+        />
       ) : (
         <CalendarView
           theme={theme}
           jobs={jobsForSelected}
+          crewMembers={crewMembers}
+          selectedDay={selectedDay}
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); load(); }}
           allJobsWeek={jobs.length > 0}
@@ -657,35 +772,126 @@ export default function OwnerJobs() {
               />
               <LineItemsPicker
                 items={newLineItems}
-                onChange={setNewLineItems}
+                onChange={updateNewLineItems}
                 label="Product / Service"
                 emptyLabel="Add services from your catalog or enter a custom line item."
               />
-              <View style={styles.scheduleRowFields}>
-                <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalfField]} onPress={() => setPickerOpen('new')}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.scheduleLabel}>Date</Text>
-                    <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
+              <View style={styles.formSection}>
+                <Text style={styles.formSectionTitle}>Schedule</Text>
+                <View style={styles.scheduleLaterRow}>
+                  <View>
+                    <Text style={styles.scheduleLaterTitle}>Schedule later</Text>
+                    <Text style={styles.scheduleLaterSub}>Keep this unscheduled until you are ready.</Text>
                   </View>
-                  <Ionicons name="calendar-outline" size={20} color={theme.accent} />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalfField]} onPress={() => setTimePickerOpen('new')}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.scheduleLabel}>Time</Text>
-                    <Text style={styles.scheduleValue}>{formatVisitTime(newScheduledTime)}</Text>
+                  <Switch
+                    value={newScheduleLater}
+                    onValueChange={setNewScheduleLater}
+                    trackColor={{ false: theme.borderStrong, true: theme.accentMuted }}
+                    thumbColor={newScheduleLater ? theme.accent : theme.surfaceElevated}
+                  />
+                </View>
+                {!newScheduleLater ? (
+                  <>
+                    <TouchableOpacity style={styles.scheduleField} onPress={() => setPickerOpen('new')}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.scheduleLabel}>Date</Text>
+                        <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
+                      </View>
+                      <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                    </TouchableOpacity>
+                    <View style={styles.scheduleRowFields}>
+                      <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalfField]} onPress={() => setTimePickerOpen('start')}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.scheduleLabel}>Start time</Text>
+                          <Text style={styles.scheduleValue}>{formatVisitTime(newScheduledTime)}</Text>
+                        </View>
+                        <Ionicons name="time-outline" size={18} color={theme.accent} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalfField]} onPress={() => setTimePickerOpen('end')}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.scheduleLabel}>End time</Text>
+                          <Text style={styles.scheduleValue}>{formatVisitTime(newScheduledEndTime)}</Text>
+                        </View>
+                        <Ionicons name="time-outline" size={18} color={theme.accent} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.repeatBox}>
+                      <Text style={styles.scheduleLabel}>Repeating</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.repeatOptions}>
+                        {REPEAT_OPTIONS.map(option => {
+                          const active = newRepeat === option.key;
+                          return (
+                            <TouchableOpacity
+                              key={option.key}
+                              style={[styles.repeatChip, active && { backgroundColor: theme.accentMuted, borderColor: theme.accent + '66' }]}
+                              onPress={() => setNewRepeat(option.key)}
+                              activeOpacity={0.72}
+                            >
+                              <Text style={[styles.repeatChipText, active && { color: theme.accent }]}>{option.label}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  </>
+                ) : null}
+              </View>
+
+              <View style={styles.formSection}>
+                <Text style={styles.formSectionTitle}>Team</Text>
+                {crewMembers.length === 0 ? (
+                  <Text style={styles.teamEmpty}>No active crew members yet.</Text>
+                ) : (
+                  <View style={styles.teamGrid}>
+                    {crewMembers.map(member => {
+                      const active = selectedCrewIds.has(member.id);
+                      const color = crewColor(theme, member.name);
+                      return (
+                        <TouchableOpacity
+                          key={member.id}
+                          style={[styles.teamChip, active && { backgroundColor: color + '18', borderColor: color + '66' }]}
+                          onPress={() => toggleCrewSelection(member.id)}
+                          activeOpacity={0.75}
+                        >
+                          <View style={[styles.teamInitial, { backgroundColor: color }]}>
+                            <Text style={styles.teamInitialText}>{member.name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                          <Text style={[styles.teamName, active && { color }]} numberOfLines={1}>{member.name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                  <Ionicons name="time-outline" size={20} color={theme.accent} />
-                </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.invoiceReminderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formSectionTitle}>Invoicing</Text>
+                  <Text style={styles.scheduleLaterSub}>Remind me to invoice when I close the job.</Text>
+                </View>
+                <Switch
+                  value={newInvoiceReminder}
+                  onValueChange={setNewInvoiceReminder}
+                  trackColor={{ false: theme.borderStrong, true: theme.accentMuted }}
+                  thumbColor={newInvoiceReminder ? theme.accent : theme.surfaceElevated}
+                />
               </View>
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={closeAddModal}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={addJob} disabled={saving}>
+              <TouchableOpacity
+                style={[styles.saveBtn, !canSubmitNewJob && styles.saveBtnDisabled]}
+                onPress={addJob}
+                disabled={!canSubmitNewJob}
+              >
                 {saving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.saveText}>{newTypeLabel.replace('New ', 'Add ')}</Text>}
               </TouchableOpacity>
             </View>
+            {!canSubmitNewJob && missingNewJobFields ? (
+              <Text style={styles.saveHint}>Add {missingNewJobFields} to save.</Text>
+            ) : null}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -705,11 +911,18 @@ export default function OwnerJobs() {
         }}
       />
       <TimePickerSheet
-        visible={timePickerOpen === 'new'}
-        value={newScheduledTime}
-        title="Schedule time"
+        visible={timePickerOpen !== null}
+        value={timePickerOpen === 'end' ? newScheduledEndTime : newScheduledTime}
+        title={timePickerOpen === 'end' ? 'End time' : 'Start time'}
         onClose={() => setTimePickerOpen(null)}
-        onSelect={setNewScheduledTime}
+        onSelect={(v) => {
+          if (timePickerOpen === 'end') {
+            setNewScheduledEndTime(v);
+          } else {
+            setNewScheduledTime(v);
+            setNewScheduledEndTime(prev => prev || defaultEndTime(v));
+          }
+        }}
       />
     </View>
   );
@@ -926,53 +1139,135 @@ function ListView({
 
 // ─── CALENDAR GRID VIEW ─────────────────────────────────────────────
 
-function CalendarView({
-  theme, jobs, refreshing, onRefresh, allJobsWeek, onCreateAtSlot,
+function MapScheduleView({
+  theme, jobs, refreshing, onRefresh, onAddJob,
 }: {
   theme: Theme;
   jobs: ScheduleJob[];
   refreshing: boolean;
   onRefresh: () => void;
+  onAddJob: () => void;
+}) {
+  const styles = makeStyles(theme);
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ padding: 16, paddingBottom: 140 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+    >
+      <View style={styles.mapPanel}>
+        <Ionicons name="map-outline" size={30} color={theme.accent} />
+        <Text style={styles.mapTitle}>Map view</Text>
+        <Text style={styles.mapCopy}>
+          Jobs with addresses will live here. For now, use the route buttons below to open each stop in maps.
+        </Text>
+      </View>
+      {jobs.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>No stops to map</Text>
+          <TouchableOpacity onPress={onAddJob}>
+            <Text style={styles.emptyCta}>+ Schedule a job</Text>
+          </TouchableOpacity>
+        </View>
+      ) : jobs.map(job => (
+        <TouchableOpacity
+          key={job.id}
+          style={styles.mapStop}
+          activeOpacity={0.75}
+          onPress={() => job.address && Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(job.address)}`)}
+          disabled={!job.address}
+        >
+          <View style={[styles.mapStopIcon, { backgroundColor: colorForJob(theme, job).bg }]}>
+            <Ionicons name="location-outline" size={18} color={colorForJob(theme, job).text} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.mapStopTitle} numberOfLines={1}>{job.name}</Text>
+            <Text style={styles.mapStopMeta} numberOfLines={1}>{compactTimeRange(job.scheduled_time)} · {job.address || 'No address'}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+}
+
+function CalendarView({
+  theme, jobs, crewMembers, selectedDay, refreshing, onRefresh, allJobsWeek, onCreateAtSlot,
+}: {
+  theme: Theme;
+  jobs: ScheduleJob[];
+  crewMembers: EmployeeLite[];
+  selectedDay: string;
+  refreshing: boolean;
+  onRefresh: () => void;
   allJobsWeek: boolean;
-  onCreateAtSlot: () => void;
+  onCreateAtSlot: (slotTime?: string | null, crewId?: string | null) => void;
 }) {
   const styles = makeStyles(theme);
 
-  const { cards, allCrew } = useMemo(() => {
-    const perCrew = new Map<string, ScheduleJob[]>();
-    const seenOrder: string[] = [];
+  const { cards, columns } = useMemo(() => {
+    type Column = { key: string; name: string; employeeId: string | null };
+    const columnsByKey = new Map<string, Column>();
+    const ordered: Column[] = [];
+    const addColumn = (column: Column) => {
+      if (columnsByKey.has(column.key)) return;
+      columnsByKey.set(column.key, column);
+      ordered.push(column);
+    };
+    for (const member of crewMembers) {
+      addColumn({ key: member.id, name: member.name, employeeId: member.id });
+    }
     for (const j of jobs) {
-      const people = j.crew && j.crew.length > 0 ? j.crew.map(c => c.name) : ['Unassigned'];
-      for (const name of people) {
-        if (!perCrew.has(name)) { perCrew.set(name, []); seenOrder.push(name); }
-        perCrew.get(name)!.push(j);
+      if (j.crew && j.crew.length > 0) {
+        for (const person of j.crew) addColumn({ key: person.employee_id || person.name, name: person.name, employeeId: person.employee_id || null });
+      } else {
+        addColumn({ key: 'unassigned', name: 'Unassigned', employeeId: null });
       }
     }
-    type Placed = { job: ScheduleJob; colIndex: number; startHour: number; endHour: number };
+    if (ordered.length === 0) addColumn({ key: 'unassigned', name: 'Unassigned', employeeId: null });
+
+    const perColumn = new Map<string, ScheduleJob[]>();
+    for (const column of ordered) perColumn.set(column.key, []);
+    for (const j of jobs) {
+      if (j.crew && j.crew.length > 0) {
+        for (const person of j.crew) {
+          const key = person.employee_id || person.name;
+          (perColumn.get(key) || perColumn.get('unassigned') || []).push(j);
+        }
+      } else {
+        (perColumn.get('unassigned') || []).push(j);
+      }
+    }
+
+    type Placed = { job: ScheduleJob; colIndex: number; startMinutes: number; endMinutes: number };
     const out: Placed[] = [];
-    for (const name of seenOrder) {
-      const colIndex = seenOrder.indexOf(name);
-      const list = [...(perCrew.get(name) || [])].sort((a, b) =>
+    ordered.forEach((column, colIndex) => {
+      const list = [...(perColumn.get(column.key) || [])].sort((a, b) =>
         String(a.scheduled_time || '99:99').localeCompare(String(b.scheduled_time || '99:99'))
       );
-      let cursor = 8;
+      let cursor = HOUR_START * 60;
       for (const j of list) {
-        const duration = 2;
-        const scheduledHour = j.scheduled_time ? Number(String(j.scheduled_time).split(':')[0]) : NaN;
-        const startHour = Number.isFinite(scheduledHour)
-          ? Math.max(HOUR_START, Math.min(HOUR_END - 1, scheduledHour))
-          : cursor;
-        const endHour = Math.min(HOUR_END, startHour + duration);
-        out.push({ job: j, colIndex, startHour, endHour });
-        cursor = endHour;
-        if (cursor >= HOUR_END) cursor = HOUR_START + 1;
+        const durationMins = Math.max(45, Math.round((Number(j.expected_duration_hours) || 2) * 60));
+        const scheduled = timeToMinutes(j.scheduled_time);
+        const startMinutes = scheduled == null
+          ? cursor
+          : Math.max(HOUR_START * 60, Math.min((HOUR_END * 60) - 30, scheduled));
+        const endMinutes = Math.min(HOUR_END * 60, startMinutes + durationMins);
+        out.push({ job: j, colIndex, startMinutes, endMinutes });
+        cursor = endMinutes;
+        if (cursor >= HOUR_END * 60) cursor = (HOUR_START + 1) * 60;
       }
-    }
-    return { cards: out, allCrew: seenOrder };
-  }, [jobs]);
+    });
+    return { cards: out, columns: ordered };
+  }, [crewMembers, jobs]);
 
-  const gridWidth = Math.max(allCrew.length, 1) * COL_WIDTH;
+  const gridWidth = Math.max(columns.length, 1) * COL_WIDTH;
   const gridHeight = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
+  const todayKey = toDateString(new Date());
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const showNow = selectedDay === todayKey && nowMinutes >= HOUR_START * 60 && nowMinutes <= HOUR_END * 60;
+  const nowTop = ((nowMinutes - HOUR_START * 60) / 60) * HOUR_HEIGHT;
 
   return (
     <ScrollView
@@ -997,41 +1292,36 @@ function CalendarView({
         <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces style={{ flex: 1 }}>
           <View style={{ width: gridWidth }}>
             <View style={[styles.crewHeaderRow, { width: gridWidth, height: 44 }]}>
-              {allCrew.length > 0 ? allCrew.map((name, idx) => {
-                const color = crewColor(theme, name);
+              {columns.map((column, idx) => {
+                const color = crewColor(theme, column.name);
+                const colCount = cards.filter(c => c.colIndex === idx).length;
                 return (
                   <View
-                    key={`${name}-${idx}`}
+                    key={`${column.key}-${idx}`}
                     style={[styles.crewHeader, { width: COL_WIDTH, borderLeftColor: theme.border }]}
                   >
                     <View style={[styles.crewAvatar, { backgroundColor: color }]}>
-                      <Text style={styles.crewAvatarLetter}>{name.charAt(0).toUpperCase()}</Text>
+                      <Text style={styles.crewAvatarLetter}>{column.name.charAt(0).toUpperCase()}</Text>
                     </View>
                     <Text style={[styles.crewHeaderName, { color: theme.textPrimary }]} numberOfLines={1}>
-                      {name}
+                      {column.name}
                     </Text>
+                    <View style={styles.crewCountBadge}>
+                      <Text style={styles.crewCountText}>{colCount}</Text>
+                    </View>
                   </View>
                 );
-              }) : (
-                <View style={[styles.crewHeader, { width: COL_WIDTH, borderLeftColor: 'transparent' }]}>
-                  <View style={[styles.crewAvatar, { backgroundColor: theme.surfaceInset }]}>
-                    <Ionicons name="people-outline" size={14} color={theme.textMuted} />
-                  </View>
-                  <Text style={[styles.crewHeaderName, { color: theme.textMuted }]} numberOfLines={1}>
-                    No crew yet
-                  </Text>
-                </View>
-              )}
+              })}
             </View>
 
             <View style={{ width: gridWidth, height: gridHeight, position: 'relative' }}>
               {/* Background tap layer — empty cells open the add-job modal. */}
-              {(allCrew.length > 0 ? allCrew : ['']).map((_, colIdx) => (
+              {columns.map((column, colIdx) => (
                 Array.from({ length: HOUR_END - HOUR_START }).map((_, rowIdx) => (
                   <TouchableOpacity
                     key={`cell-${colIdx}-${rowIdx}`}
                     activeOpacity={0.5}
-                    onPress={onCreateAtSlot}
+                    onPress={() => onCreateAtSlot(minutesToTime((HOUR_START + rowIdx) * 60), column.employeeId)}
                     style={{
                       position: 'absolute',
                       top: rowIdx * HOUR_HEIGHT,
@@ -1054,7 +1344,7 @@ function CalendarView({
                   }}
                 />
               ))}
-              {(allCrew.length > 0 ? allCrew : ['']).map((_, i) => (
+              {columns.map((_, i) => (
                 <View
                   key={`vl-${i}`}
                   pointerEvents="none"
@@ -1066,6 +1356,13 @@ function CalendarView({
                   }}
                 />
               ))}
+
+              {showNow ? (
+                <View pointerEvents="none" style={[styles.nowLine, { top: nowTop }]}>
+                  <View style={styles.nowDot} />
+                  <View style={styles.nowRule} />
+                </View>
+              ) : null}
 
               {jobs.length === 0 ? (
                 <View style={styles.gridHint} pointerEvents="none">
@@ -1079,8 +1376,8 @@ function CalendarView({
 
               {cards.map((c, i) => {
                 const p = colorForJob(theme, c.job);
-                const top = (c.startHour - HOUR_START) * HOUR_HEIGHT;
-                const height = (c.endHour - c.startHour) * HOUR_HEIGHT - 4;
+                const top = ((c.startMinutes - HOUR_START * 60) / 60) * HOUR_HEIGHT;
+                const height = Math.max(42, ((c.endMinutes - c.startMinutes) / 60) * HOUR_HEIGHT - 4);
                 const left = c.colIndex * COL_WIDTH + 4;
                 const w = COL_WIDTH - 8;
                 const stamp = statusStamp(theme, c.job);
@@ -1131,6 +1428,39 @@ function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+
+    scheduleTopBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 8,
+    },
+    monthBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 34 },
+    monthTitle: { color: t.textPrimary, fontSize: 20, fontWeight: '900' },
+    iconToolBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.accentMuted,
+    },
+    viewSegment: {
+      flexDirection: 'row',
+      marginHorizontal: 16,
+      marginBottom: 6,
+      padding: 3,
+      borderRadius: 8,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    segmentItem: { flex: 1, minHeight: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+    segmentItemActive: { backgroundColor: t.surfaceElevated, borderWidth: 1, borderColor: t.border },
+    segmentText: { color: t.textSecondary, fontSize: 13, fontWeight: '800' },
+    segmentTextActive: { color: t.textPrimary },
 
     viewToggle: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -1329,6 +1659,53 @@ function makeStyles(t: Theme) {
     },
     gridHintTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
     gridHintSub: { color: t.textMuted, fontSize: 12, textAlign: 'center' },
+    nowLine: {
+      position: 'absolute',
+      left: -5,
+      right: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      zIndex: 8,
+    },
+    nowDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: t.accent },
+    nowRule: { flex: 1, height: 2, backgroundColor: t.accent },
+    crewCountBadge: {
+      minWidth: 24,
+      height: 24,
+      borderRadius: 6,
+      paddingHorizontal: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.surfaceInset,
+    },
+    crewCountText: { color: t.textSecondary, fontSize: 12, fontWeight: '900' },
+
+    mapPanel: {
+      alignItems: 'center',
+      gap: 8,
+      padding: 18,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surface,
+      marginBottom: 12,
+    },
+    mapTitle: { color: t.textPrimary, fontSize: 17, fontWeight: '900' },
+    mapCopy: { color: t.textSecondary, fontSize: 13, lineHeight: 18, textAlign: 'center' },
+    mapStop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surface,
+      marginBottom: 8,
+    },
+    mapStopIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+    mapStopTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '900' },
+    mapStopMeta: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
 
     // Add-job modal
     modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
@@ -1382,7 +1759,9 @@ function makeStyles(t: Theme) {
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 14, alignItems: 'center' },
     cancelText: { color: t.textSecondary, fontWeight: '700' },
     saveBtn: { flex: 1, backgroundColor: t.accent, borderRadius: 10, padding: 14, alignItems: 'center' },
+    saveBtnDisabled: { opacity: 0.45 },
     saveText: { color: t.accentContrast, fontWeight: '800' },
+    saveHint: { color: t.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 },
     scheduleField: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
@@ -1392,5 +1771,67 @@ function makeStyles(t: Theme) {
     scheduleHalfField: { flex: 1, marginBottom: 0 },
     scheduleLabel: { color: t.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     scheduleValue: { color: t.textPrimary, fontSize: 15, fontWeight: '600', marginTop: 2 },
+    formSection: {
+      borderTopWidth: 1,
+      borderTopColor: t.border,
+      paddingTop: 14,
+      marginTop: 4,
+      marginBottom: 12,
+    },
+    formSectionTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '900', marginBottom: 8 },
+    scheduleLaterRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      marginBottom: 12,
+    },
+    scheduleLaterTitle: { color: t.textPrimary, fontSize: 14, fontWeight: '800' },
+    scheduleLaterSub: { color: t.textSecondary, fontSize: 12, lineHeight: 17 },
+    repeatBox: {
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 10,
+      backgroundColor: t.surfaceInset,
+      padding: 12,
+      marginBottom: 10,
+    },
+    repeatOptions: { gap: 8, paddingTop: 3 },
+    repeatChip: {
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 999,
+      paddingVertical: 7,
+      paddingHorizontal: 10,
+      backgroundColor: t.surfaceElevated,
+    },
+    repeatChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '800' },
+    teamGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    teamChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      maxWidth: '48%',
+      minHeight: 34,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceInset,
+      paddingLeft: 4,
+      paddingRight: 10,
+    },
+    teamInitial: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+    teamInitialText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+    teamName: { flexShrink: 1, color: t.textSecondary, fontSize: 12, fontWeight: '900' },
+    teamEmpty: { color: t.textMuted, fontSize: 13, fontStyle: 'italic' },
+    invoiceReminderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      borderTopWidth: 1,
+      borderTopColor: t.border,
+      paddingTop: 14,
+      marginBottom: 14,
+    },
   });
 }
