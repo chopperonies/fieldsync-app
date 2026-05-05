@@ -688,7 +688,7 @@ export default function OwnerJobs() {
               'Build job',
               'scheduled',
               null,
-              'Assessment - ',
+              '',
               'Confirm client needs, site access, materials, photos, safety notes, and next steps before work starts.'
             ),
           },

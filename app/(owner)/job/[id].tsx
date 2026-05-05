@@ -85,6 +85,11 @@ export default function OwnerJobDetail() {
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [cameraBusy, setCameraBusy] = useState(false);
+  const [clientModalOpen, setClientModalOpen] = useState(false);
+  const [clientNameDraft, setClientNameDraft] = useState('');
+  const [clientPhoneDraft, setClientPhoneDraft] = useState('');
+  const [clientEmailDraft, setClientEmailDraft] = useState('');
+  const [clientSaving, setClientSaving] = useState(false);
 
   // Assign crew state
   const [allCrew, setAllCrew] = useState<Employee[]>([]);
@@ -279,14 +284,52 @@ export default function OwnerJobDetail() {
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`);
   }
 
+  function openClientEditor() {
+    setClientNameDraft(client?.name || '');
+    setClientPhoneDraft(client?.phone || '');
+    setClientEmailDraft(client?.email || '');
+    setClientModalOpen(true);
+  }
+
   function textClient() {
-    if (!clientPhone) return Alert.alert('No client phone', 'Add a client phone when creating the job, or link this job to a client with a phone number.');
+    if (!clientPhone) {
+      return Alert.alert('No client phone', 'Add a phone number to this job\'s client contact.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Add phone', onPress: openClientEditor },
+      ]);
+    }
     textNumber(clientPhone);
   }
 
   function callClient() {
-    if (!clientPhone) return Alert.alert('No client phone', 'Add a client phone when creating the job, or link this job to a client with a phone number.');
+    if (!clientPhone) {
+      return Alert.alert('No client phone', 'Add a phone number to this job\'s client contact.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Add phone', onPress: openClientEditor },
+      ]);
+    }
     callNumber(clientPhone);
+  }
+
+  async function saveClientContact() {
+    if (!job) return;
+    const hasAnyContact = clientNameDraft.trim() || clientPhoneDraft.trim() || clientEmailDraft.trim();
+    if (!hasAnyContact) return Alert.alert('Add client info', 'Enter a name, phone, or email.');
+    setClientSaving(true);
+    try {
+      await mobilePatch(`/api/mobile/owner/jobs/${job.id}`, {
+        client_name: clientNameDraft.trim() || null,
+        client_phone: clientPhoneDraft.trim() || null,
+        client_email: clientEmailDraft.trim() || null,
+      });
+      setClientModalOpen(false);
+      await load();
+      Alert.alert('Saved', 'Client contact updated.');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not save client contact.');
+    } finally {
+      setClientSaving(false);
+    }
   }
 
   async function uploadJobPhoto(base64: string): Promise<string | null> {
@@ -556,7 +599,19 @@ export default function OwnerJobDetail() {
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{job.name}</Text>
           {job.address ? <Text style={styles.subtitle}>{job.address}</Text> : null}
-          {client?.name ? <Text style={styles.clientLine}>{client.name}</Text> : null}
+          <View style={styles.clientHeaderRow}>
+            <Text style={client?.name ? styles.clientLine : styles.clientMissing}>
+              {client?.name || 'No client contact'}
+            </Text>
+            <TouchableOpacity onPress={openClientEditor} style={styles.clientEditChip} activeOpacity={0.75}>
+              <Text style={styles.clientEditChipText}>{client?.id ? 'Edit contact' : 'Add contact'}</Text>
+            </TouchableOpacity>
+          </View>
+          {clientPhone || clientEmail ? (
+            <Text style={styles.clientContactLine}>
+              {[clientPhone, clientEmail].filter(Boolean).join(' · ')}
+            </Text>
+          ) : null}
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.visitActionsScroll}>
@@ -1083,6 +1138,60 @@ export default function OwnerJobDetail() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Client contact modal */}
+      <Modal visible={clientModalOpen} transparent animationType="slide" onRequestClose={() => setClientModalOpen(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalSheet, { paddingBottom: 24 + insets.bottom }]}>
+            <Text style={styles.modalTitle}>{client?.id ? 'Edit client contact' : 'Add client contact'}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Client name"
+              placeholderTextColor="#555"
+              value={clientNameDraft}
+              onChangeText={setClientNameDraft}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Phone for text / call"
+              placeholderTextColor="#555"
+              value={clientPhoneDraft}
+              onChangeText={setClientPhoneDraft}
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email for work orders / invoices"
+              placeholderTextColor="#555"
+              value={clientEmailDraft}
+              onChangeText={setClientEmailDraft}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => { Keyboard.dismiss(); setClientModalOpen(false); }}
+                disabled={clientSaving}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSave, clientSaving && { opacity: 0.5 }]}
+                onPress={saveClientContact}
+                disabled={clientSaving}
+              >
+                {clientSaving ? <ActivityIndicator color="#000" /> : <Text style={styles.modalSaveText}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Add note modal */}
       <Modal visible={noteModalOpen} transparent animationType="fade" onRequestClose={() => setNoteModalOpen(false)}>
         <View style={styles.centerModalOverlay}>
@@ -1210,6 +1319,18 @@ function makeStyles(t: Theme) {
     title: { color: t.textPrimary, fontSize: 20, fontWeight: '800' },
     subtitle: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
     clientLine: { color: t.accent, fontSize: 13, marginTop: 4, fontWeight: '600' },
+    clientMissing: { color: t.textMuted, fontSize: 13, marginTop: 4, fontWeight: '600' },
+    clientHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    clientEditChip: {
+      borderWidth: 1,
+      borderColor: t.accent,
+      borderRadius: 999,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      marginTop: 4,
+    },
+    clientEditChipText: { color: t.accent, fontSize: 11, fontWeight: '900' },
+    clientContactLine: { color: t.textMuted, fontSize: 12, marginTop: 3 },
     visitActionsScroll: { marginTop: 14 },
     visitActions: { flexDirection: 'row', gap: 8 },
     visitActionChip: {
