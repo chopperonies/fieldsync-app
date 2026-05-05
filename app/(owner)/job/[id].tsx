@@ -585,12 +585,12 @@ export default function OwnerJobDetail() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.visitActionChip} onPress={shareWorkOrder}>
               <Ionicons name="share-outline" size={15} color={theme.accent} />
-              <Text style={styles.visitActionText}>Share</Text>
+              <Text style={styles.visitActionText}>Share work order</Text>
             </TouchableOpacity>
             {clientEmail ? (
               <TouchableOpacity style={styles.visitActionChip} onPress={emailWorkOrder}>
                 <Ionicons name="mail-outline" size={15} color={theme.accent} />
-                <Text style={styles.visitActionText}>Email</Text>
+                <Text style={styles.visitActionText}>Email work order</Text>
               </TouchableOpacity>
             ) : null}
             {statusKey === 'scheduled' ? (
@@ -843,21 +843,9 @@ export default function OwnerJobDetail() {
                 </View>
               ) : (
                 <TouchableOpacity style={styles.actionBtn} onPress={openFullInvoice}>
-                  <Text style={styles.actionBtnText}>Send Invoice</Text>
+                  <Text style={styles.actionBtnText}>Create invoice</Text>
                 </TouchableOpacity>
               )}
-            </View>
-
-            {/* Work-order actions */}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-              <TouchableOpacity style={[styles.actionBtnGhost, { flex: 1 }]} onPress={shareWorkOrder}>
-                <Ionicons name="share-outline" size={18} color="#0ea5e9" />
-                <Text style={styles.actionBtnGhostText}>Share</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtnGhost, { flex: 1 }]} onPress={emailWorkOrder}>
-                <Ionicons name="mail-outline" size={18} color="#0ea5e9" />
-                <Text style={styles.actionBtnGhostText}>Email Client</Text>
-              </TouchableOpacity>
             </View>
           </>
         )}
