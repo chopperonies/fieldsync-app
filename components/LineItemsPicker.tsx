@@ -203,8 +203,15 @@ export default function LineItemsPicker({
         </View>
       ))}
 
-      <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
+      <Modal
+        visible={open}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        hardwareAccelerated
+        onRequestClose={() => setOpen(false)}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
           <View style={styles.sheet}>
             <View style={styles.grabber} />
             <View style={styles.sheetHeader}>
@@ -340,6 +347,7 @@ function makeStyles(t: Theme) {
       paddingHorizontal: 16,
       paddingTop: 10,
       paddingBottom: 14,
+      height: Platform.OS === 'android' ? '88%' : undefined,
       maxHeight: '94%',
     },
     grabber: {
@@ -377,7 +385,13 @@ function makeStyles(t: Theme) {
       marginBottom: 12,
     },
     searchInput: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 11 },
-    catalogList: { maxHeight: 260, borderTopWidth: 1, borderBottomWidth: 1, borderColor: t.border },
+    catalogList: {
+      flex: 1,
+      minHeight: 180,
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: t.border,
+    },
     catalogContent: { paddingBottom: 8 },
     catalogRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
     catalogName: { color: t.textPrimary, fontSize: 14, fontWeight: '800' },

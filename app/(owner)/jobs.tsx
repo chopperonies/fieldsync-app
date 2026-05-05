@@ -743,7 +743,7 @@ export default function OwnerJobs() {
           closeAddModal();
         }}
       >
-        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
           <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>{newTypeLabel}</Text>
             <ScrollView

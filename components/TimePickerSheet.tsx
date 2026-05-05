@@ -1,4 +1,4 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../lib/themeContext';
@@ -14,19 +14,29 @@ type Props = {
 const SLOT_VALUES = [
   null,
   ...Array.from({ length: 48 }, (_, index) => {
-    const hour = Math.floor(index / 2);
+    const hour = (Math.floor(index / 2) + 6) % 24;
     const minute = index % 2 === 0 ? '00' : '30';
     return `${String(hour).padStart(2, '0')}:${minute}`;
   }),
 ];
 
-const SLOT_ROWS = Array.from({ length: Math.ceil(SLOT_VALUES.length / 2) }, (_, index) =>
-  SLOT_VALUES.slice(index * 2, index * 2 + 2)
+const SLOT_ROWS = Array.from({ length: Math.ceil(SLOT_VALUES.length / 3) }, (_, index) =>
+  SLOT_VALUES.slice(index * 3, index * 3 + 3)
 );
 
-export function formatTimeLabel(value?: string | null): string {
-  if (!value) return 'Anytime';
+function normalizeTimeValue(value?: string | null): string | null {
+  if (!value) return null;
   const [hhRaw, mmRaw = '00'] = String(value).split(':');
+  const hh = Number(hhRaw);
+  const mm = Number(mmRaw);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return `${String(Math.max(0, Math.min(23, hh))).padStart(2, '0')}:${String(Math.max(0, Math.min(59, mm))).padStart(2, '0')}`;
+}
+
+export function formatTimeLabel(value?: string | null): string {
+  const normalized = normalizeTimeValue(value);
+  if (!normalized) return 'Anytime';
+  const [hhRaw, mmRaw = '00'] = normalized.split(':');
   const hh = Number(hhRaw);
   if (!Number.isFinite(hh)) return 'Anytime';
   const suffix = hh >= 12 ? 'PM' : 'AM';
@@ -37,8 +47,11 @@ export function formatTimeLabel(value?: string | null): string {
 export default function TimePickerSheet({ visible, value, title = 'Schedule time', onClose, onSelect }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const listMaxHeight = Math.max(280, Math.round(height * 0.62));
+  const selectedValue = normalizeTimeValue(value);
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={[styles.backdrop, { backgroundColor: theme.overlay }]} onPress={onClose}>
         <Pressable
           style={[
@@ -57,6 +70,7 @@ export default function TimePickerSheet({ visible, value, title = 'Schedule time
             </TouchableOpacity>
           </View>
           <ScrollView
+            style={[styles.slotList, { maxHeight: listMaxHeight }]}
             showsVerticalScrollIndicator
             contentContainerStyle={styles.grid}
             keyboardShouldPersistTaps="handled"
@@ -64,7 +78,7 @@ export default function TimePickerSheet({ visible, value, title = 'Schedule time
             {SLOT_ROWS.map((row, rowIndex) => (
               <View key={`row-${rowIndex}`} style={styles.slotRow}>
                 {row.map((slot) => {
-                  const selected = (slot || null) === (value || null);
+                  const selected = (slot || null) === selectedValue;
                   return (
                     <TouchableOpacity
                       key={slot || 'anytime'}
@@ -92,7 +106,9 @@ export default function TimePickerSheet({ visible, value, title = 'Schedule time
                     </TouchableOpacity>
                   );
                 })}
-                {row.length === 1 ? <View style={styles.slotSpacer} /> : null}
+                {row.length < 3 ? Array.from({ length: 3 - row.length }).map((_, index) => (
+                  <View key={`spacer-${index}`} style={styles.slotSpacer} />
+                )) : null}
               </View>
             ))}
           </ScrollView>
@@ -115,6 +131,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   title: { fontSize: 20, fontWeight: '800' },
   closeBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  slotList: { flexGrow: 0 },
   grid: { gap: 8, paddingBottom: 10 },
   slotRow: { flexDirection: 'row', gap: 8 },
   slot: {
@@ -122,11 +139,11 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: 8,
     borderWidth: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   slotSpacer: { flex: 1 },
-  slotText: { fontSize: 14, fontWeight: '800' },
+  slotText: { fontSize: 12, fontWeight: '800' },
 });
