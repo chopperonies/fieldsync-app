@@ -169,6 +169,8 @@ export default function OwnerJobs() {
   const [choiceOpen, setChoiceOpen] = useState<null | 'job' | 'estimate'>(null);
   const [workflows, setWorkflows] = useState<Array<{ id: string; name: string; description?: string | null; industry?: string | null }>>([]);
   const [newName, setNewName] = useState('');
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newEstimate, setNewEstimate] = useState('');
@@ -275,6 +277,8 @@ export default function OwnerJobs() {
         scheduled_date: newScheduleLater ? null : newScheduledDate,
         scheduled_time: newScheduleLater ? null : newScheduledTime,
         expected_duration_hours: computedDuration,
+        client_name: newClientName.trim() || null,
+        client_phone: newClientPhone.trim() || null,
         workflow_id: newWorkflowId,
         status: newStatus,
       });
@@ -287,7 +291,7 @@ export default function OwnerJobs() {
         const parsed = fromDateString((data as any).scheduled_date);
         if (parsed) setAnchor(parsed);
       }
-      setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
+      setNewName(''); setNewClientName(''); setNewClientPhone(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
       setNewLineItems([]);
       setNewScheduledDate(null); setNewScheduledTime(null); setNewScheduledEndTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
       setNewScheduleLater(false); setNewRepeat('none'); setNewInvoiceReminder(true); setSelectedCrewIds(new Set());
@@ -310,6 +314,8 @@ export default function OwnerJobs() {
     setNewStatus(status);
     setNewWorkflowId(workflowId);
     setNewName(defaultName);
+    setNewClientName('');
+    setNewClientPhone('');
     setNewAddress('');
     setNewDesc(defaultDesc);
     setNewEstimate('');
@@ -332,7 +338,7 @@ export default function OwnerJobs() {
     Keyboard.dismiss();
     setShowAdd(false);
     // Reset so next open starts clean.
-    setNewName(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
+    setNewName(''); setNewClientName(''); setNewClientPhone(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
     setNewLineItems([]);
     setNewScheduledDate(null); setNewScheduledTime(null); setNewScheduledEndTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
     setNewScheduleLater(false); setNewRepeat('none'); setNewInvoiceReminder(true); setSelectedCrewIds(new Set());
@@ -752,6 +758,25 @@ export default function OwnerJobs() {
               showsVerticalScrollIndicator={false}
             >
               <TextInput style={styles.modalInput} placeholder={newStatus === 'quoted' ? 'Estimate title' : 'Job title'} placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
+              <View style={styles.formSection}>
+                <Text style={styles.formSectionTitle}>Client</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Client name"
+                  placeholderTextColor={theme.textMuted}
+                  value={newClientName}
+                  onChangeText={setNewClientName}
+                />
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Client phone for text / call"
+                  placeholderTextColor={theme.textMuted}
+                  value={newClientPhone}
+                  onChangeText={setNewClientPhone}
+                  keyboardType="phone-pad"
+                  textContentType="telephoneNumber"
+                />
+              </View>
               <TextInput style={styles.modalInput} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
               <TextInput
                 style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
@@ -1116,7 +1141,7 @@ function ListView({
                 <TouchableOpacity
                   style={[styles.visitActionBtn, !item.address && { opacity: 0.45 }]}
                   disabled={!item.address}
-                  onPress={() => item.address && Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(item.address)}`)}
+                  onPress={() => item.address && Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`)}
                 >
                   <Ionicons name="navigate-outline" size={14} color={theme.accent} />
                   <Text style={styles.visitActionText}>Directions</Text>
@@ -1174,7 +1199,7 @@ function MapScheduleView({
           key={job.id}
           style={styles.mapStop}
           activeOpacity={0.75}
-          onPress={() => job.address && Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(job.address)}`)}
+          onPress={() => job.address && Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`)}
           disabled={!job.address}
         >
           <View style={[styles.mapStopIcon, { backgroundColor: colorForJob(theme, job).bg }]}>

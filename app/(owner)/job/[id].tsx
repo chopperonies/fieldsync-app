@@ -264,6 +264,21 @@ export default function OwnerJobDetail() {
     }
   }
 
+  function openDirections() {
+    if (!job?.address) return Alert.alert('No address', 'This job has no address on file.');
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`);
+  }
+
+  function textClient() {
+    if (!clientPhone) return Alert.alert('No client phone', 'Add a client phone when creating the job, or link this job to a client with a phone number.');
+    textNumber(clientPhone);
+  }
+
+  function callClient() {
+    if (!clientPhone) return Alert.alert('No client phone', 'Add a client phone when creating the job, or link this job to a client with a phone number.');
+    callNumber(clientPhone);
+  }
+
   async function openAssignModal() {
     try {
       const crew = await mobileGet<Employee[]>('/api/mobile/owner/crew');
@@ -478,23 +493,21 @@ export default function OwnerJobDetail() {
             <TouchableOpacity
               style={[styles.visitActionChip, !job.address && styles.visitActionDisabled]}
               disabled={!job.address}
-              onPress={() => job.address && Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(job.address)}`)}
+              onPress={openDirections}
             >
               <Ionicons name="navigate-outline" size={15} color={job.address ? theme.accent : theme.textMuted} />
               <Text style={[styles.visitActionText, !job.address && styles.visitActionTextDisabled]}>Directions</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.visitActionChip, !clientPhone && styles.visitActionDisabled]}
-              disabled={!clientPhone}
-              onPress={() => textNumber(clientPhone)}
+              onPress={textClient}
             >
               <Ionicons name="chatbubble-outline" size={15} color={clientPhone ? theme.accent : theme.textMuted} />
               <Text style={[styles.visitActionText, !clientPhone && styles.visitActionTextDisabled]}>Text client</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.visitActionChip, !clientPhone && styles.visitActionDisabled]}
-              disabled={!clientPhone}
-              onPress={() => callNumber(clientPhone)}
+              onPress={callClient}
             >
               <Ionicons name="call-outline" size={15} color={clientPhone ? theme.accent : theme.textMuted} />
               <Text style={[styles.visitActionText, !clientPhone && styles.visitActionTextDisabled]}>Call</Text>
@@ -682,7 +695,7 @@ export default function OwnerJobDetail() {
             {/* Plans / schematics / work-order attachments */}
             <JobAttachments
               jobId={job.id}
-              hasWorkflow={!!(job as any).service_pro_workflow_id}
+              hasWorkflow={!!((job as any).workflow_id || (job as any).service_pro_workflow_id)}
             />
 
             {/* Pending closure — approver actions */}
