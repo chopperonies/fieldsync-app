@@ -101,9 +101,14 @@ export default function OwnerLayout() {
         tabBarInactiveTintColor: theme.textSecondary,
         tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
         tabBarItemStyle: { paddingVertical: 2 },
-        headerStyle: { backgroundColor: theme.bg },
+        headerStyle: {
+          backgroundColor: theme.bg,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
+        } as any,
         headerTintColor: theme.textPrimary,
-        headerTitleStyle: { fontWeight: '700', color: theme.textPrimary },
+        headerTitleStyle: { fontWeight: '800', color: theme.textPrimary, fontSize: 16 },
         headerRight: undefined,
       }}
     >
@@ -113,7 +118,7 @@ export default function OwnerLayout() {
           title: 'Home',
           tabBarIcon: ({ color, size, focused }) =>
             <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />,
-          headerTitle: 'LinkCrew',
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -122,7 +127,7 @@ export default function OwnerLayout() {
           title: 'Schedule',
           tabBarIcon: ({ color, size, focused }) =>
             <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={size} color={color} />,
-          headerTitle: 'Schedule',
+          headerShown: false,
         }}
       />
       <Tabs.Screen

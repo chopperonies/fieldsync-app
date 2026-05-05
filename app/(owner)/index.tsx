@@ -1,18 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  RefreshControl, TouchableOpacity, Alert, ActivityIndicator,
+  RefreshControl, TouchableOpacity, Alert, ActivityIndicator, Linking,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { router } from 'expo-router';
 import { getUser } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { SectionHeader, Row, Divider, RowAvatar, StatusChip } from '../../components/Flat';
-import ClockInCard from '../../components/ClockInCard';
 import PunchMap, { MapPin } from '../../components/PunchMap';
-import ProgressGauge from '../../components/ProgressGauge';
 import { useRole, canSeeFinancials } from '../../lib/useRole';
 
 type HomeJob = {
@@ -79,6 +79,7 @@ function timeAgo(iso: string): string {
 export default function OwnerOverview() {
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const insets = useSafeAreaInsets();
   const role = useRole();
   const showFinancials = canSeeFinancials(role);
   const showCrewPins = role === 'owner' || role === 'manager';
@@ -90,7 +91,6 @@ export default function OwnerOverview() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
-
   const [revealed, setRevealed] = useState(false);
 
   const loadCrewPins = useCallback(async () => {
@@ -110,7 +110,6 @@ export default function OwnerOverview() {
         }));
         setCrewPins(pins);
       } else {
-        // Crew-only user → show their own pins from clock-state instead.
         const data = await mobileGet<{ pins: Array<{ kind: 'in' | 'out'; lat: number; lng: number; at?: string }> }>(
           '/api/mobile/me/clock-state'
         );
@@ -165,7 +164,7 @@ export default function OwnerOverview() {
     jobBreakdown: [], todayJobs: [], stuckJobs: [], recentActivity: [], scheduleByDay: {},
   };
   const today = new Date();
-  const dateLabel = today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const dateLabel = today.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const greeting = (() => {
     const h = today.getHours();
     if (h < 12) return 'Good morning';
@@ -173,7 +172,6 @@ export default function OwnerOverview() {
     return 'Good evening';
   })();
 
-  // To-do items: stuck jobs + pending supplies flagged at a glance
   const todoItems: Array<{
     id: string; label: string; sub: string; icon: any; color: string; onPress: () => void;
   }> = [];
@@ -197,58 +195,132 @@ export default function OwnerOverview() {
   const todayJobs = safe.todayJobs || [];
   const recent = safe.recentActivity || [];
 
+  const fourthTile = showFinancials
+    ? {
+        label: 'Paid 7d',
+        value: financials ? (revealed ? shortMoney(financials.paidThisWeek) : '$•••') : '—',
+        color: revealed && financials ? theme.success : theme.textMuted,
+        onPress: financials ? () => setRevealed(v => !v) : undefined,
+      }
+    : {
+        label: 'Bottlenecks',
+        value: String(safe.bottlenecksToday),
+        color: safe.bottlenecksToday > 0 ? theme.warning : theme.textPrimary,
+        onPress: undefined,
+      };
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={loading || refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
     >
-      <View style={styles.header}>
-        <Text style={styles.date}>{dateLabel}</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.greeting}>
           {greeting}{firstName ? `, ${firstName}` : ''}
         </Text>
+        <Text style={styles.date}>{dateLabel}</Text>
       </View>
 
-      <ClockInCard onChange={() => { loadCrewPins(); loadProgress(); }} />
+      <ClockInPill onChange={() => { loadCrewPins(); loadProgress(); }} />
 
-      <ProgressGauge completed={progress.completed} total={progress.total} />
+      <View style={styles.statGrid}>
+        <View style={styles.statRow}>
+          <StatTile theme={theme} label="Active jobs" value={String(safe.activeJobs)} color={theme.accent} />
+          <StatTile theme={theme} label="On site" value={String(safe.crewOnSite)} color={theme.success} />
+        </View>
+        <View style={styles.statRow}>
+          <StatTile
+            theme={theme}
+            label="Done today"
+            value={progress.total > 0 ? `${progress.completed}/${progress.total}` : '0'}
+            color={theme.info}
+          />
+          <StatTile
+            theme={theme}
+            label={fourthTile.label}
+            value={fourthTile.value}
+            color={fourthTile.color}
+            onPress={fourthTile.onPress}
+          />
+        </View>
+      </View>
 
-      {showCrewPins && crewPins.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.crewStrip}
-        >
-          {crewPins
-            .slice()
-            .sort((a, b) => Number(!!b.active) - Number(!!a.active))
-            .map((p, i) => (
-              <View
-                key={`${p.name || i}-${i}`}
-                style={[
-                  styles.crewChip,
-                  p.active
-                    ? { backgroundColor: theme.successMuted, borderColor: theme.success + '55' }
-                    : { backgroundColor: theme.surfaceInset, borderColor: 'transparent' },
-                ]}
-              >
-                <View style={[
-                  styles.crewDot,
-                  { backgroundColor: p.active ? theme.success : theme.textMuted },
-                ]} />
-                <Text style={[
-                  styles.crewChipText,
-                  { color: p.active ? theme.success : theme.textSecondary },
-                ]}>
-                  {p.name || 'Crew'}
-                </Text>
-              </View>
-            ))}
-        </ScrollView>
-      ) : null}
-      <PunchMap pins={crewPins} emptyLabel={showCrewPins ? 'No crew clock-ins yet today' : 'Clock in to drop a pin'} />
+      {todayJobs.length > 0 && (
+        <>
+          <SectionHeader
+            label="Today"
+            hint={`${todayJobs.length}`}
+            right={todayJobs.length > 3 ? 'View all' : undefined}
+            onPressRight={todayJobs.length > 3 ? () => router.push('/(owner)/jobs?filter=active' as any) : undefined}
+          />
+          {todayJobs.slice(0, 3).map((j, i) => (
+            <View key={j.id}>
+              {i > 0 ? <Divider inset={64} /> : null}
+              <Row
+                leading={<RowAvatar icon="hammer-outline" tint={theme.accent} />}
+                title={j.name}
+                subtitle={[j.client_name, j.crew.length > 0 ? j.crew.slice(0, 2).join(', ') + (j.crew.length > 2 ? ` +${j.crew.length - 2}` : '') : 'Unassigned'].filter(Boolean).join(' · ')}
+                trailing={
+                  <>
+                    {j.pendingSupplies > 0 ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                        <Ionicons name="cube-outline" size={12} color={theme.accent} />
+                        <Text style={{ color: theme.accent, fontSize: 11, fontWeight: '700' }}>{j.pendingSupplies}</Text>
+                      </View>
+                    ) : null}
+                    {j.stage_name ? <StatusChip label={j.stage_name} tint={j.stage_color || theme.accent} /> : null}
+                  </>
+                }
+                onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
+              />
+            </View>
+          ))}
+        </>
+      )}
 
+      {crewPins.length > 0 && (
+        <>
+          <SectionHeader
+            label="On the map"
+            hint={`${crewPins.filter(p => p.active).length} active`}
+          />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.crewStrip}
+          >
+            {crewPins
+              .slice()
+              .sort((a, b) => Number(!!b.active) - Number(!!a.active))
+              .map((p, i) => (
+                <View
+                  key={`${p.name || i}-${i}`}
+                  style={[
+                    styles.crewChip,
+                    p.active
+                      ? { backgroundColor: theme.successMuted, borderColor: theme.success + '55' }
+                      : { backgroundColor: theme.surfaceInset, borderColor: 'transparent' },
+                  ]}
+                >
+                  <View style={[
+                    styles.crewDot,
+                    { backgroundColor: p.active ? theme.success : theme.textMuted },
+                  ]} />
+                  <Text style={[
+                    styles.crewChipText,
+                    { color: p.active ? theme.success : theme.textSecondary },
+                  ]}>
+                    {p.name || 'Crew'}
+                  </Text>
+                </View>
+              ))}
+          </ScrollView>
+          <View style={styles.mapWrap}>
+            <PunchMap pins={crewPins} emptyLabel="" />
+          </View>
+        </>
+      )}
 
       {todoItems.length > 0 && (
         <>
@@ -283,43 +355,10 @@ export default function OwnerOverview() {
         </>
       )}
 
-      <SectionHeader
-        label="Today"
-        hint={todayJobs.length > 0 ? `${todayJobs.length}` : undefined}
-        right={todayJobs.length > 3 ? 'View all' : undefined}
-        onPressRight={todayJobs.length > 3 ? () => router.push('/(owner)/jobs?filter=active' as any) : undefined}
-      />
-      {todayJobs.length === 0 && !loading ? (
-        <Text style={styles.emptyText}>No active jobs right now.</Text>
-      ) : (
-        todayJobs.slice(0, 3).map((j, i) => (
-          <View key={j.id}>
-            {i > 0 ? <Divider inset={64} /> : null}
-            <Row
-              leading={<RowAvatar icon="hammer-outline" tint={theme.accent} />}
-              title={j.name}
-              subtitle={[j.client_name, j.crew.length > 0 ? j.crew.slice(0, 2).join(', ') + (j.crew.length > 2 ? ` +${j.crew.length - 2}` : '') : 'Unassigned'].filter(Boolean).join(' · ')}
-              trailing={
-                <>
-                  {j.pendingSupplies > 0 ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                      <Ionicons name="cube-outline" size={12} color={theme.accent} />
-                      <Text style={{ color: theme.accent, fontSize: 11, fontWeight: '700' }}>{j.pendingSupplies}</Text>
-                    </View>
-                  ) : null}
-                  {j.stage_name ? <StatusChip label={j.stage_name} tint={j.stage_color || theme.accent} /> : null}
-                </>
-              }
-              onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: j.id } } as any)}
-            />
-          </View>
-        ))
-      )}
-
       {recent.length > 0 && (
         <>
           <SectionHeader label="Recent activity" hint={`${recent.length}`} />
-          {recent.slice(0, 5).map((a, i) => {
+          {recent.slice(0, 3).map((a, i) => {
             const iconName =
               a.type === 'photo'      ? 'camera-outline' :
               a.type === 'note'       ? 'create-outline' :
@@ -356,61 +395,200 @@ export default function OwnerOverview() {
         </>
       )}
 
-      {/* Open on desktop — owner/manager only. One tap emails a magic link. */}
       {(role === 'owner' || role === 'manager' || role === 'supervisor') && (
-        <DesktopHandoffCard />
+        <DesktopHandoffLink />
       )}
     </ScrollView>
   );
 }
 
-function DesktopHandoffCard() {
+function ClockInPill({ onChange }: { onChange?: () => void }) {
+  const theme = useTheme();
+  const [open, setOpen] = useState<{ started_at: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  const reload = useCallback(async () => {
+    try {
+      const data = await mobileGet<{ open: { started_at: string } | null }>('/api/mobile/me/clock-state');
+      setOpen(data?.open || null);
+    } catch {
+      // keep prior state
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  useEffect(() => {
+    if (!open) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [open]);
+
+  async function getGPS(): Promise<{ lat: number; lng: number } | null> {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return null;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+    } catch { return null; }
+  }
+
+  async function toggle() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const gps = await getGPS();
+      await mobilePost(open ? '/api/mobile/clock-out' : '/api/mobile/clock-in', { gps });
+      await reload();
+      onChange?.();
+    } catch (e: any) {
+      Alert.alert(open ? 'Could not clock out' : 'Could not clock in', e?.message || 'Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const elapsedMs = open ? now - new Date(open.started_at).getTime() : 0;
+  const total = Math.max(0, Math.floor(elapsedMs / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const timer = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  return (
+    <View style={{
+      marginHorizontal: 16,
+      marginTop: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: open ? theme.success + '55' : theme.border,
+      backgroundColor: open ? theme.successMuted : theme.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    }}>
+      <View style={{
+        width: 8, height: 8, borderRadius: 4,
+        backgroundColor: open ? theme.success : theme.textMuted,
+      }} />
+      <Text style={{
+        flex: 1,
+        color: open ? theme.success : theme.textSecondary,
+        fontSize: 13,
+        fontWeight: '700',
+        fontVariant: ['tabular-nums'],
+      }}>
+        {open ? `Clocked in · ${timer}` : 'Clock in to start tracking time'}
+      </Text>
+      <TouchableOpacity
+        onPress={toggle}
+        disabled={busy}
+        activeOpacity={0.75}
+        style={{
+          paddingHorizontal: 14,
+          paddingVertical: 6,
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: open ? theme.danger + '66' : theme.success + '66',
+          backgroundColor: open ? theme.dangerMuted : theme.successMuted,
+          opacity: busy ? 0.6 : 1,
+        }}
+      >
+        <Text style={{
+          color: open ? theme.danger : theme.success,
+          fontSize: 12,
+          fontWeight: '800',
+        }}>
+          {busy ? '…' : (open ? 'Clock out' : 'Clock in')}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function StatTile({
+  theme, label, value, color, onPress,
+}: { theme: Theme; label: string; value: string; color?: string; onPress?: () => void }) {
+  const Wrap: any = onPress ? TouchableOpacity : View;
+  return (
+    <Wrap
+      activeOpacity={0.7}
+      onPress={onPress}
+      style={{
+        flex: 1,
+        padding: 14,
+        borderRadius: 12,
+        backgroundColor: theme.surface,
+        borderWidth: 1,
+        borderColor: theme.border,
+      }}
+    >
+      <Text style={{
+        color: theme.textMuted,
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+      }}>{label}</Text>
+      <Text style={{
+        color: color || theme.textPrimary,
+        fontSize: 24,
+        fontWeight: '800',
+        marginTop: 6,
+        fontVariant: ['tabular-nums'],
+      }}>{value}</Text>
+    </Wrap>
+  );
+}
+
+function DesktopHandoffLink() {
   const theme = useTheme();
   const [sending, setSending] = useState(false);
-  async function send() {
+  async function open() {
     if (sending) return;
     setSending(true);
     try {
-      const resp = await mobilePost<{ ok: boolean; emailed: boolean; to?: string; magic_url?: string; error?: string }>(
-        '/api/mobile/me/desktop-magic-link', {}
+      const resp = await mobilePost<{ ok: boolean; emailed: boolean; magic_url?: string; error?: string }>(
+        '/api/mobile/me/desktop-magic-link',
+        { skip_email: true },
       );
-      if (resp.emailed) {
-        Alert.alert('Check your email', `Magic link sent to ${resp.to}. It opens the dashboard without asking for a password.`);
-      } else if (resp.magic_url) {
-        Alert.alert('Desktop link', `Email delivery is off, but the link is ready:\n\n${resp.magic_url}`);
+      if (resp.magic_url) {
+        await Linking.openURL(resp.magic_url);
+      } else if (resp.emailed) {
+        Alert.alert('Sent to your email', 'Open the link there to sign into the dashboard.');
       } else {
-        Alert.alert('Sent', 'Check your email for the desktop link.');
+        Alert.alert('Could not open', resp.error || 'Try again.');
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not generate link.');
+      Alert.alert('Error', e?.message || 'Could not open dashboard.');
     } finally {
       setSending(false);
     }
   }
   return (
-    <View style={{ marginHorizontal: 16, marginTop: 10, marginBottom: 20 }}>
-      <TouchableOpacity
-        onPress={send}
-        disabled={sending}
-        activeOpacity={0.8}
-        style={{
-          flexDirection: 'row', alignItems: 'center', gap: 12,
-          padding: 14, borderRadius: 12,
-          backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
-        }}
-      >
-        <Ionicons name="laptop-outline" size={22} color={theme.accent} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 14 }}>Open on desktop</Text>
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-            Email yourself a one-tap link to the web dashboard.
-          </Text>
-        </View>
-        {sending
-          ? <ActivityIndicator color={theme.accent} />
-          : <Ionicons name="mail-outline" size={18} color={theme.textSecondary} />}
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      onPress={open}
+      disabled={sending}
+      activeOpacity={0.7}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginTop: 24,
+        marginBottom: 12,
+        paddingVertical: 12,
+      }}
+    >
+      <Ionicons name="open-outline" size={16} color={theme.textSecondary} />
+      <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '700' }}>
+        {sending ? 'Opening…' : 'Open dashboard'}
+      </Text>
+      {sending ? <ActivityIndicator color={theme.textSecondary} size="small" /> : null}
+    </TouchableOpacity>
   );
 }
 
@@ -442,16 +620,17 @@ function makeStyles(t: Theme) {
     container: { flex: 1, backgroundColor: t.bg },
     content: { paddingBottom: 140 },
 
-    header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-    date: { color: t.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 4 },
-    greeting: { color: t.textPrimary, fontSize: 28, fontWeight: '800' },
+    header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+    greeting: { color: t.textPrimary, fontSize: 22, fontWeight: '800' },
+    date: { color: t.textSecondary, fontSize: 12, fontWeight: '600', marginTop: 2 },
 
-    emptyText: { color: t.textMuted, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14 },
+    statGrid: { paddingHorizontal: 16, paddingTop: 14, gap: 8 },
+    statRow: { flexDirection: 'row', gap: 8 },
 
     crewStrip: {
       paddingHorizontal: 16,
-      paddingTop: 14,
-      paddingBottom: 2,
+      paddingTop: 4,
+      paddingBottom: 8,
       gap: 6,
       flexDirection: 'row',
     },
@@ -464,5 +643,7 @@ function makeStyles(t: Theme) {
     },
     crewDot: { width: 7, height: 7, borderRadius: 4 },
     crewChipText: { fontSize: 12, fontWeight: '700' },
+
+    mapWrap: { paddingHorizontal: 16, paddingTop: 4 },
   });
 }

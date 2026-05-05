@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList, TextInput,
-  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard, Linking, Switch,
+  ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard, Linking, Switch, Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +34,7 @@ type ScheduleJob = {
   crew: CrewMember[];
 };
 
-type ViewMode = 'day' | 'list' | 'map';
+type ViewMode = 'list' | 'grid' | 'map';
 type RepeatOption = 'none' | 'weekly' | 'biweekly' | 'monthly' | 'as_needed';
 
 const DAY_LETTERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -156,7 +156,7 @@ export default function OwnerJobs() {
 
   const [anchor, setAnchor] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [selectedDay, setSelectedDay] = useState<string>(toDateString(new Date()));
-  const [view, setView] = useState<ViewMode>('day');
+  const [view, setView] = useState<ViewMode>('list');
   const [jobs, setJobs] = useState<ScheduleJob[]>([]);
   const [crewMembers, setCrewMembers] = useState<EmployeeLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,7 +192,14 @@ export default function OwnerJobs() {
 
   const week = useMemo(() => weekStripDays(anchor), [anchor]);
   const rangeStart = week[0];
-  const rangeEnd = week[6];
+  const rangeEnd = useMemo(() => {
+    if (view === 'grid') {
+      const end = new Date(week[0]);
+      end.setDate(week[0].getDate() + 27); // 4 weeks
+      return end;
+    }
+    return week[6];
+  }, [week, view]);
 
   const load = useCallback(async () => {
     try {
@@ -421,7 +428,7 @@ export default function OwnerJobs() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.scheduleTopBar}>
+      <View style={[styles.scheduleTopBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => setPickerOpen('weekjump')} style={styles.monthBtn} activeOpacity={0.7}>
           <Text style={styles.monthTitle}>{anchor.toLocaleDateString(undefined, { month: 'long' })}</Text>
           <Ionicons name="chevron-down" size={17} color={theme.textSecondary} />
@@ -439,8 +446,8 @@ export default function OwnerJobs() {
 
       <View style={styles.viewSegment}>
         {([
-          { key: 'day', label: 'Day' },
           { key: 'list', label: 'List' },
+          { key: 'grid', label: 'Grid' },
           { key: 'map', label: 'Map' },
         ] as Array<{ key: ViewMode; label: string }>).map(item => (
           <TouchableOpacity
@@ -454,7 +461,9 @@ export default function OwnerJobs() {
         ))}
       </View>
 
-      {/* Week strip */}
+      {/* Week strip + day stats — only Map view uses them. List view shows a multi-day
+          agenda; Grid view has its own date navigation. */}
+      {view === 'map' && <>
       <View style={styles.weekNav}>
         <TouchableOpacity
           onPress={() => { const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d); }}
@@ -479,25 +488,28 @@ export default function OwnerJobs() {
           const key = toDateString(d);
           const selected = key === selectedDay;
           const today = toDateString(new Date()) === key;
-          const tint = dayTint(theme, i);
           const count = jobsByDay[key]?.length || 0;
+          const labelColor = selected ? theme.textPrimary : (today ? theme.accent : theme.textMuted);
+          const numberColor = selected ? theme.textPrimary : (today ? theme.accent : theme.textSecondary);
+          const dotColor = selected ? theme.accent : (today ? theme.accent : theme.textMuted);
           return (
             <TouchableOpacity
               key={i}
-              style={[styles.dayCell, selected && { backgroundColor: tint + '22', borderColor: tint + '66' }]}
+              style={[
+                styles.dayCell,
+                selected && { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+              ]}
               onPress={() => setSelectedDay(key)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.dayLetter, { color: selected ? tint : theme.textMuted }]}>
+              <Text style={[styles.dayLetter, { color: labelColor }]}>
                 {DAY_LETTERS[i]}
               </Text>
-              <Text style={[
-                styles.dayNumber,
-                { color: selected ? tint : (today ? theme.textPrimary : theme.textSecondary) },
-                (selected || today) && { fontWeight: '800' },
-              ]}>{d.getDate()}</Text>
+              <Text style={[styles.dayNumber, { color: numberColor }]}>
+                {d.getDate()}
+              </Text>
               <View style={styles.dayDotRow}>
-                {count > 0 ? <View style={[styles.dayDot, { backgroundColor: tint }]} /> : <View style={{ height: 4 }} />}
+                {count > 0 ? <View style={[styles.dayDot, { backgroundColor: dotColor }]} /> : null}
               </View>
             </TouchableOpacity>
           );
@@ -505,12 +517,7 @@ export default function OwnerJobs() {
       </View>
 
       <View style={styles.selectedHeader}>
-        <View>
-          <Text style={styles.selectedLabel}>{friendlyDayLabel(selectedDay)}</Text>
-          <Text style={styles.selectedCount}>
-            {jobsForSelected.length} visit{jobsForSelected.length === 1 ? '' : 's'} · {assignedCount} assigned
-          </Text>
-        </View>
+        <Text style={styles.selectedLabel}>{friendlyDayLabel(selectedDay)}</Text>
         <TouchableOpacity
           onPress={() => openTypePicker()}
           style={styles.newJobBtn}
@@ -523,27 +530,44 @@ export default function OwnerJobs() {
       </View>
 
       <View style={styles.daySummary}>
-        <View style={styles.summaryCell}>
-          <Text style={styles.summaryValue}>{jobsForSelected.length}</Text>
-          <Text style={styles.summaryLabel}>Visits</Text>
-        </View>
-        <View style={styles.summaryCell}>
-          <Text style={[styles.summaryValue, { color: unassignedCount ? theme.warning : theme.success }]}>{unassignedCount}</Text>
-          <Text style={styles.summaryLabel}>Unassigned</Text>
-        </View>
-        <View style={styles.summaryCell}>
-          <Text style={styles.summaryValue}>${scheduledRevenue.toLocaleString()}</Text>
-          <Text style={styles.summaryLabel}>Scheduled</Text>
-        </View>
+        <SummaryTile theme={theme} label="Visits" value={String(jobsForSelected.length)} />
+        <SummaryTile
+          theme={theme}
+          label="Unassigned"
+          value={String(unassignedCount)}
+          valueColor={unassignedCount ? theme.warning : theme.success}
+        />
+        <SummaryTile theme={theme} label="Scheduled" value={`$${scheduledRevenue.toLocaleString()}`} />
       </View>
+      </>}
 
       {view === 'list' ? (
         <ListView
           theme={theme}
-          jobs={jobsForSelected}
+          jobs={jobs}
+          week={week}
+          jobsByDay={jobsByDay}
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); load(); }}
           onAddJob={openTypePicker}
+          onOpenJob={(jobId) => router.push({ pathname: '/(owner)/job/[id]', params: { id: jobId } } as any)}
+          onPrevWeek={() => { const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d); }}
+          onNextWeek={() => { const d = new Date(anchor); d.setDate(d.getDate() + 7); setAnchor(d); }}
+        />
+      ) : view === 'grid' ? (
+        <GridScheduleView
+          theme={theme}
+          anchor={anchor}
+          jobsByDay={jobsByDay}
+          selectedDay={selectedDay}
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); load(); }}
+          onSelectDay={(day) => {
+            setSelectedDay(day);
+            const parsed = fromDateString(day);
+            if (parsed) setAnchor(parsed);
+          }}
+          onOpenJob={(jobId) => router.push({ pathname: '/(owner)/job/[id]', params: { id: jobId } } as any)}
         />
       ) : view === 'map' ? (
         <MapScheduleView
@@ -579,8 +603,17 @@ export default function OwnerJobs() {
           }
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '85%' }]}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            setShowTypePicker(false);
+            if (openedViaDeepLink && router.canGoBack()) {
+              setOpenedViaDeepLink(false);
+              setTimeout(() => router.back(), 50);
+            }
+          }}
+        >
+          <Pressable onPress={() => {}} style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '85%' }]}>
             <View style={styles.typeHeader}>
               <Text style={styles.modalTitle}>What are you adding?</Text>
               <TouchableOpacity
@@ -669,8 +702,8 @@ export default function OwnerJobs() {
                 </View>
               )}
             </ScrollView>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <CreateChoiceModal
@@ -749,8 +782,15 @@ export default function OwnerJobs() {
           closeAddModal();
         }}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-          <View style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => {
+              if (kbVisible.current) { Keyboard.dismiss(); return; }
+              closeAddModal();
+            }}
+          >
+            <Pressable onPress={() => {}} style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>{newTypeLabel}</Text>
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -917,7 +957,8 @@ export default function OwnerJobs() {
             {!canSubmitNewJob && missingNewJobFields ? (
               <Text style={styles.saveHint}>Add {missingNewJobFields} to save.</Text>
             ) : null}
-          </View>
+            </Pressable>
+          </Pressable>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -1037,128 +1078,375 @@ function TypeTile({
   );
 }
 
+// ─── SHARED: SUMMARY TILE ───────────────────────────────────────────
+// Stat tile matching the home-screen vocabulary: uppercase eyebrow,
+// large bold number underneath. Used in the day-summary row above the
+// view content.
+
+function SummaryTile({
+  theme, label, value, valueColor,
+}: { theme: Theme; label: string; value: string; valueColor?: string }) {
+  return (
+    <View style={{
+      flex: 1,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+    }}>
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+        style={{
+          color: theme.textMuted,
+          fontSize: 9.5,
+          fontWeight: '800',
+          letterSpacing: 0.3,
+          textTransform: 'uppercase',
+        }}
+      >{label}</Text>
+      <Text style={{
+        color: valueColor || theme.textPrimary,
+        fontSize: 18,
+        fontWeight: '800',
+        marginTop: 2,
+        fontVariant: ['tabular-nums'],
+      }}>{value}</Text>
+    </View>
+  );
+}
+
+// ─── GRID VIEW ──────────────────────────────────────────────────────
+// 4-week calendar overview. Each cell shows day number + an event-count
+// dot. Tap a cell to drill into the day in List view.
+
+function GridScheduleView({
+  theme, anchor, jobsByDay, selectedDay, refreshing, onRefresh, onSelectDay, onOpenJob,
+}: {
+  theme: Theme;
+  anchor: Date;
+  jobsByDay: Record<string, ScheduleJob[]>;
+  selectedDay: string;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onSelectDay: (day: string) => void;
+  onOpenJob: (jobId: string) => void;
+}) {
+  const start = useMemo(() => {
+    const sunday = new Date(anchor);
+    sunday.setDate(anchor.getDate() - anchor.getDay());
+    sunday.setHours(0, 0, 0, 0);
+    return sunday;
+  }, [anchor]);
+
+  const weeks = useMemo(() => {
+    return Array.from({ length: 4 }, (_, w) =>
+      Array.from({ length: 7 }, (_, d) => {
+        const date = new Date(start);
+        date.setDate(start.getDate() + w * 7 + d);
+        return date;
+      })
+    );
+  }, [start]);
+
+  const todayKey = toDateString(new Date());
+  const rangeLabel = `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weeks[3][6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      contentContainerStyle={{ paddingBottom: 140 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+    >
+      <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '800' }}>Next 4 weeks</Text>
+        <Text style={{ color: theme.textMuted, fontSize: 12, fontWeight: '700' }}>{rangeLabel}</Text>
+      </View>
+
+      <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 4 }}>
+        {DAY_LETTERS.map(d => (
+          <Text key={d} style={{
+            flex: 1, textAlign: 'center',
+            color: theme.textMuted, fontSize: 10, fontWeight: '800',
+            letterSpacing: 0.5, textTransform: 'uppercase',
+          }}>{d}</Text>
+        ))}
+      </View>
+
+      <View style={{ paddingHorizontal: 12, gap: 6 }}>
+        {weeks.map((row, ri) => (
+          <View key={ri} style={{ flexDirection: 'row', gap: 6 }}>
+            {row.map(date => {
+              const key = toDateString(date);
+              const events = jobsByDay[key] || [];
+              const count = events.length;
+              const isToday = key === todayKey;
+              const isSelected = key === selectedDay;
+              const tint = count > 0 ? theme.accent : theme.textMuted;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() => onSelectDay(key)}
+                  activeOpacity={0.7}
+                  style={{
+                    flex: 1,
+                    aspectRatio: 0.85,
+                    paddingVertical: 6,
+                    paddingHorizontal: 4,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: isSelected ? theme.accent : (isToday ? theme.accent + '55' : theme.border),
+                    backgroundColor: isSelected ? theme.accentMuted : (count > 0 ? theme.surface : theme.bg),
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Text style={{
+                    color: isSelected ? theme.accent : (isToday ? theme.accent : theme.textPrimary),
+                    fontSize: 14,
+                    fontWeight: isToday || isSelected ? '900' : '700',
+                    fontVariant: ['tabular-nums'],
+                  }}>{date.getDate()}</Text>
+                  {count > 0 ? (
+                    <View style={{
+                      minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9,
+                      backgroundColor: tint,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Text style={{ color: theme.accentContrast, fontSize: 10, fontWeight: '800' }}>{count}</Text>
+                    </View>
+                  ) : (
+                    <View style={{ height: 18 }} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+
+      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border, marginTop: 18 }} />
+
+      <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: '800' }}>
+          {friendlyDayLabel(selectedDay)}
+        </Text>
+        <Text style={{ color: theme.textMuted, fontSize: 11, fontWeight: '700' }}>
+          {(jobsByDay[selectedDay] || []).length} visit{(jobsByDay[selectedDay] || []).length === 1 ? '' : 's'}
+        </Text>
+      </View>
+
+      {(jobsByDay[selectedDay] || []).length === 0 ? (
+        <Text style={{
+          color: theme.textMuted, fontSize: 13, fontWeight: '600',
+          textAlign: 'center', paddingVertical: 24, paddingHorizontal: 32,
+        }}>
+          Nothing scheduled.
+        </Text>
+      ) : (
+        <View style={{ paddingHorizontal: 16, gap: 6, paddingBottom: 24 }}>
+          {(jobsByDay[selectedDay] || [])
+            .slice()
+            .sort((a, b) => String(a.scheduled_time || '99:99').localeCompare(String(b.scheduled_time || '99:99')))
+            .map(j => {
+              const stamp = statusStamp(theme, j);
+              const tone = colorForJob(theme, j);
+              return (
+                <TouchableOpacity
+                  key={j.id}
+                  onPress={() => onOpenJob(j.id)}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: 'row', gap: 10,
+                    paddingVertical: 10, paddingHorizontal: 12,
+                    borderRadius: 10,
+                    backgroundColor: theme.surface,
+                    borderWidth: 1, borderColor: theme.border,
+                  }}
+                >
+                  <View style={{ width: 3, borderRadius: 2, backgroundColor: tone.border, alignSelf: 'stretch' }} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <Text style={{ color: theme.textSecondary, fontSize: 11, fontWeight: '800' }}>
+                        {formatVisitTime(j.scheduled_time)}
+                      </Text>
+                      {stamp ? (
+                        <Text style={{
+                          color: stamp.color, fontSize: 9, fontWeight: '900',
+                          letterSpacing: 0.5,
+                        }}>{stamp.label}</Text>
+                      ) : null}
+                    </View>
+                    <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 2 }} numberOfLines={1}>
+                      {j.name}
+                    </Text>
+                    {j.client_name ? (
+                      <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 1 }} numberOfLines={1}>
+                        {j.client_name}{j.crew?.length ? ` · ${j.crew.slice(0, 2).map(c => c.name).join(', ')}${j.crew.length > 2 ? ` +${j.crew.length - 2}` : ''}` : ''}
+                      </Text>
+                    ) : j.crew?.length ? (
+                      <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 1 }} numberOfLines={1}>
+                        {j.crew.slice(0, 2).map(c => c.name).join(', ')}{j.crew.length > 2 ? ` +${j.crew.length - 2}` : ''}
+                      </Text>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
 // ─── LIST VIEW ─────────────────────────────────────────────────────
 
 function ListView({
-  theme, jobs, refreshing, onRefresh, onAddJob,
+  theme, jobs, week, jobsByDay, refreshing, onRefresh, onAddJob, onOpenJob, onPrevWeek, onNextWeek,
 }: {
   theme: Theme;
   jobs: ScheduleJob[];
+  week: Date[];
+  jobsByDay: Record<string, ScheduleJob[]>;
   refreshing: boolean;
   onRefresh: () => void;
   onAddJob: () => void;
+  onOpenJob: (jobId: string) => void;
+  onPrevWeek: () => void;
+  onNextWeek: () => void;
 }) {
-  const styles = makeStyles(theme);
+  const todayKey = toDateString(new Date());
+  const rangeLabel = `${week[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${week[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  const daysWithEvents = week.filter(d => (jobsByDay[toDateString(d)] || []).length > 0);
+
   return (
-    <FlatList
-      data={jobs}
-      keyExtractor={j => j.id}
-      contentContainerStyle={{ paddingBottom: 140 }}
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      contentContainerStyle={{ paddingBottom: 140, paddingTop: 4 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <Ionicons name="calendar-outline" size={30} color={theme.textMuted} />
-          <Text style={styles.emptyTitle}>Nothing scheduled</Text>
+    >
+      <View style={{
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12,
+      }}>
+        <TouchableOpacity onPress={onPrevWeek} hitSlop={12}>
+          <Ionicons name="chevron-back" size={20} color={theme.textSecondary} />
+        </TouchableOpacity>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{
+            color: theme.textMuted, fontSize: 9, fontWeight: '800',
+            letterSpacing: 0.6, textTransform: 'uppercase',
+          }}>This week</Text>
+          <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '800', marginTop: 1 }}>
+            {rangeLabel}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={onNextWeek} hitSlop={12}>
+          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      {jobs.length === 0 ? (
+        <View style={{ alignItems: 'center', padding: 32 }}>
+          <Ionicons name="calendar-outline" size={32} color={theme.textMuted} />
+          <Text style={{ color: theme.textPrimary, fontWeight: '800', fontSize: 15, marginTop: 12 }}>
+            Nothing scheduled this week
+          </Text>
           <TouchableOpacity onPress={onAddJob}>
-            <Text style={styles.emptyCta}>+ Schedule a job</Text>
+            <Text style={{ color: theme.accent, fontWeight: '800', marginTop: 12 }}>+ Schedule a job</Text>
           </TouchableOpacity>
         </View>
-      }
-      ItemSeparatorComponent={() => <View style={styles.listSep} />}
-      renderItem={({ item }) => {
-        const p = colorForJob(theme, item);
-        const stamp = statusStamp(theme, item);
-        return (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.listRow}
-            onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: item.id } } as any)}
-          >
-            <View style={[styles.listBar, { backgroundColor: p.border }]} />
-            <View style={{ flex: 1, paddingLeft: 14, paddingVertical: 14, paddingRight: 14 }}>
-              <View style={styles.visitMetaRow}>
-                <View style={[styles.visitTimePill, { backgroundColor: p.bg }]}>
-                  <Ionicons name="time-outline" size={13} color={p.text} />
-                  <Text style={[styles.visitTimeText, { color: p.text }]}>{formatVisitTime(item.scheduled_time)}</Text>
-                </View>
-                <Text style={styles.visitTypeText}>Visit</Text>
+      ) : (
+        daysWithEvents.map(d => {
+          const key = toDateString(d);
+          const dayIndex = d.getDay();
+          const events = (jobsByDay[key] || []).slice().sort((a, b) =>
+            String(a.scheduled_time || '99:99').localeCompare(String(b.scheduled_time || '99:99'))
+          );
+          const isToday = key === todayKey;
+          return (
+            <View key={key} style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 6, gap: 12 }}>
+              <View style={{ width: 38, alignItems: 'center', paddingTop: 6 }}>
+                <Text style={{
+                  color: isToday ? theme.accent : theme.textMuted,
+                  fontSize: 10, fontWeight: '800',
+                  letterSpacing: 0.6, textTransform: 'uppercase',
+                }}>
+                  {DAY_LETTERS[dayIndex]}
+                </Text>
+                <Text style={{
+                  color: isToday ? theme.accent : theme.textPrimary,
+                  fontSize: 22, fontWeight: '900', marginTop: 1,
+                  fontVariant: ['tabular-nums'],
+                }}>
+                  {d.getDate()}
+                </Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.listJobName} numberOfLines={1}>{item.name}</Text>
-                  {item.client_name ? <Text style={styles.listJobClient} numberOfLines={1}>{item.client_name}</Text> : null}
-                  {item.address ? <Text style={styles.listJobAddress} numberOfLines={1}>{item.address}</Text> : null}
-                </View>
-                {stamp ? (
-                  <View style={[styles.listStamp, { borderColor: stamp.color + '88' }]}>
-                    <Text style={[styles.listStampText, { color: stamp.color }]}>{stamp.label}</Text>
-                  </View>
-                ) : null}
-              </View>
-              {item.crew && item.crew.length > 0 ? (
-                <View style={styles.crewRow}>
-                  {item.crew.slice(0, 4).map((c, i) => {
-                    const tc = crewColor(theme, c.name);
-                    return (
-                      <View
-                        key={`${c.employee_id}-${i}`}
-                        style={[styles.crewChip, { backgroundColor: tc + '22', borderColor: tc + '55' }]}
-                      >
-                        <View style={[styles.crewInitial, { backgroundColor: tc }]}>
-                          <Text style={styles.crewInitialText}>{c.name.charAt(0).toUpperCase()}</Text>
+
+              <View style={{ flex: 1, gap: 6 }}>
+                {events.map(j => {
+                  const tone = colorForJob(theme, j);
+                  const stamp = statusStamp(theme, j);
+                  const dur = j.expected_duration_hours;
+                  const primary = j.client_name || j.name;
+                  const secondary = j.client_name ? j.name : (j.address || '');
+                  return (
+                    <TouchableOpacity
+                      key={j.id}
+                      onPress={() => onOpenJob(j.id)}
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: 'row', gap: 10,
+                        paddingVertical: 10, paddingHorizontal: 12,
+                        borderRadius: 10,
+                        backgroundColor: theme.surface,
+                        borderWidth: 1, borderColor: theme.border,
+                      }}
+                    >
+                      <View style={{ width: 3, borderRadius: 2, backgroundColor: tone.border, alignSelf: 'stretch' }} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '800', flex: 1 }} numberOfLines={1}>
+                            {primary}
+                          </Text>
+                          <Text style={{ color: theme.textSecondary, fontSize: 11, fontWeight: '800' }}>
+                            {formatVisitTime(j.scheduled_time)}
+                          </Text>
                         </View>
-                        <Text style={[styles.crewChipName, { color: tc }]} numberOfLines={1}>
-                          {c.name}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
+                          <Text style={{ color: theme.textMuted, fontSize: 12, flex: 1 }} numberOfLines={1}>
+                            {secondary}
+                          </Text>
+                          {dur ? (
+                            <Text style={{ color: theme.textMuted, fontSize: 11, fontWeight: '700' }}>
+                              {dur}h
+                            </Text>
+                          ) : stamp ? (
+                            <Text style={{ color: stamp.color, fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
+                              {stamp.label}
+                            </Text>
+                          ) : null}
+                        </View>
                       </View>
-                    );
-                  })}
-                  {item.crew.length > 4 ? (
-                    <Text style={styles.crewMore}>+{item.crew.length - 4}</Text>
-                  ) : null}
-                </View>
-              ) : (
-                <Text style={styles.unassigned}>Unassigned</Text>
-              )}
-              <View style={styles.detailBlock}>
-                <View style={styles.detailLine}>
-                  <Ionicons name="calendar-outline" size={14} color={theme.textSecondary} />
-                  <Text style={styles.detailText}>{item.scheduled_date || 'No date'} at {formatVisitTime(item.scheduled_time)}</Text>
-                </View>
-                <View style={styles.detailLine}>
-                  <Ionicons name={statusMeta(item.status).icon} size={14} color={p.text} />
-                  <Text style={[styles.detailText, { color: p.text }]}>{statusMeta(item.status).label}</Text>
-                </View>
-              </View>
-              <View style={styles.visitActionRow}>
-                <TouchableOpacity
-                  style={styles.visitActionBtn}
-                  onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: item.id } } as any)}
-                >
-                  <Ionicons name="clipboard-outline" size={14} color={theme.accent} />
-                  <Text style={styles.visitActionText}>Details</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.visitActionBtn, !item.address && { opacity: 0.45 }]}
-                  disabled={!item.address}
-                  onPress={() => item.address && Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`)}
-                >
-                  <Ionicons name="navigate-outline" size={14} color={theme.accent} />
-                  <Text style={styles.visitActionText}>Directions</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.visitActionBtn}
-                  onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: item.id } } as any)}
-                >
-                  <Ionicons name="paper-plane-outline" size={14} color={theme.accent} />
-                  <Text style={styles.visitActionText}>Confirm</Text>
-                </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
-          </TouchableOpacity>
-        );
-      }}
-    />
+          );
+        })
+      )}
+
+      {jobs.length > 0 && daysWithEvents.length === 0 ? (
+        <Text style={{
+          color: theme.textMuted, fontSize: 13, fontWeight: '600',
+          textAlign: 'center', paddingVertical: 24, paddingHorizontal: 32,
+        }}>Nothing scheduled this week.</Text>
+      ) : null}
+    </ScrollView>
   );
 }
 
@@ -1503,38 +1791,58 @@ function makeStyles(t: Theme) {
 
     weekNav: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingVertical: 6,
+      paddingHorizontal: 16, paddingVertical: 4,
     },
-    weekLabel: { color: t.textPrimary, fontSize: 14, fontWeight: '800' },
+    weekLabel: { color: t.textPrimary, fontSize: 13, fontWeight: '800' },
 
     weekStrip: {
-      flexDirection: 'row', gap: 4,
-      paddingVertical: 8, paddingHorizontal: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border,
+      flexDirection: 'row',
+      marginHorizontal: 16,
+      marginVertical: 6,
+      padding: 3,
+      borderRadius: 8,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1,
+      borderColor: t.border,
     },
     dayCell: {
-      flex: 1, alignItems: 'center', paddingVertical: 6,
-      borderRadius: 10,
-      borderWidth: 1, borderColor: 'transparent',
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 4,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'transparent',
+      minHeight: 36,
     },
-    dayLetter: { fontSize: 11, fontWeight: '700', marginBottom: 2 },
-    dayNumber: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
-    dayDotRow: { height: 6, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
-    dayDot: { width: 4, height: 4, borderRadius: 2 },
+    dayLetter: {
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+    },
+    dayNumber: {
+      fontSize: 13,
+      fontWeight: '800',
+      marginTop: 1,
+      fontVariant: ['tabular-nums'],
+    },
+    dayDotRow: { height: 3, marginTop: 1, alignItems: 'center', justifyContent: 'center' },
+    dayDot: { width: 3, height: 3, borderRadius: 1.5 },
 
     selectedHeader: {
       flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
+      paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4,
     },
-    selectedLabel: { color: t.textPrimary, fontSize: 18, fontWeight: '800' },
-    selectedCount: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
+    selectedLabel: { color: t.textPrimary, fontSize: 16, fontWeight: '800' },
+    selectedCount: { color: t.textMuted, fontSize: 11, fontWeight: '700' },
     newJobBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     newJobBtnText: { color: t.accent, fontSize: 13, fontWeight: '800' },
     daySummary: {
       flexDirection: 'row',
-      gap: 8,
+      gap: 6,
       paddingHorizontal: 16,
-      paddingBottom: 10,
+      paddingBottom: 8,
     },
     summaryCell: {
       flex: 1,
