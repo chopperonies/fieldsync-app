@@ -6,9 +6,10 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileGet, mobilePatch, mobilePost } from '../../../lib/mobileApi';
-import { Job, Employee } from '../../../lib/supabase';
+import { Job, Employee, supabase } from '../../../lib/supabase';
 import CalendarPicker, { prettyDate } from '../../../components/CalendarPicker';
 import { useTheme } from '../../../lib/themeContext';
 import { useKeyboardVisible } from '../../../lib/useKeyboardVisible';
@@ -34,7 +35,7 @@ type Assignment = {
   employee_id: string;
   checked_in_at: string | null;
   checked_out_at: string | null;
-  employees: { id: string; name: string; phone?: string | null } | null;
+  employees: { id: string; name: string; phone?: string | null; role?: string | null } | null;
 };
 type Update = {
   id: string;
@@ -80,6 +81,10 @@ export default function OwnerJobDetail() {
   const [detailsChecklist, setDetailsChecklist] = useState<string[]>([]);
   const [invoiceAmt, setInvoiceAmt] = useState('');
   const [saving, setSaving] = useState(false);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [cameraBusy, setCameraBusy] = useState(false);
 
   // Assign crew state
   const [allCrew, setAllCrew] = useState<Employee[]>([]);
@@ -284,6 +289,61 @@ export default function OwnerJobDetail() {
     callNumber(clientPhone);
   }
 
+  async function uploadJobPhoto(base64: string): Promise<string | null> {
+    if (!job) return null;
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const fileName = `${job.id}/${Date.now()}.jpg`;
+    const { error } = await supabase.storage
+      .from('photos')
+      .upload(fileName, bytes, { contentType: 'image/jpeg' });
+    if (error) throw new Error(error.message);
+    const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
+    return data.publicUrl;
+  }
+
+  async function handleAddPhoto() {
+    if (!job) return;
+    setCameraBusy(true);
+    try {
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
+      if (result.canceled || !result.assets[0].base64) return;
+      const url = await uploadJobPhoto(result.assets[0].base64);
+      if (!url) return;
+      await mobilePost(`/api/mobile/owner/jobs/${job.id}/updates`, {
+        type: 'photo',
+        message: 'Site photo',
+        photo_url: url,
+      });
+      await load();
+      Alert.alert('Uploaded', 'Photo saved to this job.');
+    } catch (e: any) {
+      Alert.alert('Failed', e?.message || 'Could not save photo.');
+    } finally {
+      setCameraBusy(false);
+    }
+  }
+
+  async function submitNoteFromModal() {
+    if (!job || !noteText.trim()) return;
+    setNoteSaving(true);
+    try {
+      await mobilePost(`/api/mobile/owner/jobs/${job.id}/updates`, {
+        type: 'note',
+        message: noteText.trim(),
+      });
+      setNoteText('');
+      setNoteModalOpen(false);
+      await load();
+      Alert.alert('Note saved');
+    } catch (e: any) {
+      Alert.alert('Failed', e?.message || 'Could not save note.');
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
   async function openAssignModal() {
     try {
       const crew = await mobileGet<Employee[]>('/api/mobile/owner/crew');
@@ -473,6 +533,12 @@ export default function OwnerJobDetail() {
   const isPaid = String((job as any).payment_status || '').toLowerCase() === 'paid';
   const photoUpdates = updates.filter(u => u.type === 'photo' && u.photo_url);
   const noteUpdates = updates.filter(u => u.type === 'note' && u.message);
+  const hasAssignedFieldWorker = assignments.some(a => String(a.employees?.role || '').toLowerCase() === 'crew');
+  const showApprovalCard =
+    normalizeStatusKey(job.status) === 'complete' &&
+    String(job.status).toLowerCase() === 'completed' &&
+    isApprover &&
+    hasAssignedFieldWorker;
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
@@ -559,6 +625,29 @@ export default function OwnerJobDetail() {
           </View>
         </ScrollView>
       </View>
+
+      {showApprovalCard && (
+        <View style={[styles.approvalBanner, { borderColor: theme.success + '55', backgroundColor: theme.success + '0c' }]}>
+          <Text style={[styles.cardTitle, { color: theme.success, marginBottom: 4 }]}>Awaiting your approval</Text>
+          <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 10 }}>
+            Field work is marked complete. Approve to close this job, or reject to bounce it back.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.nextStepBtn, { backgroundColor: theme.success, flex: 1, marginTop: 0 }]}
+              onPress={approveClose}
+            >
+              <Text style={styles.nextStepBtnText}>Approve & close</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.nextStepBtn, { backgroundColor: theme.danger + '22', flex: 1, marginTop: 0 }]}
+              onPress={rejectClose}
+            >
+              <Text style={[styles.nextStepBtnText, { color: theme.danger }]}>Reject</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <ScrollView
         style={{ flex: 1 }}
@@ -697,30 +786,6 @@ export default function OwnerJobDetail() {
               jobId={job.id}
               hasWorkflow={!!((job as any).workflow_id || (job as any).service_pro_workflow_id)}
             />
-
-            {/* Pending closure — approver actions */}
-            {normalizeStatusKey(job.status) === 'complete' && String(job.status).toLowerCase() === 'completed' && isApprover && (
-              <View style={[styles.card, { borderColor: theme.success + '55', backgroundColor: theme.success + '0c' }]}>
-                <Text style={[styles.cardTitle, { color: theme.success, marginBottom: 4 }]}>Awaiting your approval</Text>
-                <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 10 }}>
-                  Crew has requested closure. Approve to move this job to Closed, or reject to bounce back.
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity
-                    style={[styles.nextStepBtn, { backgroundColor: theme.success, flex: 1 }]}
-                    onPress={approveClose}
-                  >
-                    <Text style={styles.nextStepBtnText}>Approve & close</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.nextStepBtn, { backgroundColor: theme.danger + '22', flex: 1 }]}
-                    onPress={rejectClose}
-                  >
-                    <Text style={[styles.nextStepBtnText, { color: theme.danger }]}>Reject</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
 
             {/* Crew-specific "Request completion" big button when in_progress */}
             {isCrew && (normalizeStatusKey(job.status) === 'in_progress') && (
@@ -863,9 +928,15 @@ export default function OwnerJobDetail() {
 
         {tab === 'notes' && (
           <>
+            <View style={styles.cardHeader}>
+              <Text style={styles.sectionLabel}>Notes ({noteUpdates.length})</Text>
+              <TouchableOpacity onPress={() => setNoteModalOpen(true)} style={styles.cardEdit}>
+                <Text style={styles.cardEditText}>+ Note</Text>
+              </TouchableOpacity>
+            </View>
             {noteUpdates.length === 0 ? (
               <View style={styles.card}>
-                <Text style={{ color: '#666' }}>No notes yet. Crew can add notes from their mobile app.</Text>
+                <Text style={{ color: '#666' }}>No notes yet.</Text>
               </View>
             ) : (
               noteUpdates.map(u => (
@@ -882,6 +953,12 @@ export default function OwnerJobDetail() {
 
         {tab === 'photos' && (
           <>
+            <View style={styles.cardHeader}>
+              <Text style={styles.sectionLabel}>Photos ({photoUpdates.length})</Text>
+              <TouchableOpacity onPress={handleAddPhoto} style={styles.cardEdit} disabled={cameraBusy}>
+                <Text style={styles.cardEditText}>{cameraBusy ? 'Uploading' : '+ Photo'}</Text>
+              </TouchableOpacity>
+            </View>
             {photoUpdates.length === 0 ? (
               <View style={styles.card}>
                 <Text style={{ color: '#666' }}>No photos yet.</Text>
@@ -1018,6 +1095,40 @@ export default function OwnerJobDetail() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Add note modal */}
+      <Modal visible={noteModalOpen} transparent animationType="fade" onRequestClose={() => setNoteModalOpen(false)}>
+        <View style={styles.centerModalOverlay}>
+          <View style={styles.noteModalCard}>
+            <Text style={styles.modalTitle}>Add a note</Text>
+            <TextInput
+              style={[styles.input, styles.noteInput]}
+              placeholder="What's happening on this job?"
+              placeholderTextColor="#555"
+              value={noteText}
+              onChangeText={setNoteText}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => { setNoteText(''); setNoteModalOpen(false); }}
+                disabled={noteSaving}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSave, (!noteText.trim() || noteSaving) && { opacity: 0.45 }]}
+                onPress={submitNoteFromModal}
+                disabled={noteSaving || !noteText.trim()}
+              >
+                {noteSaving ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.modalSaveText}>Save Note</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Full-screen photo viewer */}
       <Modal visible={!!photoViewerUrl} transparent animationType="fade" onRequestClose={() => setPhotoViewerUrl(null)}>
         <View style={styles.photoViewer}>
@@ -1080,6 +1191,13 @@ export default function OwnerJobDetail() {
           </View>
         </View>
       </Modal>
+
+      {cameraBusy && (
+        <View style={styles.busyOverlay}>
+          <ActivityIndicator size="large" color={theme.accent} />
+          <Text style={styles.busyText}>Uploading photo...</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -1092,6 +1210,14 @@ function makeStyles(t: Theme) {
       backgroundColor: t.surface,
       borderBottomWidth: 1, borderBottomColor: t.border,
       padding: 16, paddingBottom: 8,
+    },
+    approvalBanner: {
+      backgroundColor: t.surface,
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 14,
+      marginHorizontal: 16,
+      marginTop: 12,
     },
     title: { color: t.textPrimary, fontSize: 20, fontWeight: '800' },
     subtitle: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
@@ -1210,13 +1336,22 @@ function makeStyles(t: Theme) {
     },
 
     modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
+    centerModalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'center', padding: 20 },
     modalSheet: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+    noteModalCard: {
+      backgroundColor: t.surfaceElevated,
+      borderRadius: 16,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
     modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
     modalFieldLabel: { color: t.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginTop: 10, marginBottom: 6 },
     input: {
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
       borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15, marginBottom: 12,
     },
+    noteInput: { minHeight: 110, textAlignVertical: 'top' },
     modalActions: { flexDirection: 'row', gap: 10 },
     modalCancel: { flex: 1, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 14, alignItems: 'center' },
     modalCancelText: { color: t.textSecondary, fontWeight: '700' },
@@ -1226,5 +1361,17 @@ function makeStyles(t: Theme) {
     checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: t.borderStrong, alignItems: 'center', justifyContent: 'center' },
     checkboxChecked: { backgroundColor: t.accent, borderColor: t.accent },
     checkmark: { color: t.accentContrast, fontWeight: '800' },
+    busyOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: t.overlay,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 12,
+    },
+    busyText: { color: t.textPrimary, fontSize: 14, fontWeight: '600' },
   });
 }
