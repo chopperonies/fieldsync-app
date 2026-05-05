@@ -1107,8 +1107,8 @@ function ListView({
                         <View style={[styles.crewInitial, { backgroundColor: tc }]}>
                           <Text style={styles.crewInitialText}>{c.name.charAt(0).toUpperCase()}</Text>
                         </View>
-                        <Text style={[styles.crewChipName, { color: tc }]}>
-                          {c.name.split(' ')[0]}
+                        <Text style={[styles.crewChipName, { color: tc }]} numberOfLines={1}>
+                          {c.name}
                         </Text>
                       </View>
                     );
@@ -1429,14 +1429,9 @@ function CalendarView({
                       </View>
                     ) : null}
                     {c.job.crew && c.job.crew.length > 1 ? (
-                      <View style={styles.cardDots}>
-                        {c.job.crew.slice(0, 3).map((cc, k) => (
-                          <View
-                            key={k}
-                            style={[styles.cardDot, { backgroundColor: crewColor(theme, cc.name) }]}
-                          />
-                        ))}
-                      </View>
+                      <Text style={styles.cardCrewNames} numberOfLines={1}>
+                        {c.job.crew.map(person => person.name).join(', ')}
+                      </Text>
                     ) : null}
                   </TouchableOpacity>
                 );
@@ -1593,7 +1588,7 @@ function makeStyles(t: Theme) {
       alignItems: 'center', justifyContent: 'center',
     },
     crewInitialText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-    crewChipName: { fontSize: 11, fontWeight: '800' },
+    crewChipName: { fontSize: 11, fontWeight: '800', maxWidth: 120 },
     crewMore: { color: t.textMuted, fontSize: 12, fontWeight: '700', marginLeft: 2 },
     unassigned: { color: t.textMuted, fontSize: 12, fontStyle: 'italic', marginTop: 10 },
 
@@ -1664,6 +1659,7 @@ function makeStyles(t: Theme) {
     cardTitle: { fontSize: 13, fontWeight: '800' },
     cardClient: { color: t.textSecondary, fontSize: 11, marginTop: 2 },
     cardAddress: { color: t.textMuted, fontSize: 10, marginTop: 1 },
+    cardCrewNames: { color: t.accent, fontSize: 10, fontWeight: '800', marginTop: 3 },
     cardStamp: {
       position: 'absolute', top: 6, right: 6,
       borderWidth: 1, borderRadius: 5,

@@ -70,7 +70,7 @@ export default function OwnerJobDetail() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [picker, setPicker] = useState<null | 'schedule' | 'estimate' | 'details' | 'invoice' | 'assign'>(null);
+  const [picker, setPicker] = useState<null | 'schedule' | 'estimate' | 'details' | 'assign'>(null);
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
 
   // Shared edit state
@@ -227,6 +227,11 @@ export default function OwnerJobDetail() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function openFullInvoice() {
+    if (!job) return;
+    router.push({ pathname: '/(owner)/invoices', params: { open: 'quick_invoice', job_id: job.id } } as any);
   }
 
   async function markPaid(withEmail: boolean) {
@@ -439,7 +444,7 @@ export default function OwnerJobDetail() {
             tone: 'stagePurple', icon: 'receipt-outline',
             title: 'Send the bill',
             body: 'Work is done. Create an invoice to close this out.',
-            ctaLabel: 'Send Invoice', onCta: () => setPicker('invoice'),
+            ctaLabel: 'Send Invoice', onCta: openFullInvoice,
           };
       break;
     case 'invoiced':
@@ -537,30 +542,6 @@ export default function OwnerJobDetail() {
           </View>
         </ScrollView>
 
-        {/* Next step card (replaces the old hero status pill) */}
-        {nextStep && (() => {
-          const tint = theme[nextStep.tone];
-          return (
-            <View style={[styles.nextStep, { backgroundColor: tint + '14', borderColor: tint + '55' }]}>
-              <View style={styles.nextStepHead}>
-                <Ionicons name={nextStep.icon} size={16} color={tint} />
-                <Text style={[styles.nextStepLabel, { color: tint }]}>NEXT STEP</Text>
-              </View>
-              <Text style={styles.nextStepTitle}>{nextStep.title}</Text>
-              <Text style={styles.nextStepBody}>{nextStep.body}</Text>
-              {nextStep.ctaLabel && nextStep.onCta && (
-                <TouchableOpacity
-                  style={[styles.nextStepBtn, { backgroundColor: tint }]}
-                  onPress={nextStep.onCta}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.nextStepBtnText}>{nextStep.ctaLabel}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })()}
-
         {/* Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 14 }}>
           <View style={styles.tabs}>
@@ -586,48 +567,67 @@ export default function OwnerJobDetail() {
       >
         {tab === 'overview' && (
           <>
-            {/* Pipeline */}
-            <Text style={styles.sectionLabel}>Lifecycle</Text>
-            <Text style={styles.sectionHint}>Past steps show a check. Going backward asks for confirmation.</Text>
-            <View style={styles.pipeline}>
-              {PIPELINE_KEYS.map(k => {
-                const p = STATUS_META.find(s => s.key === k)!;
-                const color = theme[p.tone];
-                const targetIdx = LIFECYCLE_ORDER.indexOf(k);
-                const active = statusKey === p.key;
-                const isPast = targetIdx !== -1 && currentIndex !== -1 && targetIdx < currentIndex;
-                const isFuture = targetIdx !== -1 && currentIndex !== -1 && targetIdx > currentIndex;
-                return (
-                  <TouchableOpacity
-                    key={p.key}
-                    style={[
-                      styles.pipeChip,
-                      active && { backgroundColor: color + '1f', borderColor: color },
-                      isPast && styles.pipeChipPast,
-                      isFuture && styles.pipeChipFuture,
-                    ]}
-                    onPress={() => handlePipePress(p.key)}
-                  >
-                    <Ionicons
-                      name={isPast ? 'checkmark-circle' : p.icon}
-                      size={14}
-                      color={isPast ? theme.success : active ? color : theme.textMuted}
-                    />
-                    <Text
-                      style={[
-                        styles.pipeChipText,
-                        active && { color },
-                        isPast && styles.pipeChipTextPast,
-                        isFuture && { color: theme.textMuted },
-                      ]}
-                      numberOfLines={1}
+            {nextStep && (() => {
+              const tint = theme[nextStep.tone];
+              return (
+                <View style={[styles.nextStep, { backgroundColor: tint + '0f', borderColor: tint + '55', marginTop: 0, marginBottom: 12 }]}>
+                  <View style={styles.nextStepHead}>
+                    <Ionicons name={nextStep.icon} size={16} color={tint} />
+                    <Text style={[styles.nextStepLabel, { color: tint }]}>LIFECYCLE</Text>
+                  </View>
+                  <Text style={styles.nextStepTitle}>{nextStep.title}</Text>
+                  <Text style={styles.nextStepBody}>{nextStep.body}</Text>
+                  <View style={styles.pipeline}>
+                    {PIPELINE_KEYS.map(k => {
+                      const p = STATUS_META.find(s => s.key === k)!;
+                      const color = theme[p.tone];
+                      const targetIdx = LIFECYCLE_ORDER.indexOf(k);
+                      const active = statusKey === p.key;
+                      const isPast = targetIdx !== -1 && currentIndex !== -1 && targetIdx < currentIndex;
+                      const isFuture = targetIdx !== -1 && currentIndex !== -1 && targetIdx > currentIndex;
+                      return (
+                        <TouchableOpacity
+                          key={p.key}
+                          style={[
+                            styles.pipeChip,
+                            active && { backgroundColor: color + '1f', borderColor: color },
+                            isPast && styles.pipeChipPast,
+                            isFuture && styles.pipeChipFuture,
+                          ]}
+                          onPress={() => handlePipePress(p.key)}
+                        >
+                          <Ionicons
+                            name={isPast ? 'checkmark-circle' : p.icon}
+                            size={14}
+                            color={isPast ? theme.success : active ? color : theme.textMuted}
+                          />
+                          <Text
+                            style={[
+                              styles.pipeChipText,
+                              active && { color },
+                              isPast && styles.pipeChipTextPast,
+                              isFuture && { color: theme.textMuted },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {p.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  {nextStep.ctaLabel && nextStep.onCta && (
+                    <TouchableOpacity
+                      style={[styles.nextStepBtn, { backgroundColor: tint }]}
+                      onPress={nextStep.onCta}
+                      activeOpacity={0.85}
                     >
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                      <Text style={styles.nextStepBtnText}>{nextStep.ctaLabel}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })()}
 
             {/* Schedule + Estimate */}
             <View style={styles.rowTwo}>
@@ -777,7 +777,7 @@ export default function OwnerJobDetail() {
                   )}
                 </View>
               ) : (
-                <TouchableOpacity style={styles.actionBtn} onPress={() => setPicker('invoice')}>
+                <TouchableOpacity style={styles.actionBtn} onPress={openFullInvoice}>
                   <Text style={styles.actionBtnText}>Send Invoice</Text>
                 </TouchableOpacity>
               )}
@@ -1014,46 +1014,6 @@ export default function OwnerJobDetail() {
                 </TouchableOpacity>
               </View>
             </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Send invoice modal */}
-      <Modal
-        visible={picker === 'invoice'}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          if (kbVisible.current) { Keyboard.dismiss(); return; }
-          setPicker(null);
-        }}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={[styles.modalSheet, { paddingBottom: 24 + insets.bottom }]}>
-            <Text style={styles.modalTitle}>Send invoice</Text>
-            <Text style={{ color: '#666', fontSize: 12, marginBottom: 12 }}>
-              {client?.email ? `Will email ${client.email} automatically.` : 'No client email on file — invoice saves but nothing will be sent.'}
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Amount (e.g. 2500)"
-              placeholderTextColor="#555"
-              value={invoiceAmt}
-              onChangeText={setInvoiceAmt}
-              keyboardType="decimal-pad"
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => { Keyboard.dismiss(); setPicker(null); }} disabled={saving}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSave} onPress={sendInvoice} disabled={saving}>
-                {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.modalSaveText}>Send</Text>}
-              </TouchableOpacity>
-            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>

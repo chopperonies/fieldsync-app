@@ -81,7 +81,7 @@ export default function OwnerInvoices() {
     }
   }, []);
 
-  const openCreateModal = useCallback(async () => {
+  const openCreateModal = useCallback(async (preselectJobId?: string | null) => {
     setModalOpen(true);
     setSelectedJob(null);
     setJobPickerOpen(true);
@@ -95,6 +95,11 @@ export default function OwnerInvoices() {
         .filter(isInvoiceableJob)
         .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
       setAvailableJobs(eligible);
+      const preselected = preselectJobId ? eligible.find(j => j.id === preselectJobId) || null : null;
+      if (preselected) {
+        setSelectedJob(preselected);
+        setJobPickerOpen(false);
+      }
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not load jobs');
     } finally {
@@ -162,7 +167,7 @@ export default function OwnerInvoices() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const params = useLocalSearchParams<{ open?: string }>();
+  const params = useLocalSearchParams<{ open?: string; job_id?: string }>();
   // Track when the New Invoice modal was opened from a Search "Create
   // invoice" pill so cancel sends the user back to Search instead of
   // leaving them on the invoices list.
@@ -173,11 +178,11 @@ export default function OwnerInvoices() {
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
     }
     if (params.open === 'quick_invoice') {
-      openCreateModal();
+      openCreateModal(params.job_id || null);
       setOpenedViaDeepLink(true);
-      setTimeout(() => router.setParams({ open: undefined } as any), 100);
+      setTimeout(() => router.setParams({ open: undefined, job_id: undefined } as any), 100);
     }
-  }, [params.open, openCreateModal]);
+  }, [params.open, params.job_id, openCreateModal]);
 
   function closeCreateModal() {
     setModalOpen(false);
@@ -215,7 +220,7 @@ export default function OwnerInvoices() {
           <Text style={styles.title}>Invoices</Text>
           <Text style={styles.subtitle}>{jobs.length} total · {jobs.filter(j => !isPaid(j)).length} open</Text>
         </View>
-        <TouchableOpacity style={styles.newBtn} onPress={openCreateModal} activeOpacity={0.75}>
+        <TouchableOpacity style={styles.newBtn} onPress={() => openCreateModal()} activeOpacity={0.75}>
           <Text style={styles.newBtnText}>New</Text>
         </TouchableOpacity>
       </View>
