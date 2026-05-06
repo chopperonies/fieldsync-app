@@ -607,12 +607,17 @@ export default function OwnerJobDetail() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: job.name, headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header card */}
-      <View style={styles.headerCard}>
+      <View style={[styles.headerCard, { paddingTop: insets.top + 8 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ paddingRight: 4 }}>
+            <Ionicons name="chevron-back" size={26} color={theme.textPrimary} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { flex: 1, fontSize: 18 }]} numberOfLines={1}>{job.name}</Text>
+        </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{job.name}</Text>
           {job.address ? <Text style={styles.subtitle}>{job.address}</Text> : null}
           <View style={styles.clientHeaderRow}>
             <Text style={client?.name ? styles.clientLine : styles.clientMissing}>
@@ -678,22 +683,21 @@ export default function OwnerJobDetail() {
           </View>
         </ScrollView>
 
-        {/* Tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 14 }}>
-          <View style={styles.tabs}>
-            {TABS.map(t => (
-              <TouchableOpacity
-                key={t.key}
-                style={[styles.tab, tab === t.key && styles.tabActive]}
-                onPress={() => setTab(t.key)}
-              >
-                <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>
-                  {t.label}{typeof t.count === 'number' ? ` (${t.count})` : ''}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        {/* Tabs — segmented control */}
+        <View style={styles.tabSegment}>
+          {TABS.map(t => (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tabSegmentItem, tab === t.key && styles.tabSegmentItemActive]}
+              onPress={() => setTab(t.key)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.tabSegmentText, tab === t.key && styles.tabSegmentTextActive]}>
+                {t.label}{typeof t.count === 'number' && t.count > 0 ? ` ${t.count}` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       {showApprovalCard && (
@@ -736,41 +740,60 @@ export default function OwnerJobDetail() {
                   </View>
                   <Text style={styles.nextStepTitle}>{nextStep.title}</Text>
                   <Text style={styles.nextStepBody}>{nextStep.body}</Text>
-                  <View style={styles.pipeline}>
-                    {PIPELINE_KEYS.map(k => {
+                  <View style={styles.timeline}>
+                    {PIPELINE_KEYS.map((k, i) => {
                       const p = STATUS_META.find(s => s.key === k)!;
                       const color = theme[p.tone];
                       const targetIdx = LIFECYCLE_ORDER.indexOf(k);
                       const active = statusKey === p.key;
                       const isPast = targetIdx !== -1 && currentIndex !== -1 && targetIdx < currentIndex;
                       const isFuture = targetIdx !== -1 && currentIndex !== -1 && targetIdx > currentIndex;
+                      const isLast = i === PIPELINE_KEYS.length - 1;
+                      const dotBg = isPast ? theme.success : active ? color : 'transparent';
+                      const dotBorder = isPast ? theme.success : active ? color : theme.border;
+                      const labelColor = isPast ? theme.textSecondary : active ? color : theme.textMuted;
                       return (
                         <TouchableOpacity
                           key={p.key}
-                          style={[
-                            styles.pipeChip,
-                            active && { backgroundColor: color + '1f', borderColor: color },
-                            isPast && styles.pipeChipPast,
-                            isFuture && styles.pipeChipFuture,
-                          ]}
+                          activeOpacity={0.7}
                           onPress={() => handlePipePress(p.key)}
+                          style={styles.timelineRow}
                         >
-                          <Ionicons
-                            name={isPast ? 'checkmark-circle' : p.icon}
-                            size={14}
-                            color={isPast ? theme.success : active ? color : theme.textMuted}
-                          />
-                          <Text
-                            style={[
-                              styles.pipeChipText,
-                              active && { color },
-                              isPast && styles.pipeChipTextPast,
-                              isFuture && { color: theme.textMuted },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {p.label}
-                          </Text>
+                          <View style={styles.timelineLeft}>
+                            <View style={[
+                              styles.timelineDot,
+                              { backgroundColor: dotBg, borderColor: dotBorder },
+                              active && styles.timelineDotActive,
+                            ]}>
+                              {isPast ? (
+                                <Ionicons name="checkmark" size={10} color="#fff" />
+                              ) : active ? (
+                                <View style={[styles.timelineDotInner, { backgroundColor: color }]} />
+                              ) : null}
+                            </View>
+                            {!isLast && (
+                              <View style={[
+                                styles.timelineConnector,
+                                { backgroundColor: isPast ? theme.success + '55' : theme.border },
+                              ]} />
+                            )}
+                          </View>
+                          <View style={styles.timelineText}>
+                            <Text
+                              style={[
+                                styles.timelineLabel,
+                                { color: labelColor },
+                                active && { fontWeight: '800' },
+                                isPast && { textDecorationLine: 'line-through' },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {p.label}
+                            </Text>
+                            {active ? (
+                              <Text style={[styles.timelineMeta, { color }]}>Current step</Text>
+                            ) : null}
+                          </View>
                         </TouchableOpacity>
                       );
                     })}
@@ -788,8 +811,8 @@ export default function OwnerJobDetail() {
               );
             })()}
 
-            {/* Approval gate toggle — owner / manager / supervisor only */}
-            {isApprover && (
+            {/* Approval gate toggle — only relevant when crew is doing the work */}
+            {isApprover && hasAssignedFieldWorker && (
               <View style={[styles.card, { marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
                 <Ionicons
                   name={requiresApproval ? 'shield-checkmark' : 'shield-outline'}
@@ -1378,17 +1401,17 @@ function makeStyles(t: Theme) {
     clientEditChipText: { color: t.accent, fontSize: 11, fontWeight: '900' },
     clientContactLine: { color: t.textMuted, fontSize: 12, marginTop: 3 },
     visitActionsScroll: { marginTop: 14 },
-    visitActions: { flexDirection: 'row', gap: 8 },
+    visitActions: { flexDirection: 'row', gap: 6 },
     visitActionChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      minHeight: 36,
+      gap: 5,
+      minHeight: 32,
       borderRadius: 999,
       borderWidth: 1,
       borderColor: t.accent + '44',
       backgroundColor: t.accentSoft,
-      paddingHorizontal: 12,
+      paddingHorizontal: 10,
     },
     visitActionDisabled: {
       borderColor: t.border,
@@ -1412,6 +1435,30 @@ function makeStyles(t: Theme) {
     },
     nextStepBtnText: { color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.2 },
 
+    tabSegment: {
+      flexDirection: 'row',
+      marginTop: 12,
+      padding: 3,
+      borderRadius: 8,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    tabSegmentItem: {
+      flex: 1,
+      minHeight: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 6,
+    },
+    tabSegmentItemActive: {
+      backgroundColor: t.surfaceElevated,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    tabSegmentText: { color: t.textSecondary, fontSize: 12.5, fontWeight: '800' },
+    tabSegmentTextActive: { color: t.textPrimary },
+
     tabs: { flexDirection: 'row', gap: 6 },
     tab: {
       paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
@@ -1432,6 +1479,25 @@ function makeStyles(t: Theme) {
     cardEdit: { borderWidth: 1, borderColor: t.accent, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 12 },
     cardEditText: { color: t.accent, fontSize: 12, fontWeight: '700' },
     cardRow: { flexDirection: 'row', alignItems: 'center' },
+
+    timeline: { marginBottom: 14, marginTop: 4 },
+    timelineRow: { flexDirection: 'row', minHeight: 36 },
+    timelineLeft: { width: 22, alignItems: 'center' },
+    timelineDot: {
+      width: 18, height: 18, borderRadius: 9,
+      borderWidth: 2,
+      alignItems: 'center', justifyContent: 'center',
+      marginTop: 1,
+    },
+    timelineDotActive: {
+      shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4,
+      elevation: 2,
+    },
+    timelineDotInner: { width: 8, height: 8, borderRadius: 4 },
+    timelineConnector: { width: 2, flex: 1, marginTop: 2, marginBottom: 2, marginLeft: 8 },
+    timelineText: { flex: 1, paddingLeft: 10, paddingTop: 1, paddingBottom: 8 },
+    timelineLabel: { fontSize: 13, fontWeight: '700' },
+    timelineMeta: { fontSize: 10.5, fontWeight: '800', marginTop: 1, letterSpacing: 0.3, textTransform: 'uppercase' },
 
     pipeline: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
     pipeChip: {
