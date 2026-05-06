@@ -72,6 +72,14 @@ export default function OwnerInvoices() {
   const [actionJob, setActionJob] = useState<InvoiceJob | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
 
+  // Inline "create a job for this invoice" mini-form
+  const [inlineJobOpen, setInlineJobOpen] = useState(false);
+  const [inlineJobName, setInlineJobName] = useState('');
+  const [inlineJobAddress, setInlineJobAddress] = useState('');
+  const [inlineJobClient, setInlineJobClient] = useState('');
+  const [inlineJobPhone, setInlineJobPhone] = useState('');
+  const [creatingJob, setCreatingJob] = useState(false);
+
   const loadData = useCallback(async () => {
     try {
       const data = await mobileGet<InvoiceJob[]>('/api/mobile/owner/invoices');
@@ -93,6 +101,11 @@ export default function OwnerInvoices() {
     setAmount('');
     setLineItems([]);
     setInvoiceStep('edit');
+    setInlineJobOpen(false);
+    setInlineJobName('');
+    setInlineJobAddress('');
+    setInlineJobClient('');
+    setInlineJobPhone('');
     setJobsLoading(true);
     try {
       const allJobs = await mobileGet<JobLite[]>('/api/mobile/owner/jobs');
@@ -111,6 +124,37 @@ export default function OwnerInvoices() {
       setJobsLoading(false);
     }
   }, []);
+
+  const createJobForInvoice = useCallback(async () => {
+    const name = inlineJobName.trim();
+    const address = inlineJobAddress.trim();
+    if (!name) { Alert.alert('Add a job name'); return; }
+    if (!address) { Alert.alert('Add a job address'); return; }
+    setCreatingJob(true);
+    try {
+      const created = await mobilePost<JobLite>('/api/mobile/owner/jobs', {
+        name,
+        address,
+        client_name: inlineJobClient.trim() || null,
+        client_phone: inlineJobPhone.trim() || null,
+        status: 'complete',
+      });
+      if (!created?.id) throw new Error('Job creation returned no id');
+      // Add to availableJobs so the picker reflects it, and select it.
+      setAvailableJobs(prev => [created, ...prev]);
+      setSelectedJob(created);
+      setInlineJobOpen(false);
+      setJobPickerOpen(false);
+      setInlineJobName('');
+      setInlineJobAddress('');
+      setInlineJobClient('');
+      setInlineJobPhone('');
+    } catch (e: any) {
+      Alert.alert('Could not create job', e?.message || 'Try again.');
+    } finally {
+      setCreatingJob(false);
+    }
+  }, [inlineJobName, inlineJobAddress, inlineJobClient, inlineJobPhone]);
 
   const submitInvoice = useCallback(async () => {
     if (!selectedJob) return Alert.alert('Pick a job first');
@@ -353,10 +397,69 @@ export default function OwnerInvoices() {
                       </View>
                     ) : jobsLoading ? (
                       <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />
-                    ) : availableJobs.length === 0 ? (
-                      <Text style={styles.modalEmpty}>No active jobs available to invoice.</Text>
+                    ) : inlineJobOpen ? (
+                      <View style={styles.inlineJobBox}>
+                        <TextInput
+                          style={styles.inlineInput}
+                          placeholder="Job name (e.g. Roof inspection)"
+                          placeholderTextColor={theme.textMuted}
+                          value={inlineJobName}
+                          onChangeText={setInlineJobName}
+                          autoFocus
+                        />
+                        <TextInput
+                          style={styles.inlineInput}
+                          placeholder="Address"
+                          placeholderTextColor={theme.textMuted}
+                          value={inlineJobAddress}
+                          onChangeText={setInlineJobAddress}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TextInput
+                            style={[styles.inlineInput, { flex: 1.4 }]}
+                            placeholder="Client name (optional)"
+                            placeholderTextColor={theme.textMuted}
+                            value={inlineJobClient}
+                            onChangeText={setInlineJobClient}
+                          />
+                          <TextInput
+                            style={[styles.inlineInput, { flex: 1 }]}
+                            placeholder="Phone"
+                            placeholderTextColor={theme.textMuted}
+                            keyboardType="phone-pad"
+                            value={inlineJobPhone}
+                            onChangeText={setInlineJobPhone}
+                          />
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                          <TouchableOpacity
+                            style={[styles.inlineCancel]}
+                            onPress={() => setInlineJobOpen(false)}
+                            disabled={creatingJob}
+                          >
+                            <Text style={styles.inlineCancelText}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.inlineCreate, creatingJob && { opacity: 0.5 }]}
+                            onPress={createJobForInvoice}
+                            disabled={creatingJob}
+                          >
+                            {creatingJob
+                              ? <ActivityIndicator color={theme.accentContrast} />
+                              : <Text style={styles.inlineCreateText}>Create job</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     ) : (
                       <>
+                        <TouchableOpacity
+                          style={styles.newJobOption}
+                          onPress={() => setInlineJobOpen(true)}
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="add-circle-outline" size={20} color={theme.accent} />
+                          <Text style={styles.newJobOptionText}>Create a new job</Text>
+                        </TouchableOpacity>
                         {availableJobs.length > 5 && (
                           <TextInput
                             style={styles.jobSearch}
@@ -368,8 +471,10 @@ export default function OwnerInvoices() {
                             autoCapitalize="none"
                           />
                         )}
-                        {filteredAvailableJobs.length === 0 ? (
-                          <Text style={styles.modalEmpty}>No matching active jobs.</Text>
+                        {availableJobs.length === 0 ? (
+                          <Text style={styles.modalEmpty}>No active jobs to pick from. Create one above.</Text>
+                        ) : filteredAvailableJobs.length === 0 ? (
+                          <Text style={styles.modalEmpty}>No matching jobs.</Text>
                         ) : (
                           <ScrollView style={styles.jobList} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
                             {filteredAvailableJobs.map(j => (
@@ -728,6 +833,41 @@ function makeStyles(t: Theme) {
     jobRowActive: { backgroundColor: t.accentMuted },
     jobRowName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
     jobRowClient: { color: t.textMuted, fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
+    newJobOption: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingVertical: 12, paddingHorizontal: 14,
+      borderRadius: 10,
+      borderWidth: 1, borderStyle: 'dashed', borderColor: t.accent + '88',
+      backgroundColor: t.accentSoft,
+      marginBottom: 8,
+    },
+    newJobOptionText: { color: t.accent, fontSize: 14, fontWeight: '800' },
+    inlineJobBox: {
+      gap: 8,
+      padding: 12,
+      borderRadius: 10,
+      borderWidth: 1, borderColor: t.accent + '55',
+      backgroundColor: t.accentSoft,
+    },
+    inlineInput: {
+      backgroundColor: t.surface,
+      borderWidth: 1, borderColor: t.border,
+      borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+      color: t.textPrimary, fontSize: 14,
+    },
+    inlineCancel: {
+      flex: 1, paddingVertical: 11, borderRadius: 8,
+      alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderColor: t.border,
+      backgroundColor: t.surface,
+    },
+    inlineCancelText: { color: t.textSecondary, fontSize: 13, fontWeight: '800' },
+    inlineCreate: {
+      flex: 1.4, paddingVertical: 11, borderRadius: 8,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: t.accent,
+    },
+    inlineCreateText: { color: t.accentContrast, fontSize: 13, fontWeight: '900' },
     input: {
       backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
       borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 16,
