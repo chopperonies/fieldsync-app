@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Linking, Modal, TextInput, Share,
-  KeyboardAvoidingView, Platform, Image, RefreshControl, Keyboard,
+  KeyboardAvoidingView, Platform, Image, RefreshControl, Keyboard, Switch,
 } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -137,6 +137,19 @@ export default function OwnerJobDetail() {
       } else {
         Alert.alert('Error', e?.message || 'Could not update status');
       }
+    }
+  }
+
+  async function toggleRequiresApproval(next: boolean) {
+    if (!job) return;
+    // Optimistic update so the toggle feels instant.
+    setJob(prev => prev ? ({ ...prev, requires_owner_approval: next } as any) : prev);
+    try {
+      await mobilePatch<Job>(`/api/mobile/owner/jobs/${job.id}`, { requires_owner_approval: next });
+    } catch (e: any) {
+      // Roll back on failure.
+      setJob(prev => prev ? ({ ...prev, requires_owner_approval: !next } as any) : prev);
+      Alert.alert('Could not update', e?.message || 'Try again.');
     }
   }
 
@@ -547,7 +560,7 @@ export default function OwnerJobDetail() {
             tone: 'stagePurple', icon: 'receipt-outline',
             title: 'Send the bill',
             body: 'Work is done. Create an invoice to close this out.',
-            ctaLabel: 'Send Invoice', onCta: openFullInvoice,
+            ctaLabel: 'Create & preview invoice', onCta: openFullInvoice,
           };
       break;
     case 'invoiced':
@@ -577,7 +590,9 @@ export default function OwnerJobDetail() {
   const photoUpdates = updates.filter(u => u.type === 'photo' && u.photo_url);
   const noteUpdates = updates.filter(u => u.type === 'note' && u.message);
   const hasAssignedFieldWorker = assignments.some(a => String(a.employees?.role || '').toLowerCase() === 'crew');
+  const requiresApproval = !!(job as any).requires_owner_approval;
   const showApprovalCard =
+    requiresApproval &&
     normalizeStatusKey(job.status) === 'complete' &&
     String(job.status).toLowerCase() === 'completed' &&
     isApprover &&
@@ -773,6 +788,33 @@ export default function OwnerJobDetail() {
               );
             })()}
 
+            {/* Approval gate toggle — owner / manager / supervisor only */}
+            {isApprover && (
+              <View style={[styles.card, { marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+                <Ionicons
+                  name={requiresApproval ? 'shield-checkmark' : 'shield-outline'}
+                  size={20}
+                  color={requiresApproval ? theme.accent : theme.textMuted}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '700' }}>
+                    Require my approval to close
+                  </Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                    {requiresApproval
+                      ? 'Crew must mark complete; you approve before close-out.'
+                      : 'Crew completion closes the job automatically.'}
+                  </Text>
+                </View>
+                <Switch
+                  value={requiresApproval}
+                  onValueChange={toggleRequiresApproval}
+                  trackColor={{ false: theme.border, true: theme.accent + '88' }}
+                  thumbColor={requiresApproval ? theme.accent : theme.surface}
+                />
+              </View>
+            )}
+
             {/* Schedule + Estimate */}
             <View style={styles.rowTwo}>
               <TouchableOpacity
@@ -896,9 +938,13 @@ export default function OwnerJobDetail() {
                     </>
                   )}
                 </View>
+              ) : statusKey === 'complete' ? (
+                // Lifecycle card already has the prominent "Create & preview
+                // invoice" CTA when status is complete — don't duplicate it.
+                null
               ) : (
                 <TouchableOpacity style={styles.actionBtn} onPress={openFullInvoice}>
-                  <Text style={styles.actionBtnText}>Create invoice</Text>
+                  <Text style={styles.actionBtnText}>Create &amp; preview invoice</Text>
                 </TouchableOpacity>
               )}
             </View>
