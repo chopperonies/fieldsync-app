@@ -163,7 +163,7 @@ export default function OwnerLayout() {
       {/* Hidden from tab bar — accessible via Search, More screen, or deep links */}
       <Tabs.Screen name="clients"   options={{ href: null }} />
       <Tabs.Screen name="crew"      options={{ href: null }} />
-      <Tabs.Screen name="invoices"  options={{ href: null }} />
+      <Tabs.Screen name="invoices"  options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="requests"  options={{ href: null, title: 'Requests' }} />
       <Tabs.Screen name="photos"    options={{ href: null }} />
       <Tabs.Screen name="supplies"  options={{ href: null }} />

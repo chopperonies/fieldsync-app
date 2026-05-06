@@ -4,6 +4,8 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
@@ -49,6 +51,7 @@ function isInvoiceableJob(j: JobLite) {
 export default function OwnerInvoices() {
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const insets = useSafeAreaInsets();
   const [jobs, setJobs] = useState<InvoiceJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -223,35 +226,43 @@ export default function OwnerInvoices() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ paddingRight: 4 }}>
+          <Ionicons name="chevron-back" size={26} color={theme.textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
           <Text style={styles.title}>Invoices</Text>
           <Text style={styles.subtitle}>{jobs.length} total · {jobs.filter(j => !isPaid(j)).length} open</Text>
         </View>
         <TouchableOpacity style={styles.newBtn} onPress={() => openCreateModal()} activeOpacity={0.75}>
-          <Text style={styles.newBtnText}>New</Text>
+          <Text style={styles.newBtnText}>+ New</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.summary}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryValue}>${totalPaid.toLocaleString()}</Text>
-          <Text style={styles.summaryLabel}>Collected</Text>
+        <View style={[styles.summaryCard, { borderColor: theme.success + '44' }]}>
+          <Text style={styles.summaryEyebrow}>Collected</Text>
+          <Text style={[styles.summaryValue, { color: theme.success }]}>
+            ${totalPaid.toLocaleString()}
+          </Text>
         </View>
-        <View style={[styles.summaryCard, { borderColor: theme.accent + '44' }]}>
-          <Text style={[styles.summaryValue, { color: theme.accent }]}>${totalOwed.toLocaleString()}</Text>
-          <Text style={styles.summaryLabel}>Outstanding</Text>
+        <View style={[styles.summaryCard, { borderColor: theme.warning + '44' }]}>
+          <Text style={styles.summaryEyebrow}>Outstanding</Text>
+          <Text style={[styles.summaryValue, { color: theme.warning }]}>
+            ${totalOwed.toLocaleString()}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.filters}>
+      <View style={styles.filterSegment}>
         {(['all', 'unpaid', 'paid'] as Bucket[]).map(f => (
           <TouchableOpacity
             key={f}
-            style={[styles.filterChip, filter === f && styles.filterChipActive]}
+            style={[styles.filterSegmentItem, filter === f && styles.filterSegmentItemActive]}
             onPress={() => setFilter(f)}
+            activeOpacity={0.75}
           >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+            <Text style={[styles.filterSegmentText, filter === f && styles.filterSegmentTextActive]}>
               {f === 'all' ? 'All' : f === 'unpaid' ? 'Unpaid' : 'Paid'}
             </Text>
           </TouchableOpacity>
@@ -263,22 +274,24 @@ export default function OwnerInvoices() {
       <FlatList
         data={filtered}
         keyExtractor={j => j.id}
-        contentContainerStyle={{ padding: 16, gap: 10 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, gap: 6 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
         ListEmptyComponent={<Text style={styles.empty}>No invoices yet.</Text>}
         renderItem={({ item }) => {
           const paid = isPaid(item);
+          const dateLabel = new Date(item.updated_at || item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
           const Row = (
-            <View style={styles.card}>
-              <View style={styles.cardTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.jobName}>{item.name || 'Untitled job'}</Text>
-                  {item.clients?.name && (
-                    <Text style={styles.clientName}>{item.clients.name}</Text>
-                  )}
-                </View>
-                <View>
+            <View style={styles.invoiceRow}>
+              <View style={[styles.invoiceStripe, { backgroundColor: paid ? theme.success : theme.warning }]} />
+              <View style={{ flex: 1, paddingVertical: 12, paddingRight: 12, paddingLeft: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <Text style={styles.jobName} numberOfLines={1}>{item.name || 'Untitled job'}</Text>
                   <Text style={styles.amount}>${(Number(item.invoice_amount) || 0).toLocaleString()}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 3 }}>
+                  <Text style={styles.clientName} numberOfLines={1}>
+                    {[item.clients?.name, dateLabel].filter(Boolean).join(' · ')}
+                  </Text>
                   <View style={[styles.statusBadge, { backgroundColor: paid ? theme.successMuted : theme.warningMuted }]}>
                     <Text style={[styles.statusText, { color: paid ? theme.success : theme.warning }]}>
                       {paid ? 'Paid' : 'Unpaid'}
@@ -286,13 +299,11 @@ export default function OwnerInvoices() {
                   </View>
                 </View>
               </View>
-              <View style={styles.cardMeta}>
-                <Text style={styles.metaText}>
-                  Invoiced {new Date(item.updated_at || item.created_at).toLocaleDateString()}
-                </Text>
-                {item.address ? <Text style={styles.metaText} numberOfLines={1}>{item.address}</Text> : null}
-                {!paid && <Text style={styles.tapHint}>Tap for actions</Text>}
-              </View>
+              {!paid ? (
+                <View style={{ paddingRight: 10, justifyContent: 'center' }}>
+                  <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+                </View>
+              ) : null}
             </View>
           );
           return paid
@@ -549,44 +560,75 @@ function makeStyles(t: Theme) {
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingTop: 16,
-      paddingBottom: 4,
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingBottom: 8,
     },
-    title: { color: t.textPrimary, fontSize: 22, fontWeight: '800' },
-    subtitle: { color: t.textSecondary, fontSize: 13, marginTop: 4 },
+    title: { color: t.textPrimary, fontSize: 18, fontWeight: '800' },
+    subtitle: { color: t.textMuted, fontSize: 12, marginTop: 1 },
     newBtn: {
       backgroundColor: t.accent,
-      borderRadius: 8,
+      borderRadius: 999,
       paddingHorizontal: 14,
-      paddingVertical: 10,
+      paddingVertical: 8,
     },
-    newBtnText: { color: t.accentContrast, fontSize: 13, fontWeight: '900' },
-    summary: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0, paddingTop: 10 },
+    newBtnText: { color: t.accentContrast, fontSize: 12, fontWeight: '900' },
+    summary: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
     summaryCard: {
-      flex: 1, backgroundColor: t.surface, borderRadius: 12,
-      padding: 14, borderWidth: 1, borderColor: t.success + '44',
+      flex: 1,
+      backgroundColor: t.surface,
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderWidth: 1,
+      borderColor: t.border,
     },
-    summaryValue: { color: t.success, fontSize: 22, fontWeight: '800' },
+    summaryEyebrow: {
+      color: t.textMuted,
+      fontSize: 9.5,
+      fontWeight: '800',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+    },
+    summaryValue: { color: t.textPrimary, fontSize: 18, fontWeight: '800', marginTop: 2, fontVariant: ['tabular-nums'] },
     summaryLabel: { color: t.textSecondary, fontSize: 12, marginTop: 2 },
-    filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 12, flexWrap: 'wrap' },
-    filterChip: {
-      borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
-      borderWidth: 1, borderColor: t.border, backgroundColor: t.surface,
+
+    filterSegment: {
+      flexDirection: 'row',
+      marginHorizontal: 16,
+      marginTop: 8,
+      marginBottom: 4,
+      padding: 3,
+      borderRadius: 8,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1,
+      borderColor: t.border,
     },
-    filterChipActive: { backgroundColor: t.accentMuted, borderColor: t.accent },
-    filterText: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
-    filterTextActive: { color: t.accent },
-    card: { backgroundColor: t.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: t.border },
-    cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
-    clientName: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
-    amount: { color: t.textPrimary, fontSize: 18, fontWeight: '800', textAlign: 'right' },
-    statusBadge: { borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8, marginTop: 4, alignSelf: 'flex-end' },
-    statusText: { fontSize: 11, fontWeight: '700' },
-    cardMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 10 },
-    metaText: { color: t.textMuted, fontSize: 12 },
+    filterSegmentItem: {
+      flex: 1, minHeight: 32,
+      alignItems: 'center', justifyContent: 'center',
+      borderRadius: 6,
+    },
+    filterSegmentItemActive: {
+      backgroundColor: t.surfaceElevated,
+      borderWidth: 1, borderColor: t.border,
+    },
+    filterSegmentText: { color: t.textSecondary, fontSize: 12.5, fontWeight: '800' },
+    filterSegmentTextActive: { color: t.textPrimary },
+
+    invoiceRow: {
+      flexDirection: 'row',
+      backgroundColor: t.surface,
+      borderRadius: 10,
+      borderWidth: 1, borderColor: t.border,
+      overflow: 'hidden',
+    },
+    invoiceStripe: { width: 3 },
+    jobName: { color: t.textPrimary, fontSize: 14, fontWeight: '800', flex: 1 },
+    clientName: { color: t.textMuted, fontSize: 12, flex: 1 },
+    amount: { color: t.textPrimary, fontSize: 15, fontWeight: '900', fontVariant: ['tabular-nums'] },
+    statusBadge: { borderRadius: 6, paddingVertical: 2, paddingHorizontal: 7 },
+    statusText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
 
     fab: {
       position: 'absolute', right: 20, bottom: 28, width: 56, height: 56,
