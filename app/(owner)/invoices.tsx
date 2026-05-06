@@ -137,7 +137,7 @@ export default function OwnerInvoices() {
         address,
         client_name: inlineJobClient.trim() || null,
         client_phone: inlineJobPhone.trim() || null,
-        status: 'complete',
+        status: 'completed',
       });
       if (!created?.id) throw new Error('Job creation returned no id');
       // Add to availableJobs so the picker reflects it, and select it.
