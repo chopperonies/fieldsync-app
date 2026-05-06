@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert,
-  StyleSheet, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, ScrollView,
+  StyleSheet, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, ScrollView, Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -314,108 +314,115 @@ export default function OwnerInvoices() {
 
 
       <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeCreateModal}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Invoice</Text>
-              <TouchableOpacity onPress={closeCreateModal} disabled={submitting}>
-                <Text style={styles.modalClose}>Close</Text>
-              </TouchableOpacity>
-            </View>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <Pressable style={styles.modalBackdrop} onPress={closeCreateModal}>
+            <Pressable onPress={() => {}} style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={closeCreateModal} disabled={submitting} hitSlop={10} style={styles.modalCloseBtn}>
+                  <Ionicons name="close" size={22} color={theme.textMuted} />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>
+                  {invoiceStep === 'edit' ? 'New invoice' : 'Preview'}
+                </Text>
+                <View style={styles.modalCloseBtn} />
+              </View>
 
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={styles.modalBodyContent}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-            >
-              {invoiceStep === 'edit' ? (
-                <>
-                  <Text style={styles.label}>Job</Text>
-                  {selectedJob ? (
-                    <View style={styles.selectedJobBox}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.selectedJobName}>{selectedJob.name || 'Untitled job'}</Text>
-                        <Text style={styles.selectedJobMeta}>
-                          {[selectedJob.clients?.name, selectedJob.status?.replace(/_/g, ' ')].filter(Boolean).join(' · ')}
-                        </Text>
+              <ScrollView
+                style={styles.modalBody}
+                contentContainerStyle={styles.modalBodyContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+              >
+                {invoiceStep === 'edit' ? (
+                  <>
+                    <Text style={styles.label}>Job</Text>
+                    {selectedJob && !jobPickerOpen ? (
+                      <View style={styles.selectedJobBox}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.selectedJobName} numberOfLines={1}>{selectedJob.name || 'Untitled job'}</Text>
+                          <Text style={styles.selectedJobMeta} numberOfLines={1}>
+                            {[selectedJob.clients?.name, selectedJob.status?.replace(/_/g, ' ')].filter(Boolean).join(' · ')}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.changeJobChip}
+                          onPress={() => setJobPickerOpen(true)}
+                        >
+                          <Text style={styles.changeJobChipText}>Change</Text>
+                        </TouchableOpacity>
                       </View>
-                      <TouchableOpacity
-                        style={styles.clearJobBtn}
-                        onPress={() => {
-                          setSelectedJob(null);
-                          setJobPickerOpen(true);
-                        }}
-                      >
-                        <Text style={styles.clearJobText}>Clear</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
+                    ) : jobsLoading ? (
+                      <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />
+                    ) : availableJobs.length === 0 ? (
+                      <Text style={styles.modalEmpty}>No active jobs available to invoice.</Text>
+                    ) : (
+                      <>
+                        {availableJobs.length > 5 && (
+                          <TextInput
+                            style={styles.jobSearch}
+                            placeholder="Search active jobs"
+                            placeholderTextColor={theme.textMuted}
+                            value={jobQuery}
+                            onChangeText={setJobQuery}
+                            autoCorrect={false}
+                            autoCapitalize="none"
+                          />
+                        )}
+                        {filteredAvailableJobs.length === 0 ? (
+                          <Text style={styles.modalEmpty}>No matching active jobs.</Text>
+                        ) : (
+                          <ScrollView style={styles.jobList} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                            {filteredAvailableJobs.map(j => (
+                              <TouchableOpacity
+                                key={j.id}
+                                style={[styles.jobRow, selectedJob?.id === j.id && styles.jobRowActive]}
+                                onPress={() => {
+                                  setSelectedJob(j);
+                                  setJobPickerOpen(false);
+                                }}
+                              >
+                                <Text style={styles.jobRowName}>{j.name || 'Untitled job'}</Text>
+                                <Text style={styles.jobRowClient}>
+                                  {[j.clients?.name, j.status?.replace(/_/g, ' ')].filter(Boolean).join(' · ')}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        )}
+                      </>
+                    )}
 
-                  {selectedJob ? (
-                    <TouchableOpacity style={styles.changeJobBtn} onPress={() => setJobPickerOpen(v => !v)}>
-                      <Text style={styles.changeJobText}>{jobPickerOpen ? 'Hide jobs' : 'Change job'}</Text>
-                    </TouchableOpacity>
-                  ) : null}
+                    <LineItemsPicker
+                      items={lineItems}
+                      onChange={setLineItems}
+                      label="Line items"
+                      emptyLabel="Add catalog services or skip and enter a custom amount below."
+                    />
 
-                  {jobsLoading ? (
-                    <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />
-                  ) : availableJobs.length === 0 ? (
-                    <Text style={styles.modalEmpty}>No active jobs available to invoice.</Text>
-                  ) : jobPickerOpen || !selectedJob ? (
-                    <>
-                      <TextInput
-                        style={styles.jobSearch}
-                        placeholder="Search active jobs"
-                        placeholderTextColor={theme.textMuted}
-                        value={jobQuery}
-                        onChangeText={setJobQuery}
-                        autoCorrect={false}
-                        autoCapitalize="none"
-                      />
-                      {filteredAvailableJobs.length === 0 ? (
-                        <Text style={styles.modalEmpty}>No matching active jobs.</Text>
-                      ) : (
-                        <ScrollView style={styles.jobList} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-                          {filteredAvailableJobs.map(j => (
-                            <TouchableOpacity
-                              key={j.id}
-                              style={[styles.jobRow, selectedJob?.id === j.id && styles.jobRowActive]}
-                              onPress={() => {
-                                setSelectedJob(j);
-                                setJobPickerOpen(false);
-                              }}
-                            >
-                              <Text style={styles.jobRowName}>{j.name || 'Untitled job'}</Text>
-                              <Text style={styles.jobRowClient}>
-                                {[j.clients?.name, j.status?.replace(/_/g, ' ')].filter(Boolean).join(' · ')}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
-                      )}
-                    </>
-                  ) : null}
-
-                  <LineItemsPicker
-                    items={lineItems}
-                    onChange={setLineItems}
-                    label="Product / Service"
-                    emptyLabel="Add catalog services or enter a custom invoice item."
-                  />
-
-                  <Text style={styles.label}>Amount</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={lineItems.length ? 'Amount set from line items' : '0.00'}
-                    placeholderTextColor={theme.textMuted}
-                    keyboardType="decimal-pad"
-                    value={lineItems.length ? invoiceTotal.toFixed(2) : amount}
-                    onChangeText={setAmount}
-                    editable={lineItems.length === 0}
-                  />
-                </>
-              ) : (
+                    {lineItems.length > 0 ? (
+                      <View style={styles.lineItemsTotal}>
+                        <Text style={styles.lineItemsTotalLabel}>Total</Text>
+                        <Text style={styles.lineItemsTotalValue}>${invoiceTotal.toFixed(2)}</Text>
+                      </View>
+                    ) : (
+                      <>
+                        <View style={styles.orDivider}>
+                          <View style={styles.orLine} />
+                          <Text style={styles.orText}>OR ENTER A CUSTOM AMOUNT</Text>
+                          <View style={styles.orLine} />
+                        </View>
+                        <TextInput
+                          style={styles.amountInput}
+                          placeholder="$0.00"
+                          placeholderTextColor={theme.textMuted}
+                          keyboardType="decimal-pad"
+                          value={amount}
+                          onChangeText={setAmount}
+                        />
+                      </>
+                    )}
+                  </>
+                ) : (
                 <View style={styles.previewCard}>
                   <Text style={styles.previewEyebrow}>Invoice Preview</Text>
                   <Text style={styles.previewTitle}>{selectedJob?.name || 'Untitled job'}</Text>
@@ -460,13 +467,20 @@ export default function OwnerInvoices() {
 
             <View style={styles.modalFooter}>
               {invoiceStep === 'edit' ? (
-                <TouchableOpacity
-                  style={[styles.submit, (!canPreviewInvoice || submitting) && { opacity: 0.4 }]}
-                  onPress={() => setInvoiceStep('preview')}
-                  disabled={!canPreviewInvoice || submitting}
-                >
-                  <Text style={styles.submitText}>Preview Invoice</Text>
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    style={[styles.submit, (!canPreviewInvoice || submitting) && { opacity: 0.4 }]}
+                    onPress={() => setInvoiceStep('preview')}
+                    disabled={!canPreviewInvoice || submitting}
+                  >
+                    <Text style={styles.submitText}>Preview invoice</Text>
+                  </TouchableOpacity>
+                  {!canPreviewInvoice ? (
+                    <Text style={styles.disabledHint}>
+                      {!selectedJob ? 'Pick a job first.' : 'Add line items or enter an amount.'}
+                    </Text>
+                  ) : null}
+                </>
               ) : (
                 <View style={styles.footerRow}>
                   <TouchableOpacity
@@ -483,12 +497,13 @@ export default function OwnerInvoices() {
                   >
                     {submitting
                       ? <ActivityIndicator color={theme.accentContrast} />
-                      : <Text style={styles.submitText}>Send Invoice</Text>}
+                      : <Text style={styles.submitText}>Send invoice</Text>}
                   </TouchableOpacity>
                 </View>
               )}
             </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -644,9 +659,46 @@ function makeStyles(t: Theme) {
       backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20,
       maxHeight: '88%', overflow: 'hidden',
     },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
-    modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700' },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
+    modalTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '800' },
     modalClose: { color: t.accent, fontWeight: '600' },
+    modalCloseBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+    changeJobChip: {
+      borderRadius: 999, borderWidth: 1, borderColor: t.accent + '55',
+      paddingHorizontal: 10, paddingVertical: 5,
+      backgroundColor: t.accentSoft,
+    },
+    changeJobChipText: { color: t.accent, fontSize: 11, fontWeight: '900' },
+    orDivider: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      marginTop: 14, marginBottom: 8,
+    },
+    orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: t.border },
+    orText: {
+      color: t.textMuted, fontSize: 9.5, fontWeight: '800',
+      letterSpacing: 0.6,
+    },
+    amountInput: {
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 14,
+      fontSize: 22, fontWeight: '800',
+      color: t.textPrimary,
+      fontVariant: ['tabular-nums'],
+    },
+    lineItemsTotal: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginTop: 12,
+      paddingHorizontal: 14, paddingVertical: 12,
+      borderRadius: 10,
+      backgroundColor: t.accentSoft,
+      borderWidth: 1, borderColor: t.accent + '44',
+    },
+    lineItemsTotalLabel: { color: t.accent, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+    lineItemsTotalValue: { color: t.accent, fontSize: 20, fontWeight: '900', fontVariant: ['tabular-nums'] },
+    disabledHint: {
+      color: t.textMuted, fontSize: 11, fontWeight: '700',
+      textAlign: 'center', marginTop: 8,
+    },
     label: { color: t.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
     modalBody: { paddingHorizontal: 20 },
     modalBodyContent: { paddingBottom: 18 },
