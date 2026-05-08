@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileGet } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
@@ -155,6 +156,7 @@ export default function CrewSchedule() {
   const theme = useTheme();
   const styles = makeStyles(theme);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [anchor, setAnchor] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [selected, setSelected] = useState<string>(() => isoDay(new Date()));
@@ -195,7 +197,7 @@ export default function CrewSchedule() {
   return (
     <View style={styles.container}>
       {/* Week nav */}
-      <View style={styles.weekNav}>
+      <View style={[styles.weekNav, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           onPress={() => { const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d); }}
           hitSlop={12}

@@ -7,7 +7,7 @@ import { mobileGet } from '../../lib/mobileApi';
 import { getUser } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
-import { Divider, SectionHeader } from '../../components/Flat';
+import { Divider, SectionHeader, ScreenHeader } from '../../components/Flat';
 
 function formatDuration(start: string, end: string | null): string {
   const s = new Date(start).getTime();
@@ -68,10 +68,11 @@ export default function CrewHours() {
   }
 
   return (
+    <View style={styles.container}>
+    <ScreenHeader title="Hours" subtitle="Your week, your check-ins" showBack={false} />
     <FlatList
       data={assignments}
       keyExtractor={a => a.id}
-      style={styles.container}
       contentContainerStyle={{ paddingBottom: 140 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
       ItemSeparatorComponent={() => <Divider inset={16} />}
@@ -111,6 +112,7 @@ export default function CrewHours() {
         </View>
       )}
     />
+    </View>
   );
 }
 

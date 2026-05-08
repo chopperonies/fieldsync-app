@@ -1,18 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl, Alert
+  StyleSheet, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SupplyRequest } from '../../lib/supabase';
 import { mobileGet, mobilePatch } from '../../lib/mobileApi';
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: '#0ea5e9',
-  ordered: '#3b82f6',
-  delivered: '#4ade80',
-};
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
+import { ScreenHeader } from '../../components/Flat';
 
 export default function ManagerSupplies() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const statusColors: Record<string, string> = {
+    pending: theme.info,
+    ordered: theme.accent,
+    delivered: theme.success,
+  };
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,76 +53,92 @@ export default function ManagerSupplies() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
+  const openCount = requests.filter(r => r.status !== 'delivered').length;
+
   return (
-    <FlatList
-      data={requests}
-      keyExtractor={r => r.id}
-      style={styles.container}
-      contentContainerStyle={{ padding: 16, gap: 10 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
-      ListEmptyComponent={<Text style={styles.empty}>No supply requests yet.</Text>}
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          <View style={styles.cardTop}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.jobName}>{(item.jobs as any)?.name}</Text>
-              <Text style={styles.employee}>👷 {(item.employees as any)?.name}</Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[item.status] + '22' }]}>
-              <Text style={[styles.statusText, { color: STATUS_COLORS[item.status] }]}>
-                {item.status.toUpperCase()}
-              </Text>
-            </View>
-          </View>
+    <View style={styles.container}>
+      <ScreenHeader title="Supplies" subtitle={`${openCount} open ${openCount === 1 ? 'request' : 'requests'}`} showBack={false} />
+      <FlatList
+        data={requests}
+        keyExtractor={r => r.id}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
+        ListEmptyComponent={<Text style={styles.empty}>No supply requests yet.</Text>}
+        renderItem={({ item }) => {
+          const color = statusColors[item.status] || theme.textSecondary;
+          return (
+            <View style={styles.card}>
+              <View style={styles.cardTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.jobName}>{(item.jobs as any)?.name}</Text>
+                  <Text style={styles.employee}>{(item.employees as any)?.name}</Text>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: color + '22' }]}>
+                  <Text style={[styles.statusText, { color }]}>{item.status.toUpperCase()}</Text>
+                </View>
+              </View>
 
-          <Text style={styles.items}>{item.items}</Text>
-          <Text style={styles.meta}>
-            {item.urgency === 'same_day' ? '🔴 Same day' : '🟡 Next day'} · {new Date(item.created_at).toLocaleDateString()}
-          </Text>
+              <Text style={styles.items}>{item.items}</Text>
+              <View style={styles.metaRow}>
+                <Ionicons
+                  name={item.urgency === 'same_day' ? 'flash-outline' : 'time-outline'}
+                  size={12}
+                  color={item.urgency === 'same_day' ? theme.danger : theme.warning}
+                />
+                <Text style={styles.meta}>
+                  {item.urgency === 'same_day' ? 'Same day' : 'Next day'} · {new Date(item.created_at).toLocaleDateString()}
+                </Text>
+              </View>
 
-          {item.status !== 'delivered' && (
-            <View style={styles.actions}>
-              {item.status === 'pending' && (
-                <TouchableOpacity style={styles.actionBtn} onPress={() => confirmUpdate(item.id, 'ordered', 'Ordered')}>
-                  <Text style={styles.actionText}>Mark Ordered</Text>
-                </TouchableOpacity>
+              {item.status !== 'delivered' && (
+                <View style={styles.actions}>
+                  {item.status === 'pending' && (
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => confirmUpdate(item.id, 'ordered', 'Ordered')}>
+                      <Text style={styles.actionText}>Mark ordered</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { borderColor: theme.success, backgroundColor: theme.success + '14' }]}
+                    onPress={() => confirmUpdate(item.id, 'delivered', 'Delivered')}
+                  >
+                    <Text style={[styles.actionText, { color: theme.success }]}>Mark delivered</Text>
+                  </TouchableOpacity>
+                </View>
               )}
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: '#052e16', borderColor: '#4ade80' }]}
-                onPress={() => confirmUpdate(item.id, 'delivered', 'Delivered')}
-              >
-                <Text style={[styles.actionText, { color: '#4ade80' }]}>Mark Delivered</Text>
-              </TouchableOpacity>
             </View>
-          )}
-        </View>
-      )}
-    />
+          );
+        }}
+      />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  empty: { color: '#444', textAlign: 'center', marginTop: 60, fontSize: 15 },
-  card: {
-    backgroundColor: '#1a1a1a', borderRadius: 14,
-    padding: 16, borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
-  jobName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  employee: { color: '#666', fontSize: 13, marginTop: 2 },
-  statusBadge: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  items: { color: '#ccc', fontSize: 14, marginBottom: 6 },
-  meta: { color: '#555', fontSize: 12 },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  actionBtn: {
-    flex: 1, borderRadius: 8, padding: 10, alignItems: 'center',
-    backgroundColor: '#e8f0fd', borderWidth: 1, borderColor: '#0ea5e9',
-  },
-  actionText: { color: '#0ea5e9', fontWeight: '600', fontSize: 13 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    empty: { color: t.textMuted, textAlign: 'center', marginTop: 60, fontSize: 15 },
+    card: {
+      backgroundColor: t.surface, borderRadius: 14,
+      padding: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: t.border,
+    },
+    cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
+    jobName: { color: t.textPrimary, fontSize: 15, fontWeight: '700' },
+    employee: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    statusBadge: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
+    statusText: { fontSize: 11, fontWeight: '800' },
+    items: { color: t.textPrimary, fontSize: 14, marginBottom: 6 },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    meta: { color: t.textMuted, fontSize: 12 },
+    actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+    actionBtn: {
+      flex: 1, borderRadius: 8, padding: 10, alignItems: 'center',
+      backgroundColor: t.accent + '14',
+      borderWidth: 1, borderColor: t.accent + '55',
+    },
+    actionText: { color: t.accent, fontWeight: '700', fontSize: 13 },
+  });
+}

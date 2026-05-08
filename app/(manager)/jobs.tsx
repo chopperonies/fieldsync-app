@@ -7,6 +7,8 @@ import {
 import { Job, Employee } from '../../lib/supabase';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
+import { useTheme } from '../../lib/themeContext';
+import { ScreenHeader } from '../../components/Flat';
 
 const PIPELINE = [
   { key: 'quoted',      label: 'Quoted',      color: '#6366f1' },
@@ -32,6 +34,7 @@ interface AssignedEmployee {
 }
 
 export default function ManagerJobs() {
+  const theme = useTheme();
   const kbVisible = useKeyboardVisible();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,16 +141,21 @@ export default function ManagerJobs() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
     <View style={styles.container}>
+      <ScreenHeader
+        title="Jobs"
+        subtitle={`${jobs.length} total`}
+        showBack={false}
+      />
       <FlatList
         data={jobs}
         keyExtractor={j => j.id}
-        contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
         renderItem={({ item }) => {
           const isOpen = selected === item.id;
           const stage = pipelineFor(item.status);

@@ -11,6 +11,7 @@ import { mobileGet, mobilePatch, mobilePost } from '../../../lib/mobileApi';
 import { statusMeta } from '../../../lib/jobStatus';
 import { useTheme } from '../../../lib/themeContext';
 import { Theme } from '../../../lib/theme';
+import { ScreenHeader } from '../../../components/Flat';
 
 type Step = { order: number; label: string; required?: boolean };
 type ActionButton = { label: string; action_type: string; style?: string; config?: any };
@@ -252,17 +253,13 @@ export default function JobDetailScreen() {
   if (!job) {
     return (
       <View style={styles.container}>
-        <View style={styles.backBar}>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(crew)')} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>{'‹ Back to Jobs'}</Text>
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader
+          title={loading ? 'Loading job…' : 'Job'}
+          onBack={() => router.canGoBack() ? router.back() : router.replace('/(crew)')}
+        />
         <View style={styles.center}>
           {loading ? (
-            <>
-              <ActivityIndicator size="large" color={theme.accent} />
-              <Text style={[styles.muted, { marginTop: 12 }]}>Loading job…</Text>
-            </>
+            <ActivityIndicator size="large" color={theme.accent} />
           ) : (
             <>
               <Text style={[styles.muted, { marginBottom: 14, textAlign: 'center', paddingHorizontal: 20 }]}>
@@ -279,14 +276,13 @@ export default function JobDetailScreen() {
   }
 
   return (
-    <>
-      <Stack.Screen options={{ title: job.name, headerBackTitle: 'Back' }} />
-      <View style={styles.backBar}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(crew)')} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>{'‹ Back to Jobs'}</Text>
-        </TouchableOpacity>
-      </View>
-      <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, gap: 14 }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <ScreenHeader
+        title={job.name}
+        subtitle={job.address || undefined}
+        onBack={() => router.canGoBack() ? router.back() : router.replace('/(crew)')}
+      />
+      <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 140 }}>
         {job.scope_updated_at && (!ack || job.scope_updated_at > ack.acked_scope_updated_at) && (
           <View style={styles.scopeBanner}>
             <View style={{ flex: 1 }}>
@@ -450,7 +446,7 @@ export default function JobDetailScreen() {
           <Text style={styles.busyText}>Uploading photo…</Text>
         </View>
       )}
-    </>
+    </View>
   );
 }
 

@@ -114,16 +114,48 @@ export default function Login() {
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 28 }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={{ fontSize: 36, fontWeight: '800', color: theme.accent, marginBottom: 6 }}>
+        <Text style={{ fontSize: 40, fontWeight: '800', color: theme.accent, marginBottom: 4, letterSpacing: -0.5 }}>
           LinkCrew
         </Text>
-        <Text style={{ fontSize: 16, color: theme.textMuted, marginBottom: 32 }}>
-          Field crew management
+        <Text style={{ fontSize: 15, color: theme.textMuted, marginBottom: 32 }}>
+          Run your crew from your phone
         </Text>
 
-        <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 14 }}>
+        <Text style={{ color: theme.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 16 }}>
           Sign in
         </Text>
+
+        {/* Mode segmented control */}
+        <View style={{
+          flexDirection: 'row',
+          backgroundColor: theme.surfaceInset,
+          borderRadius: 10,
+          padding: 4,
+          marginBottom: 16,
+        }}>
+          {(['phone', 'email'] as const).map(m => {
+            const active = mode === m;
+            return (
+              <TouchableOpacity
+                key={m}
+                style={{
+                  flex: 1, alignItems: 'center',
+                  paddingVertical: 9, borderRadius: 8,
+                  backgroundColor: active ? theme.surface : 'transparent',
+                }}
+                onPress={() => setMode(m)}
+                activeOpacity={0.75}
+              >
+                <Text style={{
+                  color: active ? theme.textPrimary : theme.textSecondary,
+                  fontSize: 13, fontWeight: '700',
+                }}>
+                  {m === 'phone' ? 'Phone' : 'Email'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {mode === 'phone' ? (
           <>
@@ -144,30 +176,15 @@ export default function Login() {
               }}
               onPress={signInWithPhone}
               disabled={loading}
+              activeOpacity={0.85}
             >
               {loading
                 ? <ActivityIndicator color={theme.accentContrast} />
-                : <Text style={{ fontSize: 16, fontWeight: '700', color: theme.accentContrast }}>Sign In</Text>}
+                : <Text style={{ fontSize: 16, fontWeight: '800', color: theme.accentContrast }}>Sign in</Text>}
             </TouchableOpacity>
-            <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 18 }}>
+            <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', marginTop: 18, lineHeight: 18 }}>
               Your account owner adds you by phone number.
             </Text>
-            <TouchableOpacity
-              onPress={() => router.replace('/signup' as any)}
-              style={{ padding: 14, alignItems: 'center', marginTop: 4 }}
-            >
-              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>
-                Starting a new business? Create account
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setMode('email')}
-              style={{ padding: 14, alignItems: 'center', marginTop: 4 }}
-            >
-              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>
-                Sign in with email instead
-              </Text>
-            </TouchableOpacity>
           </>
         ) : (
           <>
@@ -200,21 +217,23 @@ export default function Login() {
               }}
               onPress={signInWithEmail}
               disabled={loading}
+              activeOpacity={0.85}
             >
               {loading
                 ? <ActivityIndicator color={theme.accentContrast} />
-                : <Text style={{ fontSize: 16, fontWeight: '700', color: theme.accentContrast }}>Sign In</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setMode('phone')}
-              style={{ padding: 14, alignItems: 'center', marginTop: 4 }}
-            >
-              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>
-                Sign in with phone instead
-              </Text>
+                : <Text style={{ fontSize: 16, fontWeight: '800', color: theme.accentContrast }}>Sign in</Text>}
             </TouchableOpacity>
           </>
         )}
+
+        <TouchableOpacity
+          onPress={() => router.replace('/signup' as any)}
+          style={{ padding: 14, alignItems: 'center', marginTop: 18 }}
+        >
+          <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700' }}>
+            Starting a new business? Create account
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );

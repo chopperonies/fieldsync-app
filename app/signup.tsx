@@ -45,9 +45,9 @@ export default function Signup() {
       await saveUser(payload.employee);
       if (payload.tenant) {
         await savePlan({
-          plan: 'solo',
-          subscription_status: 'trialing',
-          max_users: 1,
+          plan: payload.tenant.plan ?? 'crew',
+          subscription_status: payload.tenant.subscription_status ?? 'trialing',
+          max_users: payload.tenant.max_users ?? 1,
         });
       }
       router.replace('/(owner)' as any);
@@ -88,11 +88,12 @@ export default function Signup() {
         contentContainerStyle={{ padding: 24, paddingTop: 60, paddingBottom: 60 }}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity onPress={() => router.back()} style={{ marginBottom: 12 }}>
-          <Ionicons name="arrow-back" size={22} color={theme.textSecondary} />
+        <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ marginBottom: 16, width: 36, height: 36, alignItems: 'flex-start', justifyContent: 'center' }}>
+          <Ionicons name="chevron-back" size={26} color={theme.textPrimary} />
         </TouchableOpacity>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Create your business</Text>
+        <Text style={[styles.brand, { color: theme.accent }]}>LinkCrew</Text>
+        <Text style={[styles.title, { color: theme.textPrimary, marginTop: 12 }]}>Create your business</Text>
         <Text style={[styles.sub, { color: theme.textMuted }]}>
           Takes about a minute. You can edit everything later in Settings.
         </Text>
@@ -181,6 +182,7 @@ export default function Signup() {
 }
 
 const styles = StyleSheet.create({
+  brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.4 },
   title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
   sub: { fontSize: 14, marginTop: 6, marginBottom: 24, lineHeight: 20 },
   label: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 6, marginTop: 4 },

@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform
+  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Job } from '../../lib/supabase';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
+import { ScreenHeader } from '../../components/Flat';
 
 export default function Bottleneck() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [description, setDescription] = useState('');
@@ -36,82 +42,99 @@ export default function Bottleneck() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
-    >
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingBottom: 120 }]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.banner}>
-        <Text style={styles.bannerIcon}>🚧</Text>
-        <Text style={styles.bannerText}>Flag something blocking your work — waiting on materials, inspection hold, safety issue, etc.</Text>
-      </View>
-
-      <Text style={styles.sectionLabel}>Job Site</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
-        {jobs.map(j => (
-          <TouchableOpacity
-            key={j.id}
-            style={[styles.jobChip, selectedJob?.id === j.id && styles.jobChipActive]}
-            onPress={() => setSelectedJob(j)}
-          >
-            <Text style={[styles.jobChipText, selectedJob?.id === j.id && styles.jobChipTextActive]}>
-              {j.name}
+    <View style={styles.container}>
+      <ScreenHeader title="Bottleneck" subtitle="Flag what's blocking your work" />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: 120 }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.banner}>
+            <Ionicons name="warning-outline" size={18} color={theme.warning} />
+            <Text style={styles.bannerText}>
+              Use this for waiting on materials, inspection holds, safety issues — anything stopping the work.
             </Text>
+          </View>
+
+          <Text style={styles.sectionLabel}>Job site</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+            {jobs.map(j => {
+              const active = selectedJob?.id === j.id;
+              return (
+                <TouchableOpacity
+                  key={j.id}
+                  style={[styles.jobChip, active && styles.jobChipActive]}
+                  onPress={() => setSelectedJob(j)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.jobChipText, active && styles.jobChipTextActive]}>{j.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <Text style={styles.sectionLabel}>Describe the issue</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Waiting on permit approval before we can continue framing"
+            placeholderTextColor={theme.textMuted}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={5}
+          />
+
+          <TouchableOpacity
+            style={[styles.submitBtn, (loading || !selectedJob || !description.trim()) && { opacity: 0.4 }]}
+            onPress={handleSubmit}
+            disabled={loading || !selectedJob || !description.trim()}
+            activeOpacity={0.8}
+          >
+            {loading
+              ? <ActivityIndicator color={theme.accentContrast} />
+              : <Text style={styles.submitText}>Flag bottleneck</Text>
+            }
           </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <Text style={styles.sectionLabel}>Describe the Issue</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. Waiting on permit approval before we can continue framing"
-        placeholderTextColor="#555"
-        value={description}
-        onChangeText={setDescription}
-        multiline
-        numberOfLines={5}
-      />
-
-      <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={loading}>
-        {loading
-          ? <ActivityIndicator color="#000" />
-          : <Text style={styles.submitText}>Flag Bottleneck</Text>
-        }
-      </TouchableOpacity>
-    </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  content: { padding: 16, gap: 8 },
-  banner: {
-    backgroundColor: '#1a1200', borderWidth: 1, borderColor: '#f59e0b',
-    borderRadius: 12, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 8,
-  },
-  bannerIcon: { fontSize: 20 },
-  bannerText: { color: '#f59e0b', fontSize: 13, flex: 1, lineHeight: 18 },
-  sectionLabel: { color: '#888', fontSize: 13, fontWeight: '600', marginTop: 12, marginBottom: 4 },
-  jobChip: {
-    borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16,
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', marginRight: 8,
-  },
-  jobChipActive: { borderColor: '#0ea5e9', backgroundColor: '#e8f0fd' },
-  jobChipText: { color: '#888', fontSize: 14 },
-  jobChipTextActive: { color: '#0ea5e9' },
-  input: {
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 12, padding: 14, color: '#fff', fontSize: 15, textAlignVertical: 'top',
-  },
-  submitBtn: {
-    backgroundColor: '#f59e0b', borderRadius: 12, padding: 16,
-    alignItems: 'center', marginTop: 16,
-  },
-  submitText: { color: '#000', fontWeight: '700', fontSize: 16 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    content: { padding: 16, gap: 8 },
+    banner: {
+      backgroundColor: t.warning + '14',
+      borderWidth: 1, borderColor: t.warning + '55',
+      borderRadius: 12, padding: 14,
+      flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 8,
+    },
+    bannerText: { color: t.warning, fontSize: 13, flex: 1, lineHeight: 18, fontWeight: '600' },
+    sectionLabel: { color: t.textSecondary, fontSize: 13, fontWeight: '700', marginTop: 12, marginBottom: 4 },
+    jobChip: {
+      borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1, borderColor: 'transparent',
+      marginRight: 8,
+    },
+    jobChipActive: { borderColor: t.accent + '66', backgroundColor: t.accent + '18' },
+    jobChipText: { color: t.textSecondary, fontSize: 14, fontWeight: '600' },
+    jobChipTextActive: { color: t.accent, fontWeight: '800' },
+    input: {
+      backgroundColor: t.surfaceInset,
+      borderRadius: 12, padding: 14, color: t.textPrimary, fontSize: 15, textAlignVertical: 'top',
+      minHeight: 100,
+    },
+    submitBtn: {
+      backgroundColor: t.warning, borderRadius: 12, padding: 16,
+      alignItems: 'center', marginTop: 16,
+    },
+    submitText: { color: t.accentContrast, fontWeight: '800', fontSize: 16 },
+  });
+}

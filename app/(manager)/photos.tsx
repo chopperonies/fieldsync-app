@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, Image, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl, Linking
+  StyleSheet, ActivityIndicator, RefreshControl, Linking,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { mobileGet } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
+import { ScreenHeader } from '../../components/Flat';
 
 interface PhotoUpdate {
   id: string;
@@ -15,6 +19,8 @@ interface PhotoUpdate {
 }
 
 export default function ManagerPhotos() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [photos, setPhotos] = useState<PhotoUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,62 +40,67 @@ export default function ManagerPhotos() {
   useEffect(() => { loadData(); }, [loadData]);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
-    <FlatList
-      data={photos}
-      keyExtractor={p => p.id}
-      numColumns={2}
-      style={styles.container}
-      contentContainerStyle={{ padding: 10, gap: 10 }}
-      columnWrapperStyle={{ gap: 10 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>📸</Text>
-          <Text style={styles.emptyText}>No photos yet</Text>
-        </View>
-      }
-      renderItem={({ item }) => (
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => Linking.openURL(item.photo_url)}
-          activeOpacity={0.85}
-        >
-          <Image source={{ uri: item.photo_url }} style={styles.photo} resizeMode="cover" />
-          <View style={styles.meta}>
-            <Text style={styles.jobName} numberOfLines={1}>{(item.jobs as any)?.name}</Text>
-            <Text style={styles.info} numberOfLines={1}>👷 {(item.employees as any)?.name}</Text>
-            <Text style={styles.info}>
-              {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              {'  '}
-              {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-            {item.message && item.message !== 'Site photo' && (
-              <Text style={styles.caption} numberOfLines={2}>{item.message}</Text>
-            )}
+    <View style={styles.container}>
+      <ScreenHeader title="Photos" subtitle={`${photos.length} ${photos.length === 1 ? 'photo' : 'photos'} from the field`} showBack={false} />
+      <FlatList
+        data={photos}
+        keyExtractor={p => p.id}
+        numColumns={2}
+        contentContainerStyle={{ padding: 10, gap: 10, paddingBottom: 140 }}
+        columnWrapperStyle={{ gap: 10 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Ionicons name="camera-outline" size={36} color={theme.textMuted} />
+            <Text style={styles.emptyTitle}>No photos yet</Text>
+            <Text style={styles.emptySub}>Crew photos from job sites land here.</Text>
           </View>
-        </TouchableOpacity>
-      )}
-    />
+        }
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => Linking.openURL(item.photo_url)}
+            activeOpacity={0.85}
+          >
+            <Image source={{ uri: item.photo_url }} style={styles.photo} resizeMode="cover" />
+            <View style={styles.meta}>
+              <Text style={styles.jobName} numberOfLines={1}>{(item.jobs as any)?.name}</Text>
+              <Text style={styles.info} numberOfLines={1}>{(item.employees as any)?.name}</Text>
+              <Text style={styles.info}>
+                {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {'  '}
+                {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+              {item.message && item.message !== 'Site photo' ? (
+                <Text style={styles.caption} numberOfLines={2}>{item.message}</Text>
+              ) : null}
+            </View>
+          </TouchableOpacity>
+        )}
+      />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  empty: { flex: 1, alignItems: 'center', marginTop: 80 },
-  emptyIcon: { fontSize: 40, marginBottom: 10 },
-  emptyText: { color: '#444', fontSize: 15 },
-  card: {
-    flex: 1, backgroundColor: '#1a1a1a', borderRadius: 12,
-    overflow: 'hidden', borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  photo: { width: '100%', aspectRatio: 4 / 3 },
-  meta: { padding: 8 },
-  jobName: { color: '#38bdf8', fontSize: 11, fontWeight: '600', marginBottom: 2 },
-  info: { color: '#555', fontSize: 10, marginBottom: 1 },
-  caption: { color: '#888', fontSize: 11, marginTop: 3, lineHeight: 15 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    empty: { alignItems: 'center', paddingHorizontal: 36, paddingVertical: 60 },
+    emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '800', marginTop: 10 },
+    emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center', marginTop: 4 },
+    card: {
+      flex: 1, backgroundColor: t.surface, borderRadius: 12,
+      overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: t.border,
+    },
+    photo: { width: '100%', aspectRatio: 4 / 3 },
+    meta: { padding: 8 },
+    jobName: { color: t.textPrimary, fontSize: 12, fontWeight: '700', marginBottom: 2 },
+    info: { color: t.textSecondary, fontSize: 11, marginBottom: 1 },
+    caption: { color: t.textMuted, fontSize: 11, marginTop: 4, lineHeight: 15 },
+  });
+}

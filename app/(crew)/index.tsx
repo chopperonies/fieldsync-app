@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, AppState, RefreshControl, ScrollView,
+  View, Text, StyleSheet, AppState, RefreshControl, ScrollView, TouchableOpacity,
 } from 'react-native';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { getUser } from '../../lib/storage';
 import { syncQueue, getQueueCount } from '../../lib/offlineQueue';
 import { mobileGet } from '../../lib/mobileApi';
@@ -10,6 +12,7 @@ import { Theme } from '../../lib/theme';
 import ClockInCard from '../../components/ClockInCard';
 import PunchMap, { MapPin } from '../../components/PunchMap';
 import ProgressGauge from '../../components/ProgressGauge';
+import { ScreenHeader } from '../../components/Flat';
 
 type ClockStatePinsResponse = {
   pins: Array<{ kind: 'in' | 'out'; lat: number; lng: number; at?: string }>;
@@ -26,6 +29,7 @@ export default function CrewHome() {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [firstName, setFirstName] = useState('');
   const appState = useRef(AppState.currentState);
 
   const loadPins = useCallback(async () => {
@@ -61,7 +65,11 @@ export default function CrewHome() {
   }, [loadPins, loadProgress, trySyncQueue]);
 
   useEffect(() => {
-    (async () => { await getUser(); })();
+    (async () => {
+      const u = await getUser();
+      const first = (u?.name || '').split(/\s+/)[0] || '';
+      setFirstName(first);
+    })();
     loadAll();
     const sub = AppState.addEventListener('change', async (next) => {
       if (appState.current.match(/inactive|background/) && next === 'active') {
@@ -72,47 +80,74 @@ export default function CrewHome() {
     return () => sub.remove();
   }, [loadAll]);
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 140 }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={async () => { setRefreshing(true); await loadAll(); setRefreshing(false); }}
-          tintColor={theme.accent}
-        />
-      }
-    >
-      {!isOnline && (
-        <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>
-            📵 No connection — working offline
-            {pendingCount > 0 ? ` · ${pendingCount} action${pendingCount > 1 ? 's' : ''} pending sync` : ''}
-          </Text>
-        </View>
-      )}
-      {isOnline && pendingCount > 0 && (
-        <View style={styles.syncBanner}>
-          <Text style={styles.syncText}>🔄 Syncing {pendingCount} offline action{pendingCount > 1 ? 's' : ''}…</Text>
-        </View>
-      )}
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <ScreenHeader
+        title={`${greeting}${firstName ? `, ${firstName}` : ''}`}
+        subtitle={new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+        showBack={false}
+        right={(
+          <TouchableOpacity
+            onPress={() => router.push('/(crew)/settings' as any)}
+            hitSlop={8}
+            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="settings-outline" size={22} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
+      />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => { setRefreshing(true); await loadAll(); setRefreshing(false); }}
+            tintColor={theme.accent}
+          />
+        }
+      >
+        {!isOnline ? (
+          <View style={styles.offlineBanner}>
+            <Ionicons name="cloud-offline-outline" size={14} color={theme.danger} />
+            <Text style={styles.offlineText}>
+              No connection — working offline
+              {pendingCount > 0 ? ` · ${pendingCount} action${pendingCount > 1 ? 's' : ''} pending` : ''}
+            </Text>
+          </View>
+        ) : null}
+        {isOnline && pendingCount > 0 ? (
+          <View style={styles.syncBanner}>
+            <Ionicons name="sync-outline" size={14} color={theme.info} />
+            <Text style={styles.syncText}>Syncing {pendingCount} offline action{pendingCount > 1 ? 's' : ''}…</Text>
+          </View>
+        ) : null}
 
-      <ClockInCard onChange={() => { loadPins(); loadProgress(); }} />
+        <ClockInCard onChange={() => { loadPins(); loadProgress(); }} />
 
-      <ProgressGauge completed={progress.completed} total={progress.total} />
+        <ProgressGauge completed={progress.completed} total={progress.total} />
 
-      <PunchMap pins={myPins} emptyLabel="Clock in to drop a pin" />
-    </ScrollView>
+        <PunchMap pins={myPins} emptyLabel="Clock in to drop a pin" />
+      </ScrollView>
+    </View>
   );
 }
 
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
-    offlineBanner: { backgroundColor: t.dangerMuted, paddingVertical: 8, paddingHorizontal: 16 },
-    offlineText: { color: t.danger, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-    syncBanner: { backgroundColor: t.infoMuted, paddingVertical: 8, paddingHorizontal: 16 },
-    syncText: { color: t.info, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+    offlineBanner: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      backgroundColor: t.dangerMuted, paddingVertical: 8, paddingHorizontal: 16,
+    },
+    offlineText: { color: t.danger, fontSize: 12, fontWeight: '700' },
+    syncBanner: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      backgroundColor: t.infoMuted, paddingVertical: 8, paddingHorizontal: 16,
+    },
+    syncText: { color: t.info, fontSize: 12, fontWeight: '700' },
   });
 }

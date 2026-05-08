@@ -20,7 +20,7 @@ export default function Landing() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={{ marginBottom: 40 }}>
           <Text style={[styles.brand, { color: theme.accent }]}>LinkCrew</Text>
-          <Text style={[styles.tagline, { color: theme.textMuted }]}>Field crew management</Text>
+          <Text style={[styles.tagline, { color: theme.textMuted }]}>Run your crew from your phone</Text>
         </View>
 
         <Text style={[styles.prompt, { color: theme.textPrimary }]}>

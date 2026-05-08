@@ -2,14 +2,20 @@ import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Image,
-  KeyboardAvoidingView, Platform
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase, Job } from '../../lib/supabase';
 import { getUser } from '../../lib/storage';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
+import { ScreenHeader } from '../../components/Flat';
 
 export default function Supplies() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [items, setItems] = useState('');
@@ -63,7 +69,7 @@ export default function Supplies() {
         message: `Missing supplies: ${items.trim()} (${urgency.replace('_', ' ')})`,
       });
 
-      Alert.alert('Submitted!', 'Manager has been notified.');
+      Alert.alert('Submitted', 'Manager has been notified.');
       setItems('');
       setPhotoUri(null);
       setSelectedJob(null);
@@ -75,106 +81,133 @@ export default function Supplies() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
-    >
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingBottom: 120 }]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text style={styles.sectionLabel}>Job Site</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.jobScroll}>
-        {jobs.map(j => (
-          <TouchableOpacity
-            key={j.id}
-            style={[styles.jobChip, selectedJob?.id === j.id && styles.jobChipActive]}
-            onPress={() => setSelectedJob(j)}
-          >
-            <Text style={[styles.jobChipText, selectedJob?.id === j.id && styles.jobChipTextActive]}>
-              {j.name}
-            </Text>
+    <View style={styles.container}>
+      <ScreenHeader title="Supplies" subtitle="Request what you need on site" />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: 120 }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.sectionLabel}>Job site</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+            {jobs.map(j => {
+              const active = selectedJob?.id === j.id;
+              return (
+                <TouchableOpacity
+                  key={j.id}
+                  style={[styles.jobChip, active && styles.jobChipActive]}
+                  onPress={() => setSelectedJob(j)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.jobChipText, active && styles.jobChipTextActive]}>{j.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <Text style={styles.sectionLabel}>Missing items</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 10x 1/2 inch conduit, 4x junction boxes"
+            placeholderTextColor={theme.textMuted}
+            value={items}
+            onChangeText={setItems}
+            multiline
+            numberOfLines={3}
+          />
+
+          <Text style={styles.sectionLabel}>Urgency</Text>
+          <View style={styles.row}>
+            {(['same_day', 'next_day'] as const).map(u => {
+              const active = urgency === u;
+              const tint = u === 'same_day' ? theme.danger : theme.warning;
+              return (
+                <TouchableOpacity
+                  key={u}
+                  style={[
+                    styles.urgencyBtn,
+                    active && { borderColor: tint + '66', backgroundColor: tint + '18' },
+                  ]}
+                  onPress={() => setUrgency(u)}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name={u === 'same_day' ? 'flash-outline' : 'time-outline'}
+                    size={16}
+                    color={active ? tint : theme.textSecondary}
+                  />
+                  <Text style={[styles.urgencyText, active && { color: tint, fontWeight: '800' }]}>
+                    {u === 'same_day' ? 'Same day' : 'Next day'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity style={styles.photoBtn} onPress={pickPhoto} activeOpacity={0.8}>
+            <Ionicons name={photoUri ? 'checkmark-circle' : 'camera-outline'} size={18} color={photoUri ? theme.success : theme.textSecondary} />
+            <Text style={styles.photoBtnText}>{photoUri ? 'Photo attached' : 'Attach photo (optional)'}</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {photoUri ? <Image source={{ uri: photoUri }} style={styles.preview} /> : null}
 
-      <Text style={styles.sectionLabel}>Missing Items</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 10x 1/2 inch conduit, 4x junction boxes"
-        placeholderTextColor="#555"
-        value={items}
-        onChangeText={setItems}
-        multiline
-        numberOfLines={3}
-      />
-
-      <Text style={styles.sectionLabel}>Urgency</Text>
-      <View style={styles.row}>
-        {(['same_day', 'next_day'] as const).map(u => (
           <TouchableOpacity
-            key={u}
-            style={[styles.urgencyBtn, urgency === u && styles.urgencyBtnActive]}
-            onPress={() => setUrgency(u)}
+            style={[styles.submitBtn, (loading || !selectedJob || !items.trim()) && { opacity: 0.4 }]}
+            onPress={handleSubmit}
+            disabled={loading || !selectedJob || !items.trim()}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.urgencyText, urgency === u && styles.urgencyTextActive]}>
-              {u === 'same_day' ? '🔴 Same Day' : '🟡 Next Day'}
-            </Text>
+            {loading
+              ? <ActivityIndicator color={theme.accentContrast} />
+              : <Text style={styles.submitText}>Submit request</Text>
+            }
           </TouchableOpacity>
-        ))}
-      </View>
-
-      <TouchableOpacity style={styles.photoBtn} onPress={pickPhoto}>
-        <Text style={styles.photoBtnText}>{photoUri ? '📸 Photo attached' : '📷 Attach photo (optional)'}</Text>
-      </TouchableOpacity>
-      {photoUri && <Image source={{ uri: photoUri }} style={styles.preview} />}
-
-      <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={loading}>
-        {loading
-          ? <ActivityIndicator color="#000" />
-          : <Text style={styles.submitText}>Submit Request</Text>
-        }
-      </TouchableOpacity>
-    </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  content: { padding: 16, gap: 8 },
-  sectionLabel: { color: '#888', fontSize: 13, fontWeight: '600', marginTop: 12, marginBottom: 4 },
-  jobScroll: { marginBottom: 4 },
-  jobChip: {
-    borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16,
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', marginRight: 8,
-  },
-  jobChipActive: { borderColor: '#0ea5e9', backgroundColor: '#e8f0fd' },
-  jobChipText: { color: '#888', fontSize: 14 },
-  jobChipTextActive: { color: '#0ea5e9' },
-  input: {
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 12, padding: 14, color: '#fff', fontSize: 15, textAlignVertical: 'top',
-  },
-  row: { flexDirection: 'row', gap: 10 },
-  urgencyBtn: {
-    flex: 1, borderRadius: 10, padding: 12, alignItems: 'center',
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  urgencyBtnActive: { borderColor: '#0ea5e9', backgroundColor: '#e8f0fd' },
-  urgencyText: { color: '#888', fontWeight: '600' },
-  urgencyTextActive: { color: '#0ea5e9' },
-  photoBtn: {
-    borderRadius: 10, padding: 14, alignItems: 'center',
-    borderWidth: 1, borderColor: '#2a2a2a', borderStyle: 'dashed',
-  },
-  photoBtnText: { color: '#888', fontSize: 14 },
-  preview: { width: '100%', height: 180, borderRadius: 10, marginTop: 8 },
-  submitBtn: {
-    backgroundColor: '#0ea5e9', borderRadius: 12, padding: 16,
-    alignItems: 'center', marginTop: 16,
-  },
-  submitText: { color: '#000', fontWeight: '700', fontSize: 16 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    content: { padding: 16, gap: 8 },
+    sectionLabel: { color: t.textSecondary, fontSize: 13, fontWeight: '700', marginTop: 12, marginBottom: 4 },
+    jobChip: {
+      borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1, borderColor: 'transparent',
+      marginRight: 8,
+    },
+    jobChipActive: { borderColor: t.accent + '66', backgroundColor: t.accent + '18' },
+    jobChipText: { color: t.textSecondary, fontSize: 14, fontWeight: '600' },
+    jobChipTextActive: { color: t.accent, fontWeight: '800' },
+    input: {
+      backgroundColor: t.surfaceInset,
+      borderRadius: 12, padding: 14, color: t.textPrimary, fontSize: 15, textAlignVertical: 'top',
+    },
+    row: { flexDirection: 'row', gap: 10 },
+    urgencyBtn: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      borderRadius: 10, padding: 12,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1, borderColor: 'transparent',
+    },
+    urgencyText: { color: t.textSecondary, fontWeight: '600' },
+    photoBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      borderRadius: 10, padding: 14,
+      borderWidth: 1, borderColor: t.border, borderStyle: 'dashed',
+    },
+    photoBtnText: { color: t.textSecondary, fontSize: 14, fontWeight: '600' },
+    preview: { width: '100%', height: 180, borderRadius: 10, marginTop: 8 },
+    submitBtn: {
+      backgroundColor: t.accent, borderRadius: 12, padding: 16,
+      alignItems: 'center', marginTop: 16,
+    },
+    submitText: { color: t.accentContrast, fontWeight: '800', fontSize: 16 },
+  });
+}

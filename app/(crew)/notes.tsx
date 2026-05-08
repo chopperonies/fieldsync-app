@@ -2,10 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  KeyboardAvoidingView, Platform
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { Job } from '../../lib/supabase';
+import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
+import { ScreenHeader } from '../../components/Flat';
 
 interface Note {
   id: string;
@@ -15,6 +18,8 @@ interface Note {
 }
 
 export default function CrewNotes() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
   const [notes, setNotes] = useState<Note[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +37,6 @@ export default function CrewNotes() {
       ]);
       setJobs(jobsList || []);
       setNotes(recent || []);
-      // Preselect the currently checked-in job if there is one, otherwise the first job.
       setSelectedJob(prev => {
         if (prev) return prev;
         if (assignment?.job_id) {
@@ -74,106 +78,124 @@ export default function CrewNotes() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
-    >
-      <View style={styles.inputArea}>
-        <Text style={styles.sectionLabel}>Job Site</Text>
-        {jobs.length === 0 ? (
-          <Text style={styles.notCheckedIn}>No active jobs found.</Text>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-            {jobs.map(j => (
-              <TouchableOpacity
-                key={j.id}
-                style={[styles.jobChip, selectedJob?.id === j.id && styles.jobChipActive]}
-                onPress={() => setSelectedJob({ id: j.id, name: j.name })}
-              >
-                <Text style={[styles.jobChipText, selectedJob?.id === j.id && styles.jobChipTextActive]}>
-                  {j.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-        <TextInput
-          style={styles.input}
-          placeholder="Add a field note..."
-          placeholderTextColor="#555"
-          value={text}
-          onChangeText={setText}
-          multiline
-        />
-        <TouchableOpacity
-          style={[styles.submitBtn, (!selectedJob || !text.trim()) && styles.submitDisabled]}
-          onPress={submitNote}
-          disabled={!selectedJob || !text.trim() || saving}
-        >
-          {saving
-            ? <ActivityIndicator color="#000" size="small" />
-            : <Text style={styles.submitText}>Add Note</Text>
-          }
-        </TouchableOpacity>
-      </View>
+  const canSubmit = !!selectedJob && !!text.trim() && !saving;
 
-      <FlatList
-        data={notes}
-        keyExtractor={n => n.id}
-        contentContainerStyle={{ padding: 16, gap: 10 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
-        ListEmptyComponent={<Text style={styles.empty}>No notes yet. Log your first field note above.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.noteCard}>
-            <View style={styles.noteHeader}>
-              <Text style={styles.noteJob}>{(item.jobs as any)?.name}</Text>
-              <Text style={styles.noteDate}>
-                {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                {'  '}
-                {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
+  return (
+    <View style={styles.container}>
+      <ScreenHeader title="Notes" subtitle="Log what happened on site" showBack={false} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <View style={styles.inputArea}>
+          <Text style={styles.sectionLabel}>Job site</Text>
+          {jobs.length === 0 ? (
+            <Text style={styles.notCheckedIn}>No active jobs found.</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+              {jobs.map(j => {
+                const active = selectedJob?.id === j.id;
+                return (
+                  <TouchableOpacity
+                    key={j.id}
+                    style={[styles.jobChip, active && styles.jobChipActive]}
+                    onPress={() => setSelectedJob({ id: j.id, name: j.name })}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.jobChipText, active && styles.jobChipTextActive]}>{j.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+          <TextInput
+            style={styles.input}
+            placeholder="Add a field note…"
+            placeholderTextColor={theme.textMuted}
+            value={text}
+            onChangeText={setText}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.submitBtn, !canSubmit && styles.submitDisabled]}
+            onPress={submitNote}
+            disabled={!canSubmit}
+            activeOpacity={0.8}
+          >
+            {saving
+              ? <ActivityIndicator color={theme.accentContrast} size="small" />
+              : <Text style={styles.submitText}>Add note</Text>
+            }
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={notes}
+          keyExtractor={n => n.id}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 140 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
+          ListEmptyComponent={<Text style={styles.empty}>No notes yet. Log your first field note above.</Text>}
+          renderItem={({ item }) => (
+            <View style={styles.noteCard}>
+              <View style={styles.noteHeader}>
+                <Text style={styles.noteJob} numberOfLines={1}>{(item.jobs as any)?.name}</Text>
+                <Text style={styles.noteDate}>
+                  {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {'  '}
+                  {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+              <Text style={styles.noteText}>{item.message}</Text>
             </View>
-            <Text style={styles.noteText}>{item.message}</Text>
-          </View>
-        )}
-      />
-    </KeyboardAvoidingView>
+          )}
+        />
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  inputArea: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
-  sectionLabel: { color: '#888', fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 },
-  jobChip: {
-    borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14,
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', marginRight: 8,
-  },
-  jobChipActive: { borderColor: '#0ea5e9', backgroundColor: '#0ea5e91a' },
-  jobChipText: { color: '#888', fontSize: 13 },
-  jobChipTextActive: { color: '#0ea5e9', fontWeight: '600' },
-  notCheckedIn: { color: '#555', fontSize: 13, marginBottom: 10 },
-  input: {
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 12, color: '#fff', fontSize: 14,
-    minHeight: 80, textAlignVertical: 'top', marginBottom: 10,
-  },
-  submitBtn: { backgroundColor: '#0ea5e9', borderRadius: 10, padding: 12, alignItems: 'center' },
-  submitDisabled: { backgroundColor: '#3a2010', opacity: 0.6 },
-  submitText: { color: '#000', fontWeight: '700', fontSize: 14 },
-  empty: { color: '#444', textAlign: 'center', marginTop: 40, fontSize: 14 },
-  noteCard: {
-    backgroundColor: '#1a1a1a', borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  noteHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  noteJob: { color: '#888', fontSize: 12, fontWeight: '600' },
-  noteDate: { color: '#555', fontSize: 12 },
-  noteText: { color: '#ddd', fontSize: 14, lineHeight: 20 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    inputArea: { padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border },
+    sectionLabel: {
+      color: t.textSecondary, fontSize: 12, fontWeight: '700',
+      letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8,
+    },
+    jobChip: {
+      borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14,
+      backgroundColor: t.surfaceInset,
+      borderWidth: 1, borderColor: 'transparent',
+      marginRight: 8,
+    },
+    jobChipActive: { borderColor: t.accent + '66', backgroundColor: t.accent + '18' },
+    jobChipText: { color: t.textSecondary, fontSize: 13, fontWeight: '600' },
+    jobChipTextActive: { color: t.accent, fontWeight: '800' },
+    notCheckedIn: { color: t.textMuted, fontSize: 13, marginBottom: 10 },
+    input: {
+      backgroundColor: t.surfaceInset,
+      borderRadius: 10, padding: 12, color: t.textPrimary, fontSize: 14,
+      minHeight: 80, textAlignVertical: 'top', marginBottom: 10,
+    },
+    submitBtn: {
+      backgroundColor: t.accent, borderRadius: 10, padding: 12,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    submitDisabled: { opacity: 0.4 },
+    submitText: { color: t.accentContrast, fontWeight: '800', fontSize: 14 },
+    empty: { color: t.textMuted, textAlign: 'center', marginTop: 40, fontSize: 14 },
+    noteCard: {
+      backgroundColor: t.surface, borderRadius: 14, padding: 14,
+      borderWidth: StyleSheet.hairlineWidth, borderColor: t.border,
+    },
+    noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 12 },
+    noteJob: { color: t.textPrimary, fontSize: 13, fontWeight: '700', flex: 1 },
+    noteDate: { color: t.textMuted, fontSize: 12 },
+    noteText: { color: t.textSecondary, fontSize: 14, lineHeight: 20 },
+  });
+}

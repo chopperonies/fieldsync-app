@@ -5,6 +5,7 @@ import { useTheme } from '../../lib/themeContext';
 import LockSettings from '../../components/LockSettings';
 import AppearanceSettings from '../../components/AppearanceSettings';
 import MyProfile from '../../components/MyProfile';
+import { ScreenHeader } from '../../components/Flat';
 
 async function logout() {
   await clearUser();
@@ -14,6 +15,8 @@ async function logout() {
 export default function CrewSettings() {
   const theme = useTheme();
   return (
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+    <ScreenHeader title="Settings" subtitle="Profile, appearance, security" />
     <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ padding: 20 }}>
       <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>My Profile</Text>
       <MyProfile />
@@ -41,9 +44,10 @@ export default function CrewSettings() {
       <View style={[styles.divider, { backgroundColor: theme.borderStrong }]} />
 
       <TouchableOpacity style={[styles.signOut, { borderColor: theme.danger }]} onPress={logout}>
-        <Text style={[styles.signOutText, { color: theme.danger }]}>Sign Out</Text>
+        <Text style={[styles.signOutText, { color: theme.danger }]}>Sign out</Text>
       </TouchableOpacity>
     </ScrollView>
+    </View>
   );
 }
 
