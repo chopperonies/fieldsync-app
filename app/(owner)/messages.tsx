@@ -114,6 +114,7 @@ export default function Messages() {
       <ScreenHeader
         title="Messages"
         subtitle={`${threads.length} ${threads.length === 1 ? 'conversation' : 'conversations'}`}
+        showBack={false}
         right={(
           <TouchableOpacity
             onPress={() => router.push('/(owner)/message-new' as any)}
