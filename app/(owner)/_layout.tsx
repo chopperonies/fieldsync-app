@@ -131,15 +131,6 @@ export default function OwnerLayout() {
         }}
       />
       <Tabs.Screen
-        name="timesheet"
-        options={{
-          title: 'Timesheet',
-          tabBarIcon: ({ color, size, focused }) =>
-            <Ionicons name={focused ? 'time' : 'time-outline'} size={size} color={color} />,
-          headerShown: false,
-        }}
-      />
-      <Tabs.Screen
         name="search"
         options={{
           title: 'Search',
@@ -150,7 +141,12 @@ export default function OwnerLayout() {
       />
       <Tabs.Screen
         name="messages"
-        options={{ href: null, title: 'Messages' }}
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size, focused }) =>
+            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={size} color={color} />,
+          headerShown: false,
+        }}
       />
       <Tabs.Screen
         name="more"
@@ -162,6 +158,7 @@ export default function OwnerLayout() {
         }}
       />
       {/* Hidden from tab bar — accessible via Search, More screen, or deep links */}
+      <Tabs.Screen name="timesheet" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="clients"   options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="crew"      options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="invoices"  options={{ href: null, headerShown: false }} />

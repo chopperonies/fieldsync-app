@@ -15,12 +15,12 @@ type Item = {
 };
 
 const ITEMS: Item[] = [
-  { label: 'Messages',        icon: 'chatbubbles-outline',    route: '/(owner)/messages',  show: () => true },
   { label: 'Requests',        icon: 'file-tray-full-outline', route: '/(owner)/requests',  show: () => true },
   { label: 'Clients',         icon: 'people-outline',         route: '/(owner)/clients',   show: () => true },
   { label: 'Invoices',        icon: 'card-outline',           route: '/(owner)/invoices',  show: (r) => canCreateInvoices(r) },
   { label: 'Photos',          icon: 'camera-outline',         route: '/(owner)/photos',    show: () => true },
   { label: 'Supplies',        icon: 'layers-outline',         route: '/(owner)/supplies',  show: () => true },
+  { label: 'Timesheet',       icon: 'time-outline',           route: '/(owner)/timesheet', show: () => true },
   { label: 'Business health', icon: 'stats-chart-outline',    route: '/(owner)/dashboard', show: (r) => canSeeFinancials(r) },
   { label: 'Manage team',     icon: 'person-circle-outline',  route: '/(owner)/crew',      show: () => true },
   { label: 'Settings',        icon: 'options-outline',        route: '/(owner)/settings',  show: () => true },
