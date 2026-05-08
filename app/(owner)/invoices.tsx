@@ -6,10 +6,10 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { mobileGet, mobilePost } from '../../lib/mobileApi';
+import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
-import LineItemsPicker, { LineItem, lineItemsTotal } from '../../components/LineItemsPicker';
+import LineItemsPicker, { LineItem, lineItemsTotal, lineItemsSummary } from '../../components/LineItemsPicker';
 
 type InvoiceJob = {
   id: string;
@@ -29,6 +29,7 @@ type JobLite = {
   name: string;
   status: string;
   invoice_amount: number | null;
+  estimate_amount?: number | null;
   client_id: string | null;
   description?: string | null;
   address?: string | null;
@@ -68,6 +69,8 @@ export default function OwnerInvoices() {
   const [jobQuery, setJobQuery] = useState('');
   const [amount, setAmount] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [notes, setNotes] = useState('');
+  const [notesDirty, setNotesDirty] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [invoiceStep, setInvoiceStep] = useState<'edit' | 'preview'>('edit');
 
@@ -102,6 +105,8 @@ export default function OwnerInvoices() {
     setJobQuery('');
     setAmount('');
     setLineItems([]);
+    setNotes('');
+    setNotesDirty(false);
     setInvoiceStep('edit');
     setInlineJobOpen(false);
     setInlineJobName('');
@@ -127,6 +132,13 @@ export default function OwnerInvoices() {
       if (requested) {
         setSelectedJob(requested);
         setJobPickerOpen(false);
+        // Pre-fill the invoice amount from the job's estimate so the owner
+        // doesn't have to retype the number they already quoted.
+        const est = Number(requested.estimate_amount) || 0;
+        if (est > 0) setAmount(est.toFixed(2));
+        // Pre-fill the editable scope/notes from the job's description so the
+        // owner can revise it before the invoice goes out.
+        setNotes(requested.description || '');
       }
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not load jobs');
@@ -171,9 +183,31 @@ export default function OwnerInvoices() {
     const catalogTotal = lineItemsTotal(lineItems);
     const amt = catalogTotal > 0 ? catalogTotal : parseFloat(amount);
     if (!amt || amt <= 0) return Alert.alert('Enter a valid amount');
+
+    // Combine the editable scope notes with any line items added in this
+    // invoice flow into one description that goes on the email + the job row.
+    const segments: string[] = [];
+    if (notes.trim()) segments.push(notes.trim());
+    if (lineItems.length > 0) {
+      segments.push(`Line items:\n${lineItemsSummary(lineItems)}`);
+    }
+    const composedDescription = segments.join('\n\n') || null;
+
     setSubmitting(true);
     try {
-      const resp: any = await mobilePost(`/api/mobile/owner/jobs/${selectedJob.id}/invoice`, { amount: amt });
+      // Persist notes back onto the job if the user edited them, so future
+      // invoice flows (and the job detail screen) reflect the latest scope.
+      if (notesDirty && composedDescription !== (selectedJob.description ?? null)) {
+        try {
+          await mobilePatch(`/api/mobile/owner/jobs/${selectedJob.id}`, { description: composedDescription });
+        } catch {
+          // Non-blocking — keep going with the invoice even if patch fails.
+        }
+      }
+      const resp: any = await mobilePost(`/api/mobile/owner/jobs/${selectedJob.id}/invoice`, {
+        amount: amt,
+        description: composedDescription,
+      });
       setModalOpen(false);
       setInvoiceStep('edit');
       await loadData();
@@ -187,7 +221,7 @@ export default function OwnerInvoices() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedJob, amount, lineItems, loadData]);
+  }, [selectedJob, amount, lineItems, notes, notesDirty, loadData]);
 
   const markPaid = useCallback(async (withEmail: boolean) => {
     if (!actionJob) return;
@@ -494,6 +528,10 @@ export default function OwnerInvoices() {
                                 onPress={() => {
                                   setSelectedJob(j);
                                   setJobPickerOpen(false);
+                                  const est = Number(j.estimate_amount) || 0;
+                                  if (est > 0) setAmount(est.toFixed(2));
+                                  setNotes(j.description || '');
+                                  setNotesDirty(false);
                                 }}
                               >
                                 <Text style={styles.jobRowName}>{j.name || 'Untitled job'}</Text>
@@ -507,11 +545,33 @@ export default function OwnerInvoices() {
                       </>
                     )}
 
+                    {selectedJob && !jobPickerOpen ? (
+                      <View style={{ marginTop: 14 }}>
+                        <View style={styles.scopeHeader}>
+                          <Text style={styles.label}>Scope of work</Text>
+                          {Number(selectedJob.estimate_amount) > 0 ? (
+                            <Text style={styles.scopeEstimate}>
+                              Original estimate: ${Number(selectedJob.estimate_amount).toFixed(2)}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <TextInput
+                          style={styles.notesInput}
+                          placeholder="What's on this invoice? Line items, schedule notes, scope details — all editable."
+                          placeholderTextColor={theme.textMuted}
+                          value={notes}
+                          onChangeText={(v) => { setNotes(v); setNotesDirty(true); }}
+                          multiline
+                          textAlignVertical="top"
+                        />
+                      </View>
+                    ) : null}
+
                     <LineItemsPicker
                       items={lineItems}
                       onChange={setLineItems}
-                      label="Line items"
-                      emptyLabel="Add catalog services or skip and enter a custom amount below."
+                      label="Add line items (optional)"
+                      emptyLabel="Skip if your scope above already itemizes the work."
                     />
 
                     {lineItems.length > 0 ? (
@@ -546,8 +606,8 @@ export default function OwnerInvoices() {
                       .filter(Boolean)
                       .join(' · ')}
                   </Text>
-                  {selectedJob?.description ? (
-                    <Text style={styles.previewDescription}>{selectedJob.description}</Text>
+                  {notes.trim() ? (
+                    <Text style={styles.previewDescription}>{notes.trim()}</Text>
                   ) : null}
 
                   <View style={styles.previewDivider} />
@@ -931,6 +991,21 @@ function makeStyles(t: Theme) {
     previewMeta: { color: t.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 },
     previewDescription: { color: t.textSecondary, fontSize: 13, marginTop: 10, lineHeight: 19 },
     previewDivider: { height: 1, backgroundColor: t.border, marginVertical: 14 },
+
+    scopeHeader: {
+      flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+      gap: 8, marginBottom: 6,
+    },
+    scopeEstimate: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
+    notesInput: {
+      backgroundColor: t.surfaceInset,
+      borderRadius: 12,
+      padding: 14,
+      color: t.textPrimary,
+      fontSize: 14,
+      lineHeight: 20,
+      minHeight: 110,
+    },
     previewLine: {
       flexDirection: 'row',
       alignItems: 'flex-start',
