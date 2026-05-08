@@ -30,6 +30,8 @@ type JobLite = {
   status: string;
   invoice_amount: number | null;
   client_id: string | null;
+  description?: string | null;
+  address?: string | null;
   clients?: { name: string; email?: string | null } | null;
 };
 
@@ -112,10 +114,18 @@ export default function OwnerInvoices() {
       const eligible = (allJobs || [])
         .filter(isInvoiceableJob)
         .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-      setAvailableJobs(eligible);
-      const preselected = preselectJobId ? eligible.find(j => j.id === preselectJobId) || null : null;
-      if (preselected) {
-        setSelectedJob(preselected);
+      // If an explicit job_id came in (deep link from job detail), make sure it
+      // shows up in the picker even if the status filter would have hidden it —
+      // the user already said "invoice this one."
+      const requested = preselectJobId
+        ? (allJobs || []).find(j => j.id === preselectJobId) || null
+        : null;
+      const merged = requested && !eligible.some(j => j.id === requested.id)
+        ? [requested, ...eligible]
+        : eligible;
+      setAvailableJobs(merged);
+      if (requested) {
+        setSelectedJob(requested);
         setJobPickerOpen(false);
       }
     } catch (e: any) {
@@ -536,6 +546,9 @@ export default function OwnerInvoices() {
                       .filter(Boolean)
                       .join(' · ')}
                   </Text>
+                  {selectedJob?.description ? (
+                    <Text style={styles.previewDescription}>{selectedJob.description}</Text>
+                  ) : null}
 
                   <View style={styles.previewDivider} />
 
@@ -916,6 +929,7 @@ function makeStyles(t: Theme) {
     },
     previewTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '800', marginTop: 6 },
     previewMeta: { color: t.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 },
+    previewDescription: { color: t.textSecondary, fontSize: 13, marginTop: 10, lineHeight: 19 },
     previewDivider: { height: 1, backgroundColor: t.border, marginVertical: 14 },
     previewLine: {
       flexDirection: 'row',
