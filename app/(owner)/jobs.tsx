@@ -791,7 +791,12 @@ export default function OwnerJobs() {
             }}
           >
             <Pressable onPress={() => {}} style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>
-            <Text style={styles.modalTitle}>{newTypeLabel}</Text>
+            <View style={styles.typeHeader}>
+              <Text style={styles.modalTitle}>{newTypeLabel}</Text>
+              <TouchableOpacity onPress={closeAddModal} hitSlop={8}>
+                <Ionicons name="close" size={22} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
             <ScrollView
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: 12 }}
@@ -2039,7 +2044,7 @@ function makeStyles(t: Theme) {
     // Add-job modal
     modalOverlay: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
     modal: { backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-    modalTitle: { color: t.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+    modalTitle: { color: t.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 16 },
     choiceModal: {
       backgroundColor: t.surfaceElevated,
       borderTopLeftRadius: 20,

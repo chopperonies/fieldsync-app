@@ -613,8 +613,8 @@ export default function OwnerInvoices() {
       </Modal>
 
       <Modal visible={!!actionJob} animationType="fade" transparent onRequestClose={() => setActionJob(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.actionSheet}>
+        <Pressable style={styles.modalBackdrop} onPress={() => !markingPaid && setActionJob(null)}>
+          <Pressable style={styles.actionSheet} onPress={() => {}}>
             <Text style={styles.actionTitle}>{actionJob?.name}</Text>
             <Text style={styles.actionSubtitle}>
               ${(Number(actionJob?.invoice_amount) || 0).toLocaleString()} · {actionJob?.clients?.name || 'No client'}
@@ -622,21 +622,29 @@ export default function OwnerInvoices() {
 
             {actionJob?.clients?.email && (
               <TouchableOpacity
-                style={[styles.submitGhost, markingPaid && { opacity: 0.4 }]}
-                onPress={resendInvoice}
+                style={[styles.submit, markingPaid && { opacity: 0.4 }]}
+                onPress={() => markPaid(true)}
                 disabled={markingPaid}
               >
-                <Text style={styles.submitGhostText}>Resend Invoice Email</Text>
+                {markingPaid ? <ActivityIndicator color={theme.accentContrast} /> : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="checkmark-circle-outline" size={18} color={theme.accentContrast} />
+                    <Text style={styles.submitText}>Mark paid + email receipt</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             )}
 
             {actionJob?.clients?.email && (
               <TouchableOpacity
-                style={[styles.submit, markingPaid && { opacity: 0.4 }]}
-                onPress={() => markPaid(true)}
+                style={[styles.submitGhost, markingPaid && { opacity: 0.4 }]}
+                onPress={resendInvoice}
                 disabled={markingPaid}
               >
-                {markingPaid ? <ActivityIndicator color={theme.accentContrast} /> : <Text style={styles.submitText}>Mark Paid + Email Receipt</Text>}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="mail-outline" size={18} color={theme.accent} />
+                  <Text style={styles.submitGhostText}>Resend invoice email</Text>
+                </View>
               </TouchableOpacity>
             )}
 
@@ -645,7 +653,10 @@ export default function OwnerInvoices() {
               onPress={() => markPaid(false)}
               disabled={markingPaid}
             >
-              <Text style={styles.submitGhostText}>Mark Paid (no email)</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="checkmark-outline" size={18} color={theme.accent} />
+                <Text style={styles.submitGhostText}>Mark paid (no email)</Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -658,14 +669,17 @@ export default function OwnerInvoices() {
               }}
               disabled={markingPaid}
             >
-              <Text style={styles.submitGhostText}>Open Job</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="open-outline" size={18} color={theme.accent} />
+                <Text style={styles.submitGhostText}>Open job</Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setActionJob(null)} disabled={markingPaid}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

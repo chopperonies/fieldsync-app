@@ -9,7 +9,7 @@ import { mobileGet } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { getUser } from '../../lib/storage';
-import { Row, RowAvatar, Divider, SectionHeader } from '../../components/Flat';
+import { Row, RowAvatar, Divider, SectionHeader, ScreenHeader } from '../../components/Flat';
 
 type Member = { employee_id: string; name: string; avatar_url: string | null };
 type LastMessage = { id: string; body: string; sender_id: string | null; created_at: string; employees?: { name: string } | null };
@@ -86,24 +86,25 @@ export default function Messages() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <ScreenHeader
+        title="Messages"
+        subtitle={`${threads.length} ${threads.length === 1 ? 'conversation' : 'conversations'}`}
+        right={(
+          <TouchableOpacity
+            onPress={() => router.push('/(owner)/message-new' as any)}
+            activeOpacity={0.7}
+            hitSlop={8}
+            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: theme.accent + '22' }}
+          >
+            <Ionicons name="create-outline" size={20} color={theme.accent} />
+          </TouchableOpacity>
+        )}
+      />
       <FlatList
         data={threads}
         keyExtractor={t => t.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
         ItemSeparatorComponent={() => <Divider inset={72} />}
-        ListHeaderComponent={
-          <View style={styles.headerBar}>
-            <SectionHeader label="Messages" />
-            <TouchableOpacity
-              onPress={() => router.push('/(owner)/message-new' as any)}
-              style={styles.newBtn}
-              activeOpacity={0.7}
-              hitSlop={8}
-            >
-              <Ionicons name="create-outline" size={22} color={theme.accent} />
-            </TouchableOpacity>
-          </View>
-        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="chatbubbles-outline" size={36} color={theme.textMuted} />

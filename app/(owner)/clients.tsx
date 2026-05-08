@@ -15,7 +15,7 @@ import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
 import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
-import { Row, RowAvatar, Divider, SectionHeader } from '../../components/Flat';
+import { Row, RowAvatar, Divider, SectionHeader, ScreenHeader } from '../../components/Flat';
 
 export default function OwnerClients() {
   const theme = useTheme();
@@ -181,9 +181,10 @@ export default function OwnerClients() {
 
   return (
     <View style={styles.container}>
+      <ScreenHeader title="Clients" subtitle={`${clients.length} ${clients.length === 1 ? 'client' : 'clients'}`} />
       {isOffline && (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>📵 No connection — showing cached clients</Text>
+          <Text style={styles.offlineText}>No connection — showing cached clients</Text>
         </View>
       )}
 

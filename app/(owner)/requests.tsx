@@ -24,6 +24,7 @@ import { Theme } from '../../lib/theme';
 import CalendarPicker, { prettyDate } from '../../components/CalendarPicker';
 import LineItemsPicker, { LineItem, lineItemsSummary, lineItemsTotal } from '../../components/LineItemsPicker';
 import TimePickerSheet, { formatTimeLabel } from '../../components/TimePickerSheet';
+import { ScreenHeader } from '../../components/Flat';
 
 type RequestJob = {
   id: string;
@@ -200,16 +201,20 @@ export default function OwnerRequests() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Requests</Text>
-          <Text style={styles.subtitle}>{requests.length} active pre-booking {requests.length === 1 ? 'item' : 'items'}</Text>
-        </View>
-        <TouchableOpacity style={styles.newBtn} onPress={() => setCreateOpen(true)} activeOpacity={0.7}>
-          <Ionicons name="add" size={18} color={theme.accentContrast} />
-          <Text style={styles.newBtnText}>New</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Requests"
+        subtitle={`${requests.length} active pre-booking ${requests.length === 1 ? 'item' : 'items'}`}
+        right={(
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 30, borderRadius: 999, backgroundColor: theme.accent + '22' }}
+            onPress={() => setCreateOpen(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add" size={16} color={theme.accent} />
+            <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '800' }}>New</Text>
+          </TouchableOpacity>
+        )}
+      />
 
       <FlatList
         data={requests}

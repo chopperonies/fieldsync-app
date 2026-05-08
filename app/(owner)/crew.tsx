@@ -15,6 +15,7 @@ import { mobileGet, mobilePost, mobilePatch, mobileDelete } from '../../lib/mobi
 import { useTheme } from '../../lib/themeContext';
 import { useKeyboardVisible } from '../../lib/useKeyboardVisible';
 import { Theme } from '../../lib/theme';
+import { ScreenHeader } from '../../components/Flat';
 
 const ROLES: Role[] = ['crew', 'supervisor', 'manager', 'owner'];
 
@@ -202,6 +203,20 @@ export default function OwnerCrew() {
 
   return (
     <View style={styles.container}>
+      <ScreenHeader
+        title="Crew"
+        subtitle={`${employees.length} ${employees.length === 1 ? 'member' : 'members'}`}
+        right={canEdit ? (
+          <TouchableOpacity
+            onPress={handleAddPress}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 30, borderRadius: 999, backgroundColor: theme.accent + '22' }}
+          >
+            <Ionicons name="add" size={16} color={theme.accent} />
+            <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '800' }}>New</Text>
+          </TouchableOpacity>
+        ) : undefined}
+      />
       <FlatList
         data={employees}
         keyExtractor={e => e.id}

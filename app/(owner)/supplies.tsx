@@ -7,6 +7,7 @@ import { SupplyRequest } from '../../lib/supabase';
 import { mobileGet, mobilePatch } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import { ScreenHeader } from '../../components/Flat';
 
 export default function OwnerSupplies() {
   const theme = useTheme();
@@ -54,11 +55,14 @@ export default function OwnerSupplies() {
     return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
+  const openCount = requests.filter(r => r.status !== 'delivered').length;
+
   return (
+    <View style={styles.container}>
+    <ScreenHeader title="Supplies" subtitle={`${openCount} open ${openCount === 1 ? 'request' : 'requests'}`} />
     <FlatList
       data={requests}
       keyExtractor={r => r.id}
-      style={styles.container}
       contentContainerStyle={{ padding: 16, gap: 10 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
       ListEmptyComponent={<Text style={styles.empty}>No supply requests yet.</Text>}
@@ -102,6 +106,7 @@ export default function OwnerSupplies() {
         );
       }}
     />
+    </View>
   );
 }
 

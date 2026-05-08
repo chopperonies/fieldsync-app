@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearUser } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
 import { Row, RowAvatar, Divider } from '../../components/Flat';
@@ -22,13 +23,13 @@ const ITEMS: Item[] = [
   { label: 'Supplies',        icon: 'layers-outline',         route: '/(owner)/supplies',  show: () => true },
   { label: 'Business health', icon: 'stats-chart-outline',    route: '/(owner)/dashboard', show: (r) => canSeeFinancials(r) },
   { label: 'Manage team',     icon: 'person-circle-outline',  route: '/(owner)/crew',      show: () => true },
-  { label: 'Company details', icon: 'business-outline',       route: '/(owner)/settings',  show: () => true },
-  { label: 'Preferences',     icon: 'options-outline',        route: '/(owner)/settings',  show: () => true },
+  { label: 'Settings',        icon: 'options-outline',        route: '/(owner)/settings',  show: () => true },
 ];
 
 export default function More() {
   const theme = useTheme();
   const role = useRole();
+  const insets = useSafeAreaInsets();
   const visibleItems = ITEMS.filter(item => item.show(role));
   async function handleLogout() {
     await clearUser();
@@ -37,7 +38,7 @@ export default function More() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ paddingBottom: 140 }}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={{ color: theme.textPrimary, fontSize: 22, fontWeight: '800' }}>More</Text>
         <Text style={{ color: theme.textSecondary, fontSize: 13, marginTop: 4 }}>Work, clients, billing, settings</Text>
       </View>
@@ -90,7 +91,6 @@ export default function More() {
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
-    paddingTop: 16,
     paddingBottom: 12,
   },
   tileRow: {

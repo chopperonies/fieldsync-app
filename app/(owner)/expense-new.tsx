@@ -10,6 +10,7 @@ import { mobilePost } from '../../lib/mobileApi';
 import { getUser } from '../../lib/storage';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
+import { ScreenHeader } from '../../components/Flat';
 
 const API_BASE = 'https://linkcrew.io';
 
@@ -135,16 +136,7 @@ export default function ExpenseNew() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <Stack.Screen
-        options={{
-          title: 'New expense',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ paddingHorizontal: 12 }}>
-              <Ionicons name="close" size={24} color={theme.textPrimary} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+      <ScreenHeader title="New expense" subtitle="Log a job-site purchase" />
 
       <ScrollView
         style={styles.screen}

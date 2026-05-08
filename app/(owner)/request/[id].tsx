@@ -20,6 +20,7 @@ import { Theme } from '../../../lib/theme';
 import CalendarPicker, { prettyDate } from '../../../components/CalendarPicker';
 import TimePickerSheet, { formatTimeLabel } from '../../../components/TimePickerSheet';
 import { callNumber, textNumber } from '../../../lib/phone';
+import { ScreenHeader } from '../../../components/Flat';
 
 type RequestJob = {
   id: string;
@@ -144,9 +145,11 @@ export default function OwnerRequestDetail() {
 
   if (!request) {
     return (
-      <View style={styles.center}>
-        <Stack.Screen options={{ title: 'Request' }} />
-        <Text style={styles.muted}>Request not found.</Text>
+      <View style={styles.container}>
+        <ScreenHeader title="Request" />
+        <View style={styles.center}>
+          <Text style={styles.muted}>Request not found.</Text>
+        </View>
       </View>
     );
   }
@@ -157,7 +160,7 @@ export default function OwnerRequestDetail() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Request', headerBackTitle: 'Back' }} />
+      <ScreenHeader title="Request" subtitle={request.clients?.name || undefined} />
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
         contentContainerStyle={{ padding: 16, paddingBottom: 28 + insets.bottom }}

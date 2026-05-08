@@ -3,12 +3,55 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, StyleProp, ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../lib/themeContext';
 import { Theme } from '../lib/theme';
 
 // Small, Jobber-style primitives. Content sits flush to the screen
 // (no card containers), hairline dividers separate rows, section
 // headers provide hierarchy.
+
+// Inline screen header used in place of the React Navigation system
+// header. 22pt bold title, optional subtitle, optional back chevron,
+// optional right slot. Honors the safe-area top inset.
+export function ScreenHeader({
+  title, subtitle, right, showBack = true, onBack,
+}: {
+  title: string;
+  subtitle?: string;
+  right?: ReactNode;
+  showBack?: boolean;
+  onBack?: () => void;
+}) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: showBack ? 8 : 16,
+      paddingTop: insets.top + 10,
+      paddingBottom: 10,
+    }}>
+      {showBack ? (
+        <TouchableOpacity
+          onPress={onBack || (() => router.back())}
+          hitSlop={8}
+          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Ionicons name="chevron-back" size={26} color={t.textPrimary} />
+        </TouchableOpacity>
+      ) : null}
+      <View style={{ flex: 1, minWidth: 0, paddingLeft: showBack ? 0 : 0 }}>
+        <Text style={{ color: t.textPrimary, fontSize: 22, fontWeight: '800' }} numberOfLines={1}>{title}</Text>
+        {subtitle ? (
+          <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: 2 }} numberOfLines={1}>{subtitle}</Text>
+        ) : null}
+      </View>
+      {right ? <View style={{ marginLeft: 12 }}>{right}</View> : null}
+    </View>
+  );
+}
 
 export function SectionHeader({
   label, hint, right, onPressRight,

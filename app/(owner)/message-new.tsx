@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileGet, mobilePost } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
-import { Row, RowAvatar, Divider } from '../../components/Flat';
+import { Row, RowAvatar, Divider, ScreenHeader } from '../../components/Flat';
 
 type Employee = {
   id: string;
@@ -76,7 +76,7 @@ export default function NewMessage() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      <Stack.Screen options={{ title: 'New message' }} />
+      <ScreenHeader title="New message" subtitle="Pick teammates to chat with" />
 
       <View style={styles.searchBox}>
         <Ionicons name="search" size={18} color={theme.textSecondary} />

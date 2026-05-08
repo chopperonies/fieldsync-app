@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileGet } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
@@ -53,6 +54,7 @@ function fmtTime(iso: string | null) {
 export default function OwnerTimesheet() {
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const insets = useSafeAreaInsets();
   const [state, setState] = useState<ClockState | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,7 +90,7 @@ export default function OwnerTimesheet() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
     >
-      <View style={styles.summary}>
+      <View style={[styles.summary, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.kicker}>Today</Text>
         <Text style={styles.total}>{fmtDuration(total)}</Text>
         <Text style={styles.sub}>Clocked time for this workday</Text>
@@ -130,7 +132,6 @@ function makeStyles(t: Theme) {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg },
     summary: {
       paddingHorizontal: 16,
-      paddingTop: 16,
       paddingBottom: 4,
     },
     kicker: { color: t.textSecondary, fontSize: 13, fontWeight: '700' },

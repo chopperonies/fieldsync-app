@@ -9,6 +9,7 @@ import { mobileGet, mobilePost } from '../../../lib/mobileApi';
 import { getUser } from '../../../lib/storage';
 import { useTheme } from '../../../lib/themeContext';
 import { Theme } from '../../../lib/theme';
+import { ScreenHeader } from '../../../components/Flat';
 
 // Live updates = server-side polling. 4s interval while the thread is
 // open — cheap at the tenant sizes LinkCrew has today. Realtime via
@@ -125,7 +126,7 @@ export default function MessageThread() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
-      <Stack.Screen options={{ title, headerBackTitle: 'Messages' }} />
+      <ScreenHeader title={title} />
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={theme.accent} /></View>
       ) : (

@@ -7,6 +7,7 @@ import { callNumber, textNumber } from '../../lib/phone';
 import { useRole, canCreateInvoices } from '../../lib/useRole';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileGet } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
@@ -75,6 +76,7 @@ const ESTIMATE_FILTERS: Array<{ key: EstimateFilter; label: string; icon: keyof 
 export default function OwnerSearch() {
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const insets = useSafeAreaInsets();
   const role = useRole();
   const canCreateFinancials = canCreateInvoices(role); // manager+ (invoices)
   const [q, setQ] = useState('');
@@ -167,6 +169,10 @@ export default function OwnerSearch() {
 
   return (
     <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <Text style={styles.headerTitle}>Search</Text>
+        <Text style={styles.headerSub}>Clients, jobs, invoices, expenses</Text>
+      </View>
       <View style={styles.searchBox}>
         <Ionicons name="search" size={18} color={theme.textSecondary} />
         <TextInput
@@ -427,9 +433,16 @@ function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
 
+    header: {
+      paddingHorizontal: 16,
+      paddingBottom: 8,
+    },
+    headerTitle: { color: t.textPrimary, fontSize: 22, fontWeight: '800' },
+    headerSub: { color: t.textSecondary, fontSize: 13, marginTop: 4 },
+
     searchBox: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
-      marginHorizontal: 16, marginTop: 12,
+      marginHorizontal: 16, marginTop: 4,
       backgroundColor: t.surfaceInset,
       borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
     },

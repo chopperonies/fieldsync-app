@@ -11,6 +11,7 @@ import { router } from 'expo-router';
 import LockSettings from '../../components/LockSettings';
 import AppearanceSettings from '../../components/AppearanceSettings';
 import MyProfile from '../../components/MyProfile';
+import { ScreenHeader } from '../../components/Flat';
 
 export default function OwnerSettings() {
   const theme = useTheme();
@@ -141,6 +142,8 @@ export default function OwnerSettings() {
   }
 
   return (
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+    <ScreenHeader title="Settings" subtitle="Profile, company, plan, security" />
     <ScrollView
       style={[styles.container, { backgroundColor: theme.bg }]}
       contentContainerStyle={styles.content}
@@ -318,6 +321,7 @@ export default function OwnerSettings() {
         Required by app-store guidelines.
       </Text>
     </ScrollView>
+    </View>
   );
 }
 

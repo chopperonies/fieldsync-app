@@ -136,7 +136,7 @@ export default function OwnerLayout() {
           title: 'Timesheet',
           tabBarIcon: ({ color, size, focused }) =>
             <Ionicons name={focused ? 'time' : 'time-outline'} size={size} color={color} />,
-          headerTitle: 'Timesheet',
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -145,6 +145,7 @@ export default function OwnerLayout() {
           title: 'Search',
           tabBarIcon: ({ color, size, focused }) =>
             <Ionicons name={focused ? 'search' : 'search-outline'} size={size} color={color} />,
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -157,23 +158,23 @@ export default function OwnerLayout() {
           title: 'More',
           tabBarIcon: ({ color, size, focused }) =>
             <Ionicons name={focused ? 'grid' : 'grid-outline'} size={size} color={color} />,
-          headerTitle: 'More',
+          headerShown: false,
         }}
       />
       {/* Hidden from tab bar — accessible via Search, More screen, or deep links */}
-      <Tabs.Screen name="clients"   options={{ href: null }} />
-      <Tabs.Screen name="crew"      options={{ href: null }} />
+      <Tabs.Screen name="clients"   options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="crew"      options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="invoices"  options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="requests"  options={{ href: null, title: 'Requests' }} />
-      <Tabs.Screen name="photos"    options={{ href: null }} />
-      <Tabs.Screen name="supplies"  options={{ href: null }} />
-      <Tabs.Screen name="dashboard" options={{ href: null }} />
-      <Tabs.Screen name="settings"  options={{ href: null }} />
-      <Tabs.Screen name="job/[id]"  options={{ href: null, title: 'Job' }} />
-      <Tabs.Screen name="request/[id]"  options={{ href: null, title: 'Request' }} />
-      <Tabs.Screen name="message/[id]"  options={{ href: null, title: 'Message' }} />
-      <Tabs.Screen name="message-new"   options={{ href: null, title: 'New message' }} />
-      <Tabs.Screen name="expense-new"   options={{ href: null, title: 'New expense' }} />
+      <Tabs.Screen name="requests"  options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="photos"    options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="supplies"  options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="dashboard" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="settings"  options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="job/[id]"  options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="request/[id]"  options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="message/[id]"  options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="message-new"   options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="expense-new"   options={{ href: null, headerShown: false }} />
     </Tabs>
     <OwnerFab />
     </View>
