@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  View, Text, SectionList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Image,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
@@ -13,6 +13,7 @@ import { Row, RowAvatar, Divider, SectionHeader, ScreenHeader } from '../../comp
 
 type Member = { employee_id: string; name: string; avatar_url: string | null };
 type LastMessage = { id: string; body: string; sender_id: string | null; created_at: string; employees?: { name: string } | null };
+type ThreadJob = { id: string; name: string; address: string | null; status: string | null; payment_status?: string | null; scheduled_date?: string | null };
 type Thread = {
   id: string;
   name: string | null;
@@ -22,6 +23,8 @@ type Thread = {
   members: Member[];
   last_message: LastMessage | null;
   unread_count: number;
+  job_id: string | null;
+  job: ThreadJob | null;
 };
 
 function timeAgoShort(iso: string): string {
@@ -61,6 +64,7 @@ export default function Messages() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   function threadTitle(t: Thread): string {
+    if (t.job?.name) return t.job.name;
     if (t.name) return t.name;
     const others = t.members.filter(m => m.employee_id !== meId);
     if (others.length === 0) return 'Me';
@@ -68,6 +72,9 @@ export default function Messages() {
   }
 
   function threadAvatar(t: Thread) {
+    if (t.job_id) {
+      return <RowAvatar icon="hammer-outline" tint={theme.stageGreen} />;
+    }
     const others = t.members.filter(m => m.employee_id !== meId);
     if (!t.name && others.length === 1) {
       const o = others[0];
@@ -76,9 +83,27 @@ export default function Messages() {
       }
       return <RowAvatar letter={o.name.charAt(0).toUpperCase()} tint={theme.stagePurple} />;
     }
-    // group: simple icon
     return <RowAvatar icon="people-outline" tint={theme.accent} />;
   }
+
+  function threadSubtitle(t: Thread): string {
+    const last = t.last_message;
+    if (last) {
+      const senderName = last.sender_id === meId ? 'You' : (last.employees?.name || '');
+      return senderName ? `${senderName}: ${last.body}` : last.body;
+    }
+    if (t.job?.address) return t.job.address;
+    return 'No messages yet';
+  }
+
+  const sections = useMemo(() => {
+    const jobThreads = threads.filter(t => t.job_id);
+    const directThreads = threads.filter(t => !t.job_id);
+    const out: Array<{ title: string; data: Thread[] }> = [];
+    if (jobThreads.length > 0) out.push({ title: 'Jobs', data: jobThreads });
+    if (directThreads.length > 0) out.push({ title: 'Direct', data: directThreads });
+    return out;
+  }, [threads]);
 
   if (loading && threads.length === 0) {
     return <View style={styles.center}><ActivityIndicator color={theme.accent} /></View>;
@@ -100,34 +125,35 @@ export default function Messages() {
           </TouchableOpacity>
         )}
       />
-      <FlatList
-        data={threads}
+      <SectionList
+        sections={sections}
         keyExtractor={t => t.id}
+        stickySectionHeadersEnabled={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.accent} />}
+        renderSectionHeader={({ section }) => (
+          <SectionHeader label={section.title} hint={String(section.data.length)} />
+        )}
         ItemSeparatorComponent={() => <Divider inset={72} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="chatbubbles-outline" size={36} color={theme.textMuted} />
             <Text style={styles.emptyTitle}>No conversations yet</Text>
-            <Text style={styles.emptySub}>Tap the compose icon to start one.</Text>
+            <Text style={styles.emptySub}>Open a job and tap "Open thread" to start a job-scoped chat.</Text>
             <TouchableOpacity
               onPress={() => router.push('/(owner)/message-new' as any)}
               style={[styles.emptyCta, { backgroundColor: theme.accent }]}
             >
-              <Text style={[styles.emptyCtaText, { color: theme.accentContrast }]}>+ New message</Text>
+              <Text style={[styles.emptyCtaText, { color: theme.accentContrast }]}>+ Direct message</Text>
             </TouchableOpacity>
           </View>
         }
         renderItem={({ item }) => {
-          const last = item.last_message;
-          const senderName = last?.sender_id === meId ? 'You' : (last?.employees?.name || '');
-          const preview = last ? (senderName ? `${senderName}: ${last.body}` : last.body) : 'No messages yet';
           const unread = item.unread_count > 0;
           return (
             <Row
               leading={threadAvatar(item)}
               title={threadTitle(item)}
-              subtitle={preview}
+              subtitle={threadSubtitle(item)}
               trailing={
                 <View style={{ alignItems: 'flex-end', gap: 4 }}>
                   <Text style={[styles.time, unread && { color: theme.accent, fontWeight: '800' }]}>

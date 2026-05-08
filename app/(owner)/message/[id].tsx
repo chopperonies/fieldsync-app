@@ -45,6 +45,8 @@ export default function MessageThread() {
   const [sending, setSending] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [title, setTitle] = useState<string>('Message');
+  const [subtitle, setSubtitle] = useState<string>('');
+  const [linkedJobId, setLinkedJobId] = useState<string | null>(null);
   const listRef = useRef<FlatList<Msg>>(null);
 
   useEffect(() => { getUser().then(u => setMeId(u?.id || null)); }, []);
@@ -54,16 +56,30 @@ export default function MessageThread() {
     try {
       const [msgs, threads] = await Promise.all([
         mobileGet<Msg[]>(`/api/mobile/chat/threads/${threadId}/messages?limit=100`),
-        mobileGet<Array<{ id: string; name: string | null; members: Array<{ employee_id: string; name: string }> }>>('/api/mobile/chat/threads'),
+        mobileGet<Array<{
+          id: string; name: string | null;
+          members: Array<{ employee_id: string; name: string }>;
+          job_id?: string | null;
+          job?: { id: string; name: string; address?: string | null } | null;
+        }>>('/api/mobile/chat/threads'),
       ]);
       setMessages(msgs || []);
       const t = (threads || []).find(t => t.id === threadId);
       if (t) {
-        if (t.name) setTitle(t.name);
-        else {
+        if (t.job?.name) {
+          setTitle(t.job.name);
+          setSubtitle(t.job.address || '');
+          setLinkedJobId(t.job.id);
+        } else if (t.name) {
+          setTitle(t.name);
+          setSubtitle('');
+          setLinkedJobId(null);
+        } else {
           const me = await getUser();
           const others = (t.members || []).filter(m => m.employee_id !== me?.id);
           setTitle(others.map(m => m.name).join(', ') || 'Message');
+          setSubtitle('');
+          setLinkedJobId(null);
         }
       }
       // Mark read on entry
@@ -126,7 +142,19 @@ export default function MessageThread() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
-      <ScreenHeader title={title} />
+      <ScreenHeader
+        title={title}
+        subtitle={subtitle || undefined}
+        right={linkedJobId ? (
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: linkedJobId } } as any)}
+            hitSlop={8}
+            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: theme.accent + '22' }}
+          >
+            <Ionicons name="open-outline" size={18} color={theme.accent} />
+          </TouchableOpacity>
+        ) : undefined}
+      />
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={theme.accent} /></View>
       ) : (

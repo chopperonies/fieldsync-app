@@ -163,6 +163,18 @@ export default function OwnerJobDetail() {
     }
   }
 
+  async function openJobThread() {
+    if (!job) return;
+    try {
+      const thread = await mobilePost<{ id: string }>('/api/mobile/chat/threads', { job_id: job.id });
+      if (thread?.id) {
+        router.push({ pathname: '/(owner)/message/[id]', params: { id: thread.id } } as any);
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not open thread');
+    }
+  }
+
   async function rejectClose() {
     if (!job) return;
     // Alert.prompt is iOS-only. Android: confirm + bounce back without reason.
@@ -657,6 +669,10 @@ export default function OwnerJobDetail() {
             >
               <Ionicons name="call-outline" size={15} color={clientPhone ? theme.accent : theme.textMuted} />
               <Text style={[styles.visitActionText, !clientPhone && styles.visitActionTextDisabled]}>Call</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.visitActionChip} onPress={openJobThread}>
+              <Ionicons name="chatbubbles-outline" size={15} color={theme.accent} />
+              <Text style={styles.visitActionText}>Open thread</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.visitActionChip} onPress={shareWorkOrder}>
               <Ionicons name="share-outline" size={15} color={theme.accent} />
