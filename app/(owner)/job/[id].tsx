@@ -74,6 +74,8 @@ export default function OwnerJobDetail() {
 
   const [tab, setTab] = useState<Tab>('overview');
   const [job, setJob] = useState<Job | null>(null);
+  // First-entry timestamp per status (lifecycle popup uses this).
+  const [statusEnteredAt, setStatusEnteredAt] = useState<Record<string, { at: string; actor?: string | null }>>({});
   const [client, setClient] = useState<any>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [updates, setUpdates] = useState<Update[]>([]);
@@ -123,6 +125,21 @@ export default function OwnerJobDetail() {
       setAssignments(data.assignments || []);
       setUpdates(data.updates || []);
       setScopeAcks(data.scope_acks || []);
+      // Best-effort: pull lifecycle timestamps for the popup. If the audit
+      // table is empty (older job pre-migration) the map just stays empty.
+      mobileGet<Array<{ to_status: string; created_at: string; actor_name?: string | null }>>(`/api/mobile/owner/jobs/${id}/status-history`)
+        .then(events => {
+          const map: Record<string, { at: string; actor?: string | null }> = {};
+          for (const e of (events || [])) {
+            // First entry into each status wins (so revert tells you when
+            // you originally entered the step you're rolling back to).
+            if (e.to_status && !map[e.to_status]) {
+              map[e.to_status] = { at: e.created_at, actor: e.actor_name || null };
+            }
+          }
+          setStatusEnteredAt(map);
+        })
+        .catch(() => {});
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not load job');
     } finally {
@@ -579,12 +596,26 @@ export default function OwnerJobDetail() {
 
   function handlePipePress(target: JobStatusKey) {
     const targetIdx = LIFECYCLE_ORDER.indexOf(target);
+    const label = STATUS_META.find(s => s.key === target)?.label || target;
+    const stamp = statusEnteredAt[target];
+    const tsLine = stamp
+      ? `Entered ${new Date(stamp.at).toLocaleString()}${stamp.actor ? ` · ${stamp.actor}` : ''}.`
+      : null;
+    // Tap on the current step → just show the timestamp.
+    if (targetIdx !== -1 && currentIndex !== -1 && targetIdx === currentIndex) {
+      if (tsLine) {
+        Alert.alert(label, tsLine);
+      }
+      return;
+    }
     // Revert confirm: only when moving backward on the linear path.
     if (targetIdx !== -1 && currentIndex !== -1 && targetIdx < currentIndex) {
-      const label = STATUS_META.find(s => s.key === target)!.label;
       Alert.alert(
         `Revert to ${label}?`,
-        'This moves the job backward. Crew phones and the dashboard update instantly.',
+        [
+          tsLine,
+          'This moves the job backward. Crew phones and the dashboard update instantly.',
+        ].filter(Boolean).join('\n\n'),
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Revert', style: 'destructive', onPress: () => advance(target) },
@@ -921,15 +952,9 @@ export default function OwnerJobDetail() {
                       );
                     })}
                   </ScrollView>
-                  {nextStep.ctaLabel && nextStep.onCta && (
-                    <TouchableOpacity
-                      style={[styles.compactCta, { backgroundColor: tint }]}
-                      onPress={nextStep.onCta}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.nextStepBtnText}>{nextStep.ctaLabel}</Text>
-                    </TouchableOpacity>
-                  )}
+                  {/* Lifecycle CTA was duplicating actions from cards below
+                      (Mark Paid lives on the Invoice card). Tap a step in
+                      the strip directly when you want to advance/revert. */}
                 </View>
               );
             })()}
