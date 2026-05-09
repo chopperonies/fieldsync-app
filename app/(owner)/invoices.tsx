@@ -9,7 +9,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileGet, mobilePost, mobilePatch } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
 import { Theme } from '../../lib/theme';
-import LineItemsPicker, { LineItem, lineItemsTotal, lineItemsSummary } from '../../components/LineItemsPicker';
+// Worksheet rows: name + qty + price (per-unit). Mirrors the web invoice
+// editor — quick inline editing, auto-totalled, no catalog lookup.
+type WorksheetItem = { id: string; name: string; qty: string; price: string };
+
+function newRowId() { return `wi-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`; }
+function rowSubtotal(r: WorksheetItem): number {
+  return (parseFloat(r.qty) || 0) * (parseFloat(r.price) || 0);
+}
+function worksheetSubtotal(rows: WorksheetItem[]): number {
+  return rows.reduce((s, r) => s + rowSubtotal(r), 0);
+}
 
 type InvoiceJob = {
   id: string;
@@ -67,12 +77,29 @@ export default function OwnerInvoices() {
   const [selectedJob, setSelectedJob] = useState<JobLite | null>(null);
   const [jobPickerOpen, setJobPickerOpen] = useState(true);
   const [jobQuery, setJobQuery] = useState('');
-  const [amount, setAmount] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [subject, setSubject] = useState('');
+  const [worksheet, setWorksheet] = useState<WorksheetItem[]>([]);
+  const [taxPct, setTaxPct] = useState('0');
+  const [discountMode, setDiscountMode] = useState<'pct' | 'amt'>('pct');
+  const [discountValue, setDiscountValue] = useState('');
   const [notes, setNotes] = useState('');
-  const [notesDirty, setNotesDirty] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [invoiceStep, setInvoiceStep] = useState<'edit' | 'preview'>('edit');
+
+  const subtotal = useMemo(() => worksheetSubtotal(worksheet), [worksheet]);
+  const discountAmount = useMemo(() => {
+    const v = parseFloat(discountValue) || 0;
+    if (v <= 0) return 0;
+    const raw = discountMode === 'pct' ? subtotal * v / 100 : v;
+    // Never let the discount take the line below zero.
+    return Math.min(raw, subtotal);
+  }, [discountMode, discountValue, subtotal]);
+  const taxableSubtotal = subtotal - discountAmount;
+  const taxAmount = useMemo(() => {
+    const pct = parseFloat(taxPct) || 0;
+    return taxableSubtotal * pct / 100;
+  }, [taxableSubtotal, taxPct]);
+  const totalDue = taxableSubtotal + taxAmount;
 
   const [actionJob, setActionJob] = useState<InvoiceJob | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
@@ -98,15 +125,38 @@ export default function OwnerInvoices() {
     }
   }, []);
 
+  // Seed the worksheet from a job: one line item using the existing estimate
+  // (if any), subject in the "For services rendered — Client" pattern, and
+  // the job's description carried into Notes for context.
+  const applySelectedJob = useCallback((job: JobLite) => {
+    setSelectedJob(job);
+    setJobPickerOpen(false);
+    const clientName = job.clients?.name || '';
+    setSubject(clientName ? `For Services Rendered — ${clientName}` : (job.name || 'For Services Rendered'));
+    const est = Number(job.estimate_amount) || 0;
+    setWorksheet([{
+      id: newRowId(),
+      name: job.name || 'Service',
+      qty: '1',
+      price: est > 0 ? est.toFixed(2) : '0',
+    }]);
+    setTaxPct('0');
+    setDiscountMode('pct');
+    setDiscountValue('');
+    setNotes(job.description || '');
+  }, []);
+
   const openCreateModal = useCallback(async (preselectJobId?: string | null) => {
     setModalOpen(true);
     setSelectedJob(null);
     setJobPickerOpen(true);
     setJobQuery('');
-    setAmount('');
-    setLineItems([]);
+    setSubject('');
+    setWorksheet([]);
+    setTaxPct('0');
+    setDiscountMode('pct');
+    setDiscountValue('');
     setNotes('');
-    setNotesDirty(false);
     setInvoiceStep('edit');
     setInlineJobOpen(false);
     setInlineJobName('');
@@ -130,15 +180,7 @@ export default function OwnerInvoices() {
         : eligible;
       setAvailableJobs(merged);
       if (requested) {
-        setSelectedJob(requested);
-        setJobPickerOpen(false);
-        // Pre-fill the invoice amount from the job's estimate so the owner
-        // doesn't have to retype the number they already quoted.
-        const est = Number(requested.estimate_amount) || 0;
-        if (est > 0) setAmount(est.toFixed(2));
-        // Pre-fill the editable scope/notes from the job's description so the
-        // owner can revise it before the invoice goes out.
-        setNotes(requested.description || '');
+        applySelectedJob(requested);
       }
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not load jobs');
@@ -180,33 +222,30 @@ export default function OwnerInvoices() {
 
   const submitInvoice = useCallback(async () => {
     if (!selectedJob) return Alert.alert('Pick a job first');
-    const catalogTotal = lineItemsTotal(lineItems);
-    const amt = catalogTotal > 0 ? catalogTotal : parseFloat(amount);
-    if (!amt || amt <= 0) return Alert.alert('Enter a valid amount');
+    if (totalDue <= 0) return Alert.alert('Add at least one line item with a price');
 
-    // Combine the editable scope notes with any line items added in this
-    // invoice flow into one description that goes on the email + the job row.
-    const segments: string[] = [];
-    if (notes.trim()) segments.push(notes.trim());
-    if (lineItems.length > 0) {
-      segments.push(`Line items:\n${lineItemsSummary(lineItems)}`);
-    }
-    const composedDescription = segments.join('\n\n') || null;
+    // Mirror the web worksheet's "compose description" so the email and the
+    // job row get a consistent, structured summary.
+    const lineDesc = worksheet
+      .filter(r => r.name.trim() || rowSubtotal(r) > 0)
+      .map(r => `${r.qty}× ${r.name.trim() || 'Item'} @ $${(parseFloat(r.price) || 0).toFixed(2)}`)
+      .join(', ');
+    const composedDescription = [
+      subject.trim() + (lineDesc ? ` (${lineDesc})` : ''),
+      notes.trim() ? `Notes: ${notes.trim()}` : null,
+    ].filter(Boolean).join(' ') || null;
 
     setSubmitting(true);
     try {
-      // Persist notes back onto the job if the user edited them, so future
-      // invoice flows (and the job detail screen) reflect the latest scope.
-      if (notesDirty && composedDescription !== (selectedJob.description ?? null)) {
-        try {
-          await mobilePatch(`/api/mobile/owner/jobs/${selectedJob.id}`, { description: composedDescription });
-        } catch {
-          // Non-blocking — keep going with the invoice even if patch fails.
-        }
-      }
       const resp: any = await mobilePost(`/api/mobile/owner/jobs/${selectedJob.id}/invoice`, {
-        amount: amt,
+        amount: totalDue,
         description: composedDescription,
+        subtotal,
+        tax_amount: taxAmount,
+        discount_amount: discountAmount,
+        discount_label: discountAmount > 0 && discountMode === 'pct' && discountValue
+          ? `${parseFloat(discountValue) || 0}%`
+          : null,
       });
       setModalOpen(false);
       setInvoiceStep('edit');
@@ -221,7 +260,7 @@ export default function OwnerInvoices() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedJob, amount, lineItems, notes, notesDirty, loadData]);
+  }, [selectedJob, totalDue, worksheet, subject, notes, subtotal, taxAmount, discountAmount, discountMode, discountValue, loadData]);
 
   const markPaid = useCallback(async (withEmail: boolean) => {
     if (!actionJob) return;
@@ -303,10 +342,7 @@ export default function OwnerInvoices() {
       String(j.clients?.name || '').toLowerCase().includes(q)
     ));
   }, [availableJobs, jobQuery]);
-  const invoiceTotal = lineItemsTotal(lineItems);
-  const manualAmount = parseFloat(amount);
-  const previewTotal = invoiceTotal > 0 ? invoiceTotal : (Number.isFinite(manualAmount) ? manualAmount : 0);
-  const canPreviewInvoice = !!selectedJob && previewTotal > 0;
+  const canPreviewInvoice = !!selectedJob && totalDue > 0;
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
@@ -525,14 +561,7 @@ export default function OwnerInvoices() {
                               <TouchableOpacity
                                 key={j.id}
                                 style={[styles.jobRow, selectedJob?.id === j.id && styles.jobRowActive]}
-                                onPress={() => {
-                                  setSelectedJob(j);
-                                  setJobPickerOpen(false);
-                                  const est = Number(j.estimate_amount) || 0;
-                                  if (est > 0) setAmount(est.toFixed(2));
-                                  setNotes(j.description || '');
-                                  setNotesDirty(false);
-                                }}
+                                onPress={() => applySelectedJob(j)}
                               >
                                 <Text style={styles.jobRowName}>{j.name || 'Untitled job'}</Text>
                                 <Text style={styles.jobRowClient}>
@@ -546,56 +575,160 @@ export default function OwnerInvoices() {
                     )}
 
                     {selectedJob && !jobPickerOpen ? (
-                      <View style={{ marginTop: 14 }}>
-                        <View style={styles.scopeHeader}>
-                          <Text style={styles.label}>Scope of work</Text>
-                          {Number(selectedJob.estimate_amount) > 0 ? (
-                            <Text style={styles.scopeEstimate}>
-                              Original estimate: ${Number(selectedJob.estimate_amount).toFixed(2)}
-                            </Text>
+                      <>
+                        <View style={{ marginTop: 14 }}>
+                          <Text style={styles.label}>Subject</Text>
+                          <TextInput
+                            style={styles.subjectInput}
+                            placeholder="For services rendered…"
+                            placeholderTextColor={theme.textMuted}
+                            value={subject}
+                            onChangeText={setSubject}
+                          />
+                        </View>
+
+                        <View style={{ marginTop: 14 }}>
+                          <View style={styles.worksheetHead}>
+                            <Text style={styles.label}>Line items</Text>
+                            <TouchableOpacity
+                              onPress={() => setWorksheet(prev => [...prev, { id: newRowId(), name: '', qty: '1', price: '0' }])}
+                              style={styles.addLineBtn}
+                              activeOpacity={0.75}
+                            >
+                              <Ionicons name="add" size={16} color={theme.success} />
+                              <Text style={styles.addLineText}>Add line</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={styles.colHeader}>
+                            <Text style={[styles.colHeaderText, { flex: 2.4 }]}>Description</Text>
+                            <Text style={[styles.colHeaderText, { width: 44, textAlign: 'right' }]}>Qty</Text>
+                            <Text style={[styles.colHeaderText, { width: 70, textAlign: 'right' }]}>Price</Text>
+                            <Text style={[styles.colHeaderText, { width: 72, textAlign: 'right' }]}>Total</Text>
+                            <View style={{ width: 22 }} />
+                          </View>
+
+                          {worksheet.map((row) => (
+                            <View key={row.id} style={styles.worksheetRow}>
+                              <TextInput
+                                style={[styles.cellInput, { flex: 2.4 }]}
+                                placeholder="Service or item"
+                                placeholderTextColor={theme.textMuted}
+                                value={row.name}
+                                onChangeText={(v) => setWorksheet(prev => prev.map(r => r.id === row.id ? { ...r, name: v } : r))}
+                              />
+                              <TextInput
+                                style={[styles.cellInput, { width: 44, textAlign: 'right' }]}
+                                keyboardType="decimal-pad"
+                                value={row.qty}
+                                onChangeText={(v) => setWorksheet(prev => prev.map(r => r.id === row.id ? { ...r, qty: v } : r))}
+                              />
+                              <TextInput
+                                style={[styles.cellInput, { width: 70, textAlign: 'right' }]}
+                                keyboardType="decimal-pad"
+                                value={row.price}
+                                onChangeText={(v) => setWorksheet(prev => prev.map(r => r.id === row.id ? { ...r, price: v } : r))}
+                              />
+                              <Text style={[styles.cellTotal, { width: 72 }]}>${rowSubtotal(row).toFixed(2)}</Text>
+                              <TouchableOpacity
+                                onPress={() => setWorksheet(prev => prev.filter(r => r.id !== row.id))}
+                                hitSlop={6}
+                                style={{ width: 22, alignItems: 'center' }}
+                              >
+                                <Ionicons name="close" size={18} color={theme.danger} />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+
+                          {worksheet.length === 0 ? (
+                            <Text style={styles.worksheetEmpty}>Tap "Add line" to start.</Text>
                           ) : null}
                         </View>
-                        <TextInput
-                          style={styles.notesInput}
-                          placeholder="What's on this invoice? Line items, schedule notes, scope details — all editable."
-                          placeholderTextColor={theme.textMuted}
-                          value={notes}
-                          onChangeText={(v) => { setNotes(v); setNotesDirty(true); }}
-                          multiline
-                          textAlignVertical="top"
-                        />
-                      </View>
-                    ) : null}
 
-                    <LineItemsPicker
-                      items={lineItems}
-                      onChange={setLineItems}
-                      label="Add line items (optional)"
-                      emptyLabel="Skip if your scope above already itemizes the work."
-                    />
-
-                    {lineItems.length > 0 ? (
-                      <View style={styles.lineItemsTotal}>
-                        <Text style={styles.lineItemsTotalLabel}>Total</Text>
-                        <Text style={styles.lineItemsTotalValue}>${invoiceTotal.toFixed(2)}</Text>
-                      </View>
-                    ) : (
-                      <>
-                        <View style={styles.orDivider}>
-                          <View style={styles.orLine} />
-                          <Text style={styles.orText}>OR ENTER A CUSTOM AMOUNT</Text>
-                          <View style={styles.orLine} />
+                        <View style={{ marginTop: 14, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                          <Text style={[styles.label, { flex: 1 }]}>Discount</Text>
+                          <View style={styles.discountModeWrap}>
+                            {(['pct', 'amt'] as const).map(m => (
+                              <TouchableOpacity
+                                key={m}
+                                onPress={() => setDiscountMode(m)}
+                                style={[
+                                  styles.discountModeBtn,
+                                  discountMode === m && { backgroundColor: theme.surface },
+                                ]}
+                              >
+                                <Text style={[
+                                  styles.discountModeText,
+                                  discountMode === m && { color: theme.textPrimary, fontWeight: '800' },
+                                ]}>
+                                  {m === 'pct' ? '%' : '$'}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                          <TextInput
+                            style={[
+                              styles.cellInput,
+                              { width: 90, textAlign: 'right' },
+                              !discountValue && styles.cellInputDimmed,
+                            ]}
+                            keyboardType="decimal-pad"
+                            placeholder="optional"
+                            placeholderTextColor={theme.textMuted}
+                            value={discountValue}
+                            onChangeText={setDiscountValue}
+                          />
                         </View>
-                        <TextInput
-                          style={styles.amountInput}
-                          placeholder="$0.00"
-                          placeholderTextColor={theme.textMuted}
-                          keyboardType="decimal-pad"
-                          value={amount}
-                          onChangeText={setAmount}
-                        />
+
+                        <View style={{ marginTop: 14, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                          <Text style={[styles.label, { flex: 1 }]}>Tax %</Text>
+                          <TextInput
+                            style={[styles.cellInput, { width: 90, textAlign: 'right' }]}
+                            keyboardType="decimal-pad"
+                            value={taxPct}
+                            onChangeText={setTaxPct}
+                          />
+                        </View>
+
+                        <View style={styles.totalsBox}>
+                          <View style={styles.totalsRow}>
+                            <Text style={styles.totalsLabel}>Subtotal</Text>
+                            <Text style={styles.totalsValue}>${subtotal.toFixed(2)}</Text>
+                          </View>
+                          {discountAmount > 0 ? (
+                            <View style={styles.totalsRow}>
+                              <Text style={[styles.totalsLabel, { color: theme.success }]}>
+                                Discount {discountMode === 'pct' && discountValue ? `(${parseFloat(discountValue) || 0}%)` : ''}
+                              </Text>
+                              <Text style={[styles.totalsValue, { color: theme.success }]}>
+                                −${discountAmount.toFixed(2)}
+                              </Text>
+                            </View>
+                          ) : null}
+                          <View style={styles.totalsRow}>
+                            <Text style={styles.totalsLabel}>Tax</Text>
+                            <Text style={styles.totalsValue}>${taxAmount.toFixed(2)}</Text>
+                          </View>
+                          <View style={[styles.totalsRow, { marginTop: 6 }]}>
+                            <Text style={styles.totalDueLabel}>Total due</Text>
+                            <Text style={styles.totalDueValue}>${totalDue.toFixed(2)}</Text>
+                          </View>
+                        </View>
+
+                        <View style={{ marginTop: 14 }}>
+                          <Text style={styles.label}>Notes (optional)</Text>
+                          <TextInput
+                            style={styles.notesInput}
+                            placeholder="Internal notes, scope details, payment terms…"
+                            placeholderTextColor={theme.textMuted}
+                            value={notes}
+                            onChangeText={setNotes}
+                            multiline
+                            textAlignVertical="top"
+                          />
+                        </View>
                       </>
-                    )}
+                    ) : null}
                   </>
                 ) : (
                 <View style={styles.previewCard}>
@@ -610,35 +743,54 @@ export default function OwnerInvoices() {
                     <Text style={styles.previewDescription}>{notes.trim()}</Text>
                   ) : null}
 
+                  {subject.trim() ? (
+                    <Text style={styles.previewSubject}>{subject.trim()}</Text>
+                  ) : null}
+
                   <View style={styles.previewDivider} />
 
-                  {lineItems.length > 0 ? (
-                    lineItems.map(item => {
-                      const quantity = Number(item.quantity) || 1;
-                      const unitPrice = Number(item.unitPrice) || 0;
-                      const total = quantity * unitPrice;
-                      return (
-                        <View key={item.id} style={styles.previewLine}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.previewLineName}>{item.name || 'Item'}</Text>
-                            {item.description ? <Text style={styles.previewLineMeta}>{item.description}</Text> : null}
-                            <Text style={styles.previewLineMeta}>{quantity} x ${unitPrice.toFixed(2)}</Text>
-                          </View>
-                          <Text style={styles.previewLineAmount}>${total.toFixed(2)}</Text>
-                        </View>
-                      );
-                    })
-                  ) : (
-                    <View style={styles.previewLine}>
-                      <Text style={styles.previewLineName}>Invoice amount</Text>
-                      <Text style={styles.previewLineAmount}>${previewTotal.toFixed(2)}</Text>
+                  {worksheet.filter(r => r.name.trim() || rowSubtotal(r) > 0).map(row => (
+                    <View key={row.id} style={styles.previewLine}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.previewLineName}>{row.name.trim() || 'Item'}</Text>
+                        <Text style={styles.previewLineMeta}>
+                          {(parseFloat(row.qty) || 0)} × ${(parseFloat(row.price) || 0).toFixed(2)}
+                        </Text>
+                      </View>
+                      <Text style={styles.previewLineAmount}>${rowSubtotal(row).toFixed(2)}</Text>
                     </View>
-                  )}
+                  ))}
 
-                  <View style={styles.previewTotalRow}>
-                    <Text style={styles.previewTotalLabel}>Total</Text>
-                    <Text style={styles.previewTotal}>${previewTotal.toFixed(2)}</Text>
+                  <View style={styles.previewDivider} />
+
+                  <View style={styles.previewTotalsRow}>
+                    <Text style={styles.previewTotalsLabel}>Subtotal</Text>
+                    <Text style={styles.previewTotalsValue}>${subtotal.toFixed(2)}</Text>
                   </View>
+                  {discountAmount > 0 ? (
+                    <View style={styles.previewTotalsRow}>
+                      <Text style={[styles.previewTotalsLabel, { color: theme.success }]}>
+                        Discount {discountMode === 'pct' && discountValue ? `(${parseFloat(discountValue) || 0}%)` : ''}
+                      </Text>
+                      <Text style={[styles.previewTotalsValue, { color: theme.success }]}>
+                        −${discountAmount.toFixed(2)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.previewTotalsRow}>
+                    <Text style={styles.previewTotalsLabel}>
+                      Tax {parseFloat(taxPct) > 0 ? `${parseFloat(taxPct)}%` : ''}
+                    </Text>
+                    <Text style={styles.previewTotalsValue}>${taxAmount.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.previewTotalRow}>
+                    <Text style={styles.previewTotalLabel}>Total due</Text>
+                    <Text style={styles.previewTotal}>${totalDue.toFixed(2)}</Text>
+                  </View>
+
+                  {notes.trim() ? (
+                    <Text style={styles.previewDescription}>{notes.trim()}</Text>
+                  ) : null}
                 </View>
               )}
             </ScrollView>
@@ -655,7 +807,7 @@ export default function OwnerInvoices() {
                   </TouchableOpacity>
                   {!canPreviewInvoice ? (
                     <Text style={styles.disabledHint}>
-                      {!selectedJob ? 'Pick a job first.' : 'Add line items or enter an amount.'}
+                      {!selectedJob ? 'Pick a job first.' : 'Add a line item with a price.'}
                     </Text>
                   ) : null}
                 </>
@@ -992,11 +1144,78 @@ function makeStyles(t: Theme) {
     previewDescription: { color: t.textSecondary, fontSize: 13, marginTop: 10, lineHeight: 19 },
     previewDivider: { height: 1, backgroundColor: t.border, marginVertical: 14 },
 
-    scopeHeader: {
-      flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
-      gap: 8, marginBottom: 6,
+    subjectInput: {
+      backgroundColor: t.surfaceInset,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: t.textPrimary,
+      fontSize: 14,
+      marginTop: 6,
     },
-    scopeEstimate: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
+    worksheetHead: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    addLineBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999,
+      backgroundColor: t.successMuted,
+    },
+    addLineText: { color: t.success, fontSize: 13, fontWeight: '800' },
+    colHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingHorizontal: 4, paddingBottom: 4,
+    },
+    colHeaderText: {
+      color: t.textMuted, fontSize: 10, fontWeight: '900',
+      textTransform: 'uppercase', letterSpacing: 0.4,
+    },
+    worksheetRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingVertical: 4,
+    },
+    cellInput: {
+      backgroundColor: t.surfaceInset,
+      borderRadius: 8,
+      paddingHorizontal: 8, paddingVertical: 8,
+      color: t.textPrimary, fontSize: 13,
+    },
+    cellInputDimmed: { opacity: 0.55 },
+    discountModeWrap: {
+      flexDirection: 'row',
+      backgroundColor: t.surfaceInset,
+      borderRadius: 8,
+      padding: 2,
+    },
+    discountModeBtn: {
+      width: 32, height: 30,
+      alignItems: 'center', justifyContent: 'center',
+      borderRadius: 6,
+    },
+    discountModeText: { color: t.textSecondary, fontSize: 13, fontWeight: '700' },
+    cellTotal: {
+      color: t.textPrimary, fontSize: 13, fontWeight: '800',
+      textAlign: 'right', fontVariant: ['tabular-nums'],
+    },
+    worksheetEmpty: {
+      color: t.textMuted, fontSize: 13, fontStyle: 'italic',
+      paddingVertical: 12, textAlign: 'center',
+    },
+    totalsBox: {
+      marginTop: 12,
+      backgroundColor: t.surfaceInset,
+      borderRadius: 12,
+      padding: 14,
+      gap: 4,
+    },
+    totalsRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    totalsLabel: { color: t.textSecondary, fontSize: 13, fontWeight: '600' },
+    totalsValue: { color: t.textPrimary, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
+    totalDueLabel: { color: t.textPrimary, fontSize: 15, fontWeight: '800' },
+    totalDueValue: { color: t.accent, fontSize: 18, fontWeight: '900', fontVariant: ['tabular-nums'] },
     notesInput: {
       backgroundColor: t.surfaceInset,
       borderRadius: 12,
@@ -1004,8 +1223,16 @@ function makeStyles(t: Theme) {
       color: t.textPrimary,
       fontSize: 14,
       lineHeight: 20,
-      minHeight: 110,
+      minHeight: 80,
+      marginTop: 6,
     },
+    previewSubject: { color: t.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 10 },
+    previewTotalsRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginTop: 4,
+    },
+    previewTotalsLabel: { color: t.textSecondary, fontSize: 13 },
+    previewTotalsValue: { color: t.textPrimary, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
     previewLine: {
       flexDirection: 'row',
       alignItems: 'flex-start',
