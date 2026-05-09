@@ -127,20 +127,22 @@ export default function OwnerInvoices() {
     }
   }, []);
 
-  // Seed the worksheet from a job: one line item using the existing estimate
-  // (if any), subject in the "For services rendered — Client" pattern, and
-  // the job's description carried into Notes for context.
+  // Seed the worksheet from a job. Prefer the existing invoice_amount over
+  // estimate_amount so re-opening an already-invoiced job lands the editor
+  // on the same total the client got, not on the original quote.
   const applySelectedJob = useCallback((job: JobLite) => {
     setSelectedJob(job);
     setJobPickerOpen(false);
     const clientName = job.clients?.name || '';
     setSubject(clientName ? `For Services Rendered — ${clientName}` : (job.name || 'For Services Rendered'));
+    const inv = Number(job.invoice_amount) || 0;
     const est = Number(job.estimate_amount) || 0;
+    const seed = inv > 0 ? inv : est;
     setWorksheet([{
       id: newRowId(),
       name: job.name || 'Service',
       qty: '1',
-      price: est > 0 ? est.toFixed(2) : '0',
+      price: seed > 0 ? seed.toFixed(2) : '0',
     }]);
     setTaxPct('0');
     setDiscountMode('pct');

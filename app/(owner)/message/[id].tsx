@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert, Linking,
 } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +32,24 @@ function formatTime(iso: string): string {
 function sameDay(a: string, b: string): boolean {
   const da = new Date(a), db = new Date(b);
   return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+// Pull image URLs out of a chat body so we can render them inline as
+// thumbnails. The mirror function on the server appends photo URLs to
+// system messages, so detecting these covers both job-update mirrors
+// and any future case where someone pastes a photo link in chat.
+const IMAGE_URL_RE = /https?:\/\/\S+?\.(?:jpg|jpeg|png|gif|webp|heic)(?:\?[^\s]*)?/gi;
+const SUPABASE_PHOTO_RE = /https?:\/\/[^\s]+\/storage\/v1\/object\/public\/photos\/[^\s]+/gi;
+function extractImages(body: string): { text: string; urls: string[] } {
+  if (!body) return { text: '', urls: [] };
+  const matched = new Set<string>();
+  body.replace(IMAGE_URL_RE, (m) => { matched.add(m); return m; });
+  body.replace(SUPABASE_PHOTO_RE, (m) => { matched.add(m); return m; });
+  const urls = Array.from(matched);
+  let text = body;
+  for (const u of urls) text = text.split(u).join('');
+  text = text.replace(/\n{3,}/g, '\n\n').trim();
+  return { text, urls };
 }
 
 export default function MessageThread() {
@@ -196,16 +214,37 @@ export default function MessageThread() {
                     {showAuthor ? (
                       <Text style={styles.author}>{item.employees?.name || 'Crew'}</Text>
                     ) : null}
-                    <View style={[
-                      styles.bubble,
-                      isMe
-                        ? { backgroundColor: theme.accent, borderBottomRightRadius: 4, alignSelf: 'flex-end' }
-                        : { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderBottomLeftRadius: 4 },
-                    ]}>
-                      <Text style={[styles.bubbleText, { color: isMe ? theme.accentContrast : theme.textPrimary }]}>
-                        {item.body}
-                      </Text>
-                    </View>
+                    {(() => {
+                      const { text, urls } = extractImages(item.body);
+                      return (
+                        <View style={[
+                          styles.bubble,
+                          isMe
+                            ? { backgroundColor: theme.accent, borderBottomRightRadius: 4, alignSelf: 'flex-end' }
+                            : { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderBottomLeftRadius: 4 },
+                          urls.length > 0 ? styles.bubbleWithMedia : null,
+                        ]}>
+                          {urls.map(u => (
+                            <TouchableOpacity
+                              key={u}
+                              activeOpacity={0.85}
+                              onPress={() => Linking.openURL(u)}
+                            >
+                              <Image
+                                source={{ uri: u }}
+                                style={styles.bubbleImage}
+                                resizeMode="cover"
+                              />
+                            </TouchableOpacity>
+                          ))}
+                          {text ? (
+                            <Text style={[styles.bubbleText, { color: isMe ? theme.accentContrast : theme.textPrimary }, urls.length > 0 ? { paddingHorizontal: 12, paddingVertical: 10 } : null]}>
+                              {text}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })()}
                     <Text style={[styles.time, { textAlign: isMe ? 'right' : 'left' }]}>
                       {formatTime(item.created_at)}
                     </Text>
@@ -269,6 +308,14 @@ function makeStyles(t: Theme) {
       maxWidth: 280,
       paddingVertical: 8, paddingHorizontal: 12,
       borderRadius: 16,
+    },
+    bubbleWithMedia: {
+      paddingVertical: 0, paddingHorizontal: 0,
+      overflow: 'hidden',
+    },
+    bubbleImage: {
+      width: 240, height: 180,
+      backgroundColor: t.surfaceInset,
     },
     bubbleText: { fontSize: 15, lineHeight: 20 },
     time: { color: t.textMuted, fontSize: 10, marginTop: 2, marginHorizontal: 4 },

@@ -958,7 +958,14 @@ export default function OwnerJobDetail() {
                           <Text style={[styles.actionBtnText, { color: '#0ea5e9' }]}>Mark Paid (no email)</Text>
                         </TouchableOpacity>
                       </View>
-                      {client?.email && (
+                      <TouchableOpacity
+                        style={[styles.actionBtnGhost, { marginTop: 8 }]}
+                        onPress={openFullInvoice}
+                      >
+                        <Ionicons name="create-outline" size={18} color={theme.accent} />
+                        <Text style={styles.actionBtnGhostText}>Edit invoice</Text>
+                      </TouchableOpacity>
+                      {client?.email ? (
                         <TouchableOpacity
                           style={[styles.actionBtnGhost, { marginTop: 8 }]}
                           onPress={async () => {
@@ -970,8 +977,18 @@ export default function OwnerJobDetail() {
                             }
                           }}
                         >
-                          <Ionicons name="mail-outline" size={18} color="#0ea5e9" />
-                          <Text style={styles.actionBtnGhostText}>Resend invoice email</Text>
+                          <Ionicons name="mail-outline" size={18} color={theme.accent} />
+                          <Text style={styles.actionBtnGhostText}>Resend to {client.email}</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={[styles.actionBtnGhost, { marginTop: 8, borderColor: theme.warning + '88' }]}
+                          onPress={openClientEditor}
+                        >
+                          <Ionicons name="mail-outline" size={18} color={theme.warning} />
+                          <Text style={[styles.actionBtnGhostText, { color: theme.warning }]}>
+                            {client?.id ? 'Add client email' : 'Add client to email this invoice'}
+                          </Text>
                         </TouchableOpacity>
                       )}
                     </>
