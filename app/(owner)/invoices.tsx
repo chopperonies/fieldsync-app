@@ -84,7 +84,11 @@ export default function OwnerInvoices() {
   const [discountValue, setDiscountValue] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientEmail, setRecipientEmail] = useState('');
-  const [notes, setNotes] = useState('');
+  // Two notes streams. internalNotes lives on the job and goes to crew/Notes
+  // tab — never to the customer. customerNotes lands on the invoice email
+  // (payment terms, thank-yous, etc.) and is not stored on the job.
+  const [internalNotes, setInternalNotes] = useState('');
+  const [customerNotes, setCustomerNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [invoiceStep, setInvoiceStep] = useState<'edit' | 'preview'>('edit');
 
@@ -149,7 +153,8 @@ export default function OwnerInvoices() {
     setDiscountValue('');
     setRecipientName(job.clients?.name || '');
     setRecipientEmail(job.clients?.email || '');
-    setNotes(job.description || '');
+    setInternalNotes(job.description || '');
+    setCustomerNotes('');
   }, []);
 
   const openCreateModal = useCallback(async (preselectJobId?: string | null) => {
@@ -164,7 +169,8 @@ export default function OwnerInvoices() {
     setDiscountValue('');
     setRecipientName('');
     setRecipientEmail('');
-    setNotes('');
+    setInternalNotes('');
+    setCustomerNotes('');
     setInvoiceStep('edit');
     setInlineJobOpen(false);
     setInlineJobName('');
@@ -232,16 +238,20 @@ export default function OwnerInvoices() {
     if (!selectedJob) return Alert.alert('Pick a job first');
     if (totalDue <= 0) return Alert.alert('Add at least one line item with a price');
 
-    // Mirror the web worksheet's "compose description" so the email and the
-    // job row get a consistent, structured summary.
+    // Two strings. job.description (internal) carries subject + line items
+    // + internal notes — visible to crew and the owner inside the app.
+    // customerNotes (one string, no embedded subject/line items because the
+    // email already renders those structurally) is what shows up under
+    // "Notes" on the customer-facing email.
     const lineDesc = worksheet
       .filter(r => r.name.trim() || rowSubtotal(r) > 0)
       .map(r => `${r.qty}× ${r.name.trim() || 'Item'} @ $${(parseFloat(r.price) || 0).toFixed(2)}`)
       .join(', ');
     const composedDescription = [
       subject.trim() + (lineDesc ? ` (${lineDesc})` : ''),
-      notes.trim() ? `Notes: ${notes.trim()}` : null,
+      internalNotes.trim() ? `Internal: ${internalNotes.trim()}` : null,
     ].filter(Boolean).join(' ') || null;
+    const trimmedCustomerNotes = customerNotes.trim();
 
     const trimmedName = recipientName.trim();
     const trimmedEmail = recipientEmail.trim();
@@ -284,6 +294,7 @@ export default function OwnerInvoices() {
       const resp: any = await mobilePost(`/api/mobile/owner/jobs/${selectedJob.id}/invoice`, {
         amount: totalDue,
         description: composedDescription,
+        customer_notes: trimmedCustomerNotes || null,
         recipient_email: trimmedEmail || null,
         subtotal,
         tax_amount: taxAmount,
@@ -307,7 +318,7 @@ export default function OwnerInvoices() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedJob, totalDue, worksheet, subject, notes, recipientName, recipientEmail, subtotal, taxAmount, discountAmount, discountMode, discountValue, loadData]);
+  }, [selectedJob, totalDue, worksheet, subject, internalNotes, customerNotes, recipientName, recipientEmail, subtotal, taxAmount, discountAmount, discountMode, discountValue, loadData]);
 
   const markPaid = useCallback(async (withEmail: boolean) => {
     if (!actionJob) return;
@@ -805,13 +816,40 @@ export default function OwnerInvoices() {
                         </View>
 
                         <View style={{ marginTop: 14 }}>
-                          <Text style={styles.label}>Notes (optional)</Text>
+                          <View style={styles.notesLabelRow}>
+                            <Ionicons name="mail-outline" size={14} color={theme.accent} />
+                            <Text style={styles.label}>Notes for client</Text>
+                            <View style={[styles.notesPill, { backgroundColor: theme.accent + '22' }]}>
+                              <Text style={[styles.notesPillText, { color: theme.accent }]}>On invoice</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.notesHint}>Payment terms, thank-you message, anything you want the client to read.</Text>
                           <TextInput
                             style={styles.notesInput}
-                            placeholder="Internal notes, scope details, payment terms…"
+                            placeholder="e.g. Net 15. Thanks for your business!"
                             placeholderTextColor={theme.textMuted}
-                            value={notes}
-                            onChangeText={setNotes}
+                            value={customerNotes}
+                            onChangeText={setCustomerNotes}
+                            multiline
+                            textAlignVertical="top"
+                          />
+                        </View>
+
+                        <View style={{ marginTop: 14 }}>
+                          <View style={styles.notesLabelRow}>
+                            <Ionicons name="lock-closed-outline" size={14} color={theme.textSecondary} />
+                            <Text style={styles.label}>Internal notes</Text>
+                            <View style={[styles.notesPill, { backgroundColor: theme.surfaceInset }]}>
+                              <Text style={[styles.notesPillText, { color: theme.textSecondary }]}>Crew only</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.notesHint}>Saved to the job — visible to crew, never sent to the client.</Text>
+                          <TextInput
+                            style={styles.notesInput}
+                            placeholder="Scope details, gotchas, reminders…"
+                            placeholderTextColor={theme.textMuted}
+                            value={internalNotes}
+                            onChangeText={setInternalNotes}
                             multiline
                             textAlignVertical="top"
                           />
@@ -829,9 +867,6 @@ export default function OwnerInvoices() {
                       recipientEmail.trim() || selectedJob?.clients?.email || 'No email on file',
                     ].filter(Boolean).join(' · ')}
                   </Text>
-                  {notes.trim() ? (
-                    <Text style={styles.previewDescription}>{notes.trim()}</Text>
-                  ) : null}
 
                   {subject.trim() ? (
                     <Text style={styles.previewSubject}>{subject.trim()}</Text>
@@ -878,8 +913,8 @@ export default function OwnerInvoices() {
                     <Text style={styles.previewTotal}>${totalDue.toFixed(2)}</Text>
                   </View>
 
-                  {notes.trim() ? (
-                    <Text style={styles.previewDescription}>{notes.trim()}</Text>
+                  {customerNotes.trim() ? (
+                    <Text style={styles.previewDescription}>{customerNotes.trim()}</Text>
                   ) : null}
                 </View>
               )}
@@ -1357,6 +1392,14 @@ function makeStyles(t: Theme) {
       minHeight: 80,
       marginTop: 6,
     },
+    notesLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    notesPill: {
+      marginLeft: 'auto',
+      paddingVertical: 2, paddingHorizontal: 8,
+      borderRadius: 999,
+    },
+    notesPillText: { fontSize: 11, fontWeight: '800' },
+    notesHint: { color: t.textMuted, fontSize: 12, marginTop: 4, lineHeight: 16 },
     previewSubject: { color: t.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 10 },
     previewTotalsRow: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
