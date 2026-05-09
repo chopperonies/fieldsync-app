@@ -30,6 +30,16 @@ function toBackendStatus(uiKey: string) {
   return PILL_TO_BACKEND[uiKey] || uiKey;
 }
 
+// "[x] " prefix on a checklist string marks the item as done. Lives in the
+// string itself so we don't need a schema change on jobs.checklist_items.
+const CHECKLIST_DONE_RE = /^\s*\[x\]\s*/i;
+function isChecklistItemDone(s: string): boolean {
+  return CHECKLIST_DONE_RE.test(s || '');
+}
+function checklistItemText(s: string): string {
+  return (s || '').replace(CHECKLIST_DONE_RE, '');
+}
+
 type Assignment = {
   id: string;
   employee_id: string;
@@ -79,10 +89,11 @@ export default function OwnerJobDetail() {
   const [estimateAmt, setEstimateAmt] = useState('');
   const [detailsDescription, setDetailsDescription] = useState('');
   const [detailsChecklist, setDetailsChecklist] = useState<string[]>([]);
-  // Inline "add another checklist item" affordance on the Scope card so
-  // crew/owner can drop in items mid-job without opening the full editor.
+  // Inline checklist editing — quick add, in-place edit, toggle done.
   const [quickChecklistDraft, setQuickChecklistDraft] = useState('');
   const [quickChecklistSaving, setQuickChecklistSaving] = useState(false);
+  const [editingChecklistIndex, setEditingChecklistIndex] = useState<number | null>(null);
+  const [editingChecklistDraft, setEditingChecklistDraft] = useState('');
   const [invoiceAmt, setInvoiceAmt] = useState('');
   const [saving, setSaving] = useState(false);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
@@ -189,6 +200,73 @@ export default function OwnerJobDetail() {
     }
   }
 
+  // Done-state lives in the string itself: a "[x] " prefix marks a
+  // completed item. Keeps the checklist as a string[] (no schema change)
+  // and round-trips through the existing PATCH endpoint cleanly.
+  async function toggleChecklistItem(index: number) {
+    if (!job) return;
+    const current = Array.isArray((job as any).checklist_items) ? [...(job as any).checklist_items] : [];
+    const raw = current[index];
+    if (raw === undefined) return;
+    const done = isChecklistItemDone(raw);
+    const text = checklistItemText(raw);
+    current[index] = done ? text : `[x] ${text}`;
+    try {
+      await mobilePatch(`/api/mobile/owner/jobs/${job.id}`, { checklist_items: current });
+      await load();
+    } catch (e: any) {
+      Alert.alert('Could not update', e?.message || 'Try again.');
+    }
+  }
+
+  function beginChecklistEdit(index: number, text: string) {
+    setEditingChecklistIndex(index);
+    setEditingChecklistDraft(text);
+  }
+
+  async function commitChecklistEdit(index: number) {
+    if (!job) {
+      setEditingChecklistIndex(null);
+      return;
+    }
+    const current = Array.isArray((job as any).checklist_items) ? [...(job as any).checklist_items] : [];
+    const raw = current[index];
+    if (raw === undefined) {
+      setEditingChecklistIndex(null);
+      return;
+    }
+    const trimmed = editingChecklistDraft.trim();
+    if (!trimmed) {
+      // Empty edit removes the row.
+      const next = current.filter((_: string, i: number) => i !== index);
+      try {
+        await mobilePatch(`/api/mobile/owner/jobs/${job.id}`, { checklist_items: next });
+      } catch (e: any) {
+        Alert.alert('Could not save', e?.message || 'Try again.');
+      }
+      setEditingChecklistIndex(null);
+      setEditingChecklistDraft('');
+      await load();
+      return;
+    }
+    const done = isChecklistItemDone(raw);
+    if (trimmed === checklistItemText(raw)) {
+      // No change — bail without a network call.
+      setEditingChecklistIndex(null);
+      setEditingChecklistDraft('');
+      return;
+    }
+    current[index] = done ? `[x] ${trimmed}` : trimmed;
+    try {
+      await mobilePatch(`/api/mobile/owner/jobs/${job.id}`, { checklist_items: current });
+      setEditingChecklistIndex(null);
+      setEditingChecklistDraft('');
+      await load();
+    } catch (e: any) {
+      Alert.alert('Could not save', e?.message || 'Try again.');
+    }
+  }
+
   async function approveClose() {
     if (!job) return;
     try {
@@ -264,10 +342,10 @@ export default function OwnerJobDetail() {
     if (!job) return;
     setSaving(true);
     try {
-      const cleaned = detailsChecklist.map(s => s.trim()).filter(Boolean);
+      // Checklist is managed inline on the dedicated card now; the Scope
+      // modal only edits the description.
       const updated = await mobilePatch<Job>(`/api/mobile/owner/jobs/${job.id}`, {
         description: detailsDescription.trim() || null,
-        checklist_items: cleaned,
       });
       setJob(prev => prev ? { ...prev, ...updated } : prev);
       setPicker(null);
@@ -785,74 +863,67 @@ export default function OwnerJobDetail() {
             {nextStep && (() => {
               const tint = theme[nextStep.tone];
               return (
-                <View style={[styles.nextStep, { backgroundColor: tint + '0f', borderColor: tint + '55', marginTop: 0, marginBottom: 12 }]}>
-                  <View style={styles.nextStepHead}>
-                    <Ionicons name={nextStep.icon} size={16} color={tint} />
-                    <Text style={[styles.nextStepLabel, { color: tint }]}>LIFECYCLE</Text>
+                <View style={[styles.nextStepCompact, { backgroundColor: tint + '0f', borderColor: tint + '55' }]}>
+                  <View style={styles.compactHead}>
+                    <Ionicons name={nextStep.icon} size={14} color={tint} />
+                    <Text style={[styles.compactEyebrow, { color: tint }]}>LIFECYCLE</Text>
+                    <Text style={styles.compactCurrent} numberOfLines={1}>· {nextStep.title}</Text>
                   </View>
-                  <Text style={styles.nextStepTitle}>{nextStep.title}</Text>
-                  <Text style={styles.nextStepBody}>{nextStep.body}</Text>
-                  <View style={styles.timeline}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.compactStripContent}
+                  >
                     {PIPELINE_KEYS.map((k, i) => {
                       const p = STATUS_META.find(s => s.key === k)!;
                       const color = theme[p.tone];
                       const targetIdx = LIFECYCLE_ORDER.indexOf(k);
                       const active = statusKey === p.key;
                       const isPast = targetIdx !== -1 && currentIndex !== -1 && targetIdx < currentIndex;
-                      const isFuture = targetIdx !== -1 && currentIndex !== -1 && targetIdx > currentIndex;
                       const isLast = i === PIPELINE_KEYS.length - 1;
                       const dotBg = isPast ? theme.success : active ? color : 'transparent';
                       const dotBorder = isPast ? theme.success : active ? color : theme.border;
-                      const labelColor = isPast ? theme.textSecondary : active ? color : theme.textMuted;
+                      const labelColor = isPast ? theme.textMuted : active ? color : theme.textMuted;
                       return (
-                        <TouchableOpacity
-                          key={p.key}
-                          activeOpacity={0.7}
-                          onPress={() => handlePipePress(p.key)}
-                          style={styles.timelineRow}
-                        >
-                          <View style={styles.timelineLeft}>
-                            <View style={[
-                              styles.timelineDot,
-                              { backgroundColor: dotBg, borderColor: dotBorder },
-                              active && styles.timelineDotActive,
-                            ]}>
-                              {isPast ? (
-                                <Ionicons name="checkmark" size={10} color="#fff" />
-                              ) : active ? (
-                                <View style={[styles.timelineDotInner, { backgroundColor: color }]} />
-                              ) : null}
-                            </View>
-                            {!isLast && (
+                        <View key={p.key} style={styles.compactStep}>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => handlePipePress(p.key)}
+                            style={styles.compactStepTouch}
+                          >
+                            <View style={styles.compactStepRow}>
                               <View style={[
-                                styles.timelineConnector,
-                                { backgroundColor: isPast ? theme.success + '55' : theme.border },
-                              ]} />
-                            )}
-                          </View>
-                          <View style={styles.timelineText}>
+                                styles.compactDot,
+                                { backgroundColor: dotBg, borderColor: dotBorder },
+                                active && styles.timelineDotActive,
+                              ]}>
+                                {isPast ? <Ionicons name="checkmark" size={9} color="#fff" /> : null}
+                              </View>
+                              {!isLast && (
+                                <View style={[
+                                  styles.compactConnector,
+                                  { backgroundColor: isPast ? theme.success + '55' : theme.border },
+                                ]} />
+                              )}
+                            </View>
                             <Text
                               style={[
-                                styles.timelineLabel,
+                                styles.compactLabel,
                                 { color: labelColor },
-                                active && { fontWeight: '800' },
-                                isPast && { textDecorationLine: 'line-through' },
+                                active && { fontWeight: '800', color },
                               ]}
                               numberOfLines={1}
                             >
                               {p.label}
                             </Text>
-                            {active ? (
-                              <Text style={[styles.timelineMeta, { color }]}>Current step</Text>
-                            ) : null}
-                          </View>
-                        </TouchableOpacity>
+                          </TouchableOpacity>
+                        </View>
                       );
                     })}
-                  </View>
+                  </ScrollView>
                   {nextStep.ctaLabel && nextStep.onCta && (
                     <TouchableOpacity
-                      style={[styles.nextStepBtn, { backgroundColor: tint }]}
+                      style={[styles.compactCta, { backgroundColor: tint }]}
                       onPress={nextStep.onCta}
                       activeOpacity={0.85}
                     >
@@ -862,6 +933,116 @@ export default function OwnerJobDetail() {
                 </View>
               );
             })()}
+
+            {/* Checklist — promoted out of Scope so it's a primary tool for crew/owner */}
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>Checklist</Text>
+                {Array.isArray((job as any).checklist_items) && (job as any).checklist_items.length > 0 ? (
+                  <Text style={styles.checklistMeta}>
+                    {((job as any).checklist_items as string[]).filter(isChecklistItemDone).length}
+                    {' / '}
+                    {(job as any).checklist_items.length}
+                  </Text>
+                ) : null}
+              </View>
+              {Array.isArray((job as any).checklist_items) && (job as any).checklist_items.length > 0 ? (
+                <View style={{ marginTop: 4 }}>
+                  {((job as any).checklist_items as string[]).map((line, i) => {
+                    const done = isChecklistItemDone(line);
+                    const text = checklistItemText(line);
+                    const isEditing = editingChecklistIndex === i;
+                    return (
+                      <View key={`${i}-${line}`} style={styles.checklistRow}>
+                        <TouchableOpacity
+                          onPress={() => toggleChecklistItem(i)}
+                          hitSlop={6}
+                          style={[
+                            styles.checklistBox,
+                            { borderColor: done ? theme.success : theme.border },
+                            done && { backgroundColor: theme.success },
+                          ]}
+                        >
+                          {done ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                        </TouchableOpacity>
+                        {isEditing ? (
+                          <TextInput
+                            style={[styles.checklistEditInput, { color: theme.textPrimary }]}
+                            value={editingChecklistDraft}
+                            onChangeText={setEditingChecklistDraft}
+                            onSubmitEditing={() => commitChecklistEdit(i)}
+                            onBlur={() => commitChecklistEdit(i)}
+                            autoFocus
+                            returnKeyType="done"
+                          />
+                        ) : (
+                          <TouchableOpacity
+                            style={{ flex: 1 }}
+                            onPress={() => toggleChecklistItem(i)}
+                            onLongPress={() => beginChecklistEdit(i, text)}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.checklistText,
+                                { color: done ? theme.textMuted : theme.textPrimary },
+                                done && { textDecorationLine: 'line-through' },
+                              ]}
+                            >
+                              {text}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        {!isEditing ? (
+                          <>
+                            <TouchableOpacity
+                              onPress={() => beginChecklistEdit(i, text)}
+                              hitSlop={8}
+                              style={styles.checklistIconBtn}
+                            >
+                              <Ionicons name="pencil-outline" size={15} color={theme.textMuted} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => removeChecklistItem(i)}
+                              hitSlop={8}
+                              style={styles.checklistIconBtn}
+                            >
+                              <Ionicons name="close" size={16} color={theme.textMuted} />
+                            </TouchableOpacity>
+                          </>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={styles.checklistEmpty}>No items yet — add as you go.</Text>
+              )}
+              <View style={styles.checklistAddRow}>
+                <TextInput
+                  style={styles.checklistAddInput}
+                  placeholder="Add a checklist item…"
+                  placeholderTextColor={theme.textMuted}
+                  value={quickChecklistDraft}
+                  onChangeText={setQuickChecklistDraft}
+                  onSubmitEditing={addQuickChecklistItem}
+                  returnKeyType="done"
+                  editable={!quickChecklistSaving}
+                />
+                <TouchableOpacity
+                  onPress={addQuickChecklistItem}
+                  disabled={!quickChecklistDraft.trim() || quickChecklistSaving}
+                  style={[
+                    styles.checklistAddBtn,
+                    { backgroundColor: quickChecklistDraft.trim() ? theme.accent : theme.surfaceInset },
+                  ]}
+                >
+                  {quickChecklistSaving
+                    ? <ActivityIndicator size="small" color={theme.accentContrast} />
+                    : <Ionicons name="add" size={20} color={quickChecklistDraft.trim() ? theme.accentContrast : theme.textMuted} />}
+                </TouchableOpacity>
+              </View>
+            </View>
 
             {/* Approval gate toggle — only relevant when crew is doing the work */}
             {isApprover && hasAssignedFieldWorker && (
@@ -935,63 +1116,11 @@ export default function OwnerJobDetail() {
               </View>
               {(job as any).description ? (
                 <Text style={styles.scopeText}>{(job as any).description}</Text>
-              ) : null}
-              {Array.isArray((job as any).checklist_items) && (job as any).checklist_items.length > 0 && (
-                <View style={{ marginTop: 8 }}>
-                  {(job as any).checklist_items.map((line: string, i: number) => (
-                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
-                      <Text style={{ color: theme.accent, fontWeight: '700' }}>•</Text>
-                      <Text style={{ color: theme.textPrimary, fontSize: 13, flex: 1 }}>{line}</Text>
-                      <TouchableOpacity
-                        onPress={() => removeChecklistItem(i)}
-                        hitSlop={8}
-                        style={{ padding: 2 }}
-                      >
-                        <Ionicons name="close" size={14} color={theme.textMuted} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {!(job as any).description && !((job as any).checklist_items?.length) && (
+              ) : (
                 <Text style={{ color: theme.textMuted, fontSize: 12, fontStyle: 'italic' }}>
                   No scope yet — tap Add to set instructions. Crew on site will be pinged when you save.
                 </Text>
               )}
-              {/* Inline quick-add so crew/owner can drop in items mid-job */}
-              <View style={{
-                flexDirection: 'row', alignItems: 'center', gap: 8,
-                marginTop: 10, paddingTop: 10,
-                borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border,
-              }}>
-                <TextInput
-                  style={{
-                    flex: 1, backgroundColor: theme.surfaceInset, borderRadius: 8,
-                    paddingHorizontal: 12, paddingVertical: 8,
-                    color: theme.textPrimary, fontSize: 13,
-                  }}
-                  placeholder="Add a checklist item…"
-                  placeholderTextColor={theme.textMuted}
-                  value={quickChecklistDraft}
-                  onChangeText={setQuickChecklistDraft}
-                  onSubmitEditing={addQuickChecklistItem}
-                  returnKeyType="done"
-                  editable={!quickChecklistSaving}
-                />
-                <TouchableOpacity
-                  onPress={addQuickChecklistItem}
-                  disabled={!quickChecklistDraft.trim() || quickChecklistSaving}
-                  style={{
-                    width: 36, height: 36, borderRadius: 18,
-                    alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: quickChecklistDraft.trim() ? theme.accent : theme.surfaceInset,
-                  }}
-                >
-                  {quickChecklistSaving
-                    ? <ActivityIndicator size="small" color={theme.accentContrast} />
-                    : <Ionicons name="add" size={20} color={quickChecklistDraft.trim() ? theme.accentContrast : theme.textMuted} />}
-                </TouchableOpacity>
-              </View>
             </View>
 
             {/* Plans / schematics / work-order attachments */}
@@ -1279,30 +1408,9 @@ export default function OwnerJobDetail() {
                 onChangeText={setDetailsDescription}
                 multiline
               />
-              <Text style={styles.modalFieldLabel}>Checklist</Text>
-              {detailsChecklist.map((line, i) => (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder={`Item ${i + 1}`}
-                    placeholderTextColor="#555"
-                    value={line}
-                    onChangeText={(text) => setDetailsChecklist(arr => arr.map((v, idx) => idx === i ? text : v))}
-                  />
-                  <TouchableOpacity
-                    style={{ padding: 8 }}
-                    onPress={() => setDetailsChecklist(arr => arr.filter((_, idx) => idx !== i))}
-                  >
-                    <Text style={{ color: '#ef4444', fontSize: 18 }}>×</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-              <TouchableOpacity
-                style={{ borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center' }}
-                onPress={() => setDetailsChecklist(arr => [...arr, ''])}
-              >
-                <Text style={{ color: '#0ea5e9', fontWeight: '700', fontSize: 13 }}>+ Add checklist item</Text>
-              </TouchableOpacity>
+              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 12, fontStyle: 'italic' }}>
+                Manage the job's checklist directly on the Checklist card — add, edit, check off, or remove items there.
+              </Text>
 
               <View style={[styles.modalActions, { marginTop: 18 }]}>
                 <TouchableOpacity style={styles.modalCancel} onPress={() => { Keyboard.dismiss(); setPicker(null); }} disabled={saving}>
@@ -1533,6 +1641,79 @@ function makeStyles(t: Theme) {
       marginTop: 14,
       borderWidth: 1, borderRadius: 14,
       padding: 14,
+    },
+    nextStepCompact: {
+      borderWidth: 1, borderRadius: 12,
+      paddingTop: 10, paddingBottom: 12, paddingHorizontal: 12,
+      marginBottom: 12,
+    },
+    compactHead: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      marginBottom: 10,
+    },
+    compactEyebrow: { fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
+    compactCurrent: {
+      flex: 1, color: t.textPrimary, fontSize: 13, fontWeight: '700',
+    },
+    compactStripContent: { gap: 0, paddingRight: 4 },
+    compactStep: { minWidth: 96 },
+    compactStepTouch: { paddingVertical: 4 },
+    compactStepRow: { flexDirection: 'row', alignItems: 'center' },
+    compactDot: {
+      width: 16, height: 16, borderRadius: 8,
+      borderWidth: 1.5,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    compactConnector: { flex: 1, height: 2, marginHorizontal: 2 },
+    compactLabel: {
+      fontSize: 11, fontWeight: '700',
+      marginTop: 4, marginRight: 4,
+    },
+    compactCta: {
+      marginTop: 12, borderRadius: 10,
+      paddingVertical: 11, paddingHorizontal: 16,
+      alignItems: 'center', justifyContent: 'center',
+    },
+
+    // Checklist card
+    checklistMeta: { color: t.textSecondary, fontSize: 12, fontWeight: '700' },
+    checklistRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingVertical: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.border,
+    },
+    checklistBox: {
+      width: 22, height: 22, borderRadius: 6,
+      borderWidth: 1.5,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    checklistText: { fontSize: 14, lineHeight: 20 },
+    checklistEditInput: {
+      flex: 1, fontSize: 14, lineHeight: 20,
+      paddingVertical: 0, paddingHorizontal: 0,
+    },
+    checklistIconBtn: {
+      width: 28, height: 28, alignItems: 'center', justifyContent: 'center',
+    },
+    checklistEmpty: {
+      color: t.textMuted, fontSize: 13, fontStyle: 'italic',
+      paddingVertical: 8,
+    },
+    checklistAddRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      marginTop: 10,
+    },
+    checklistAddInput: {
+      flex: 1,
+      backgroundColor: t.surfaceInset,
+      borderRadius: 8,
+      paddingHorizontal: 12, paddingVertical: 9,
+      color: t.textPrimary, fontSize: 13,
+    },
+    checklistAddBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      alignItems: 'center', justifyContent: 'center',
     },
     nextStepHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
     nextStepLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },
