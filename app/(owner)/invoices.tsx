@@ -82,6 +82,8 @@ export default function OwnerInvoices() {
   const [taxPct, setTaxPct] = useState('0');
   const [discountMode, setDiscountMode] = useState<'pct' | 'amt'>('pct');
   const [discountValue, setDiscountValue] = useState('');
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [invoiceStep, setInvoiceStep] = useState<'edit' | 'preview'>('edit');
@@ -143,6 +145,8 @@ export default function OwnerInvoices() {
     setTaxPct('0');
     setDiscountMode('pct');
     setDiscountValue('');
+    setRecipientName(job.clients?.name || '');
+    setRecipientEmail(job.clients?.email || '');
     setNotes(job.description || '');
   }, []);
 
@@ -156,6 +160,8 @@ export default function OwnerInvoices() {
     setTaxPct('0');
     setDiscountMode('pct');
     setDiscountValue('');
+    setRecipientName('');
+    setRecipientEmail('');
     setNotes('');
     setInvoiceStep('edit');
     setInlineJobOpen(false);
@@ -235,11 +241,48 @@ export default function OwnerInvoices() {
       notes.trim() ? `Notes: ${notes.trim()}` : null,
     ].filter(Boolean).join(' ') || null;
 
+    const trimmedName = recipientName.trim();
+    const trimmedEmail = recipientEmail.trim();
+
     setSubmitting(true);
     try {
+      // Reconcile the client record with whatever the owner just typed.
+      // Three cases: no client yet (create + link), client exists with stale
+      // info (patch), or unchanged (skip). All non-blocking — if the client
+      // write fails we still try to send the invoice.
+      let updatedClient: { name?: string | null; email?: string | null } | null = null;
+      try {
+        if (!selectedJob.client_id && trimmedName) {
+          const created = await mobilePost<{ id: string; name: string; email?: string | null }>(
+            '/api/mobile/owner/clients',
+            { name: trimmedName, email: trimmedEmail || null, phone: null },
+          );
+          if (created?.id) {
+            await mobilePatch(`/api/mobile/owner/jobs/${selectedJob.id}`, { client_id: created.id });
+            updatedClient = { name: created.name, email: created.email };
+          }
+        } else if (selectedJob.client_id) {
+          const patch: { name?: string; email?: string | null } = {};
+          if (trimmedName && trimmedName !== (selectedJob.clients?.name || '')) {
+            patch.name = trimmedName;
+          }
+          if (trimmedEmail !== (selectedJob.clients?.email || '')) {
+            patch.email = trimmedEmail || null;
+          }
+          if (Object.keys(patch).length > 0) {
+            await mobilePatch(`/api/mobile/owner/clients/${selectedJob.client_id}`, patch);
+            updatedClient = patch;
+          }
+        }
+      } catch (clientErr: any) {
+        // Surface but don't block — the owner may still want the invoice posted.
+        console.warn('[invoice] client update skipped:', clientErr?.message);
+      }
+
       const resp: any = await mobilePost(`/api/mobile/owner/jobs/${selectedJob.id}/invoice`, {
         amount: totalDue,
         description: composedDescription,
+        recipient_email: trimmedEmail || null,
         subtotal,
         tax_amount: taxAmount,
         discount_amount: discountAmount,
@@ -252,15 +295,17 @@ export default function OwnerInvoices() {
       await loadData();
       if (resp?.invoice_email_sent) {
         Alert.alert('Invoice sent', `Emailed to ${resp.invoice_emailed_to}`);
+      } else if (!trimmedEmail) {
+        Alert.alert('Invoice created', 'No email entered — invoice saved but not sent. Add an email above to email future invoices.');
       } else {
-        Alert.alert('Invoice created', 'No client email on file — nothing to send. Update client email in CRM to email future invoices.');
+        Alert.alert('Invoice created', 'Saved, but the email did not go out. Check the recipient email and try Resend from the invoices list.');
       }
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to send');
     } finally {
       setSubmitting(false);
     }
-  }, [selectedJob, totalDue, worksheet, subject, notes, subtotal, taxAmount, discountAmount, discountMode, discountValue, loadData]);
+  }, [selectedJob, totalDue, worksheet, subject, notes, recipientName, recipientEmail, subtotal, taxAmount, discountAmount, discountMode, discountValue, loadData]);
 
   const markPaid = useCallback(async (withEmail: boolean) => {
     if (!actionJob) return;
@@ -577,6 +622,41 @@ export default function OwnerInvoices() {
                     {selectedJob && !jobPickerOpen ? (
                       <>
                         <View style={{ marginTop: 14 }}>
+                          <Text style={styles.label}>Bill to</Text>
+                          <View style={styles.recipientCard}>
+                            <View style={styles.recipientFieldRow}>
+                              <Ionicons name="person-outline" size={16} color={theme.textSecondary} style={styles.recipientFieldIcon} />
+                              <TextInput
+                                style={styles.recipientInput}
+                                placeholder="Client name"
+                                placeholderTextColor={theme.textMuted}
+                                value={recipientName}
+                                onChangeText={setRecipientName}
+                                autoCapitalize="words"
+                              />
+                            </View>
+                            <View style={styles.recipientFieldRow}>
+                              <Ionicons name="mail-outline" size={16} color={theme.textSecondary} style={styles.recipientFieldIcon} />
+                              <TextInput
+                                style={styles.recipientInput}
+                                placeholder="Email (required to email)"
+                                placeholderTextColor={theme.textMuted}
+                                value={recipientEmail}
+                                onChangeText={setRecipientEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                              />
+                            </View>
+                            <Text style={styles.recipientHint}>
+                              {selectedJob.client_id
+                                ? 'Edits save to the client record.'
+                                : 'A new client will be created and linked to this job.'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={{ marginTop: 14 }}>
                           <Text style={styles.label}>Subject</Text>
                           <TextInput
                             style={styles.subjectInput}
@@ -742,9 +822,10 @@ export default function OwnerInvoices() {
                   <Text style={styles.previewEyebrow}>Invoice Preview</Text>
                   <Text style={styles.previewTitle}>{selectedJob?.name || 'Untitled job'}</Text>
                   <Text style={styles.previewMeta}>
-                    {[selectedJob?.clients?.name || 'No client', selectedJob?.clients?.email || 'No email on file']
-                      .filter(Boolean)
-                      .join(' · ')}
+                    {[
+                      recipientName.trim() || selectedJob?.clients?.name || 'No client',
+                      recipientEmail.trim() || selectedJob?.clients?.email || 'No email on file',
+                    ].filter(Boolean).join(' · ')}
                   </Text>
                   {notes.trim() ? (
                     <Text style={styles.previewDescription}>{notes.trim()}</Text>
@@ -1160,6 +1241,29 @@ function makeStyles(t: Theme) {
       fontSize: 14,
       marginTop: 6,
     },
+    recipientCard: {
+      backgroundColor: t.surface,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+      padding: 12,
+      marginTop: 6,
+      gap: 8,
+    },
+    recipientFieldRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: t.surfaceInset,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+    },
+    recipientFieldIcon: { width: 18 },
+    recipientInput: {
+      flex: 1,
+      paddingVertical: 10,
+      color: t.textPrimary,
+      fontSize: 14,
+    },
+    recipientHint: { color: t.textMuted, fontSize: 11, lineHeight: 15 },
     worksheetHead: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       marginBottom: 8,
