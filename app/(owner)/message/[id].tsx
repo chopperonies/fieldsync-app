@@ -52,6 +52,26 @@ function extractImages(body: string): { text: string; urls: string[] } {
   return { text, urls };
 }
 
+// Server-mirrored job activity arrives as messages prefixed with [Type].
+// Detect that and render with a quieter, divider-flavored style so the
+// thread reads as a feed where human chat stands out from system events.
+const SYSTEM_TAG_RE = /^\[([^\]]+)\]\s*/;
+function parseSystemTag(body: string): { tag: string | null; rest: string } {
+  if (!body) return { tag: null, rest: '' };
+  const m = body.match(SYSTEM_TAG_RE);
+  if (!m) return { tag: null, rest: body };
+  return { tag: m[1], rest: body.slice(m[0].length) };
+}
+const SYSTEM_TAG_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  Note: 'document-text-outline',
+  Photo: 'image-outline',
+  Bottleneck: 'warning-outline',
+  'Supply request': 'cube-outline',
+  Update: 'sync-outline',
+  'Clocked in': 'log-in-outline',
+  'Clocked out': 'log-out-outline',
+};
+
 export default function MessageThread() {
   const { id: threadId } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
@@ -187,6 +207,8 @@ export default function MessageThread() {
             const showDay = !prev || !sameDay(prev.created_at, item.created_at);
             const isMe = item.sender_id === meId;
             const showAuthor = !isMe && (!prev || prev.sender_id !== item.sender_id || showDay);
+            const { tag: systemTag, rest: systemRest } = parseSystemTag(item.body);
+            const isSystem = !!systemTag;
             return (
               <View>
                 {showDay ? (
@@ -196,6 +218,34 @@ export default function MessageThread() {
                     </Text>
                   </View>
                 ) : null}
+                {isSystem ? (() => {
+                  const { text, urls } = extractImages(systemRest);
+                  const author = item.employees?.name || 'Crew';
+                  return (
+                    <View style={styles.systemRow}>
+                      <View style={styles.systemBubble}>
+                        <View style={styles.systemHead}>
+                          <Ionicons
+                            name={SYSTEM_TAG_ICON[systemTag] || 'ellipse-outline'}
+                            size={12}
+                            color={theme.textMuted}
+                          />
+                          <Text style={styles.systemTag}>{systemTag.toUpperCase()}</Text>
+                          <Text style={styles.systemAuthor}>· {author}</Text>
+                          <Text style={styles.systemTime}>{formatTime(item.created_at)}</Text>
+                        </View>
+                        {urls.map(u => (
+                          <TouchableOpacity key={u} activeOpacity={0.85} onPress={() => Linking.openURL(u)}>
+                            <Image source={{ uri: u }} style={styles.systemImage} resizeMode="cover" />
+                          </TouchableOpacity>
+                        ))}
+                        {text ? (
+                          <Text style={styles.systemText}>{text}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })() : (
                 <View style={[styles.bubbleRow, isMe ? styles.bubbleRowMe : styles.bubbleRowThem]}>
                   {!isMe ? (
                     <View style={styles.avatarCol}>
@@ -250,6 +300,7 @@ export default function MessageThread() {
                     </Text>
                   </View>
                 </View>
+                )}
               </View>
             );
           }}
@@ -313,6 +364,26 @@ function makeStyles(t: Theme) {
       paddingVertical: 0, paddingHorizontal: 0,
       overflow: 'hidden',
     },
+    systemRow: {
+      alignItems: 'center',
+      paddingVertical: 6,
+    },
+    systemBubble: {
+      maxWidth: 320,
+      backgroundColor: t.surfaceInset,
+      borderRadius: 10,
+      paddingHorizontal: 12, paddingVertical: 8,
+      gap: 6,
+    },
+    systemHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    systemTag: {
+      color: t.textSecondary, fontSize: 10, fontWeight: '900',
+      letterSpacing: 0.5,
+    },
+    systemAuthor: { color: t.textMuted, fontSize: 11, fontWeight: '600' },
+    systemTime: { color: t.textMuted, fontSize: 10, marginLeft: 'auto' },
+    systemText: { color: t.textSecondary, fontSize: 13, lineHeight: 18 },
+    systemImage: { width: 220, height: 160, borderRadius: 8, backgroundColor: t.surface },
     bubbleImage: {
       width: 240, height: 180,
       backgroundColor: t.surfaceInset,

@@ -1396,8 +1396,12 @@ function ListView({
                   const tone = colorForJob(theme, j);
                   const stamp = statusStamp(theme, j);
                   const dur = j.expected_duration_hours;
-                  const primary = j.client_name || j.name;
-                  const secondary = j.client_name ? j.name : (j.address || '');
+                  // Lead with the job name — it's what the owner thinks
+                  // about. Client name (if different and not just an email
+                  // address echoing back) reads as the subtitle.
+                  const primary = j.name || j.client_name || 'Untitled job';
+                  const clientLabel = j.client_name && j.client_name !== j.name ? j.client_name : '';
+                  const secondary = clientLabel || (j.address || '');
                   return (
                     <TouchableOpacity
                       key={j.id}
