@@ -234,6 +234,63 @@ export default function OwnerInvoices() {
     }
   }, [inlineJobName, inlineJobAddress, inlineJobClient, inlineJobPhone]);
 
+  // Persist edits (recipient + internal notes/scope) back onto the job
+  // without firing an invoice email. Lets the owner use this editor as a
+  // working scratchpad while a job is in flight.
+  const saveAndClose = useCallback(async () => {
+    if (!selectedJob) {
+      setModalOpen(false);
+      return;
+    }
+    const lineDesc = worksheet
+      .filter(r => r.name.trim() || rowSubtotal(r) > 0)
+      .map(r => `${r.qty}× ${r.name.trim() || 'Item'} @ $${(parseFloat(r.price) || 0).toFixed(2)}`)
+      .join(', ');
+    const composedDescription = [
+      subject.trim() + (lineDesc ? ` (${lineDesc})` : ''),
+      internalNotes.trim() ? `Internal: ${internalNotes.trim()}` : null,
+    ].filter(Boolean).join(' ') || null;
+
+    const trimmedName = recipientName.trim();
+    const trimmedEmail = recipientEmail.trim();
+
+    setSubmitting(true);
+    try {
+      // Reconcile the client record (mirror submit's behavior).
+      try {
+        if (!selectedJob.client_id && trimmedName) {
+          const created = await mobilePost<{ id: string }>(
+            '/api/mobile/owner/clients',
+            { name: trimmedName, email: trimmedEmail || null, phone: null },
+          );
+          if (created?.id) {
+            await mobilePatch(`/api/mobile/owner/jobs/${selectedJob.id}`, { client_id: created.id });
+          }
+        } else if (selectedJob.client_id) {
+          const patch: { name?: string; email?: string | null } = {};
+          if (trimmedName && trimmedName !== (selectedJob.clients?.name || '')) patch.name = trimmedName;
+          if (trimmedEmail !== (selectedJob.clients?.email || '')) patch.email = trimmedEmail || null;
+          if (Object.keys(patch).length > 0) {
+            await mobilePatch(`/api/mobile/owner/clients/${selectedJob.client_id}`, patch);
+          }
+        }
+      } catch (clientErr: any) {
+        console.warn('[invoice save] client update skipped:', clientErr?.message);
+      }
+
+      if (composedDescription !== (selectedJob.description ?? null)) {
+        await mobilePatch(`/api/mobile/owner/jobs/${selectedJob.id}`, { description: composedDescription });
+      }
+      setModalOpen(false);
+      setInvoiceStep('edit');
+      await loadData();
+    } catch (e: any) {
+      Alert.alert('Could not save', e?.message || 'Try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [selectedJob, worksheet, subject, internalNotes, recipientName, recipientEmail, loadData]);
+
   const submitInvoice = useCallback(async () => {
     if (!selectedJob) return Alert.alert('Pick a job first');
     if (totalDue <= 0) return Alert.alert('Add at least one line item with a price');
@@ -930,6 +987,14 @@ export default function OwnerInvoices() {
                   >
                     <Text style={styles.submitText}>Preview invoice</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.saveOnlyBtn, (submitting || !selectedJob) && { opacity: 0.4 }]}
+                    onPress={saveAndClose}
+                    disabled={submitting || !selectedJob}
+                  >
+                    <Ionicons name="save-outline" size={16} color={theme.accent} />
+                    <Text style={styles.saveOnlyText}>Save changes (don't send)</Text>
+                  </TouchableOpacity>
                   {!canPreviewInvoice ? (
                     <Text style={styles.disabledHint}>
                       {!selectedJob ? 'Pick a job first.' : 'Add a line item with a price.'}
@@ -1164,6 +1229,11 @@ function makeStyles(t: Theme) {
     },
     lineItemsTotalLabel: { color: t.accent, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
     lineItemsTotalValue: { color: t.accent, fontSize: 20, fontWeight: '900', fontVariant: ['tabular-nums'] },
+    saveOnlyBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      paddingVertical: 12, marginTop: 8,
+    },
+    saveOnlyText: { color: t.accent, fontSize: 14, fontWeight: '700' },
     disabledHint: {
       color: t.textMuted, fontSize: 11, fontWeight: '700',
       textAlign: 'center', marginTop: 8,

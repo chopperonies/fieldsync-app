@@ -79,6 +79,10 @@ export default function OwnerJobDetail() {
   const [estimateAmt, setEstimateAmt] = useState('');
   const [detailsDescription, setDetailsDescription] = useState('');
   const [detailsChecklist, setDetailsChecklist] = useState<string[]>([]);
+  // Inline "add another checklist item" affordance on the Scope card so
+  // crew/owner can drop in items mid-job without opening the full editor.
+  const [quickChecklistDraft, setQuickChecklistDraft] = useState('');
+  const [quickChecklistSaving, setQuickChecklistSaving] = useState(false);
   const [invoiceAmt, setInvoiceAmt] = useState('');
   const [saving, setSaving] = useState(false);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
@@ -150,6 +154,38 @@ export default function OwnerJobDetail() {
       // Roll back on failure.
       setJob(prev => prev ? ({ ...prev, requires_owner_approval: !next } as any) : prev);
       Alert.alert('Could not update', e?.message || 'Try again.');
+    }
+  }
+
+  async function addQuickChecklistItem() {
+    if (!job) return;
+    const value = quickChecklistDraft.trim();
+    if (!value) return;
+    const next = [
+      ...(Array.isArray((job as any).checklist_items) ? (job as any).checklist_items : []),
+      value,
+    ];
+    setQuickChecklistSaving(true);
+    try {
+      await mobilePatch(`/api/mobile/owner/jobs/${job.id}`, { checklist_items: next });
+      setQuickChecklistDraft('');
+      await load();
+    } catch (e: any) {
+      Alert.alert('Could not add', e?.message || 'Try again.');
+    } finally {
+      setQuickChecklistSaving(false);
+    }
+  }
+
+  async function removeChecklistItem(index: number) {
+    if (!job) return;
+    const current = Array.isArray((job as any).checklist_items) ? (job as any).checklist_items : [];
+    const next = current.filter((_: string, i: number) => i !== index);
+    try {
+      await mobilePatch(`/api/mobile/owner/jobs/${job.id}`, { checklist_items: next });
+      await load();
+    } catch (e: any) {
+      Alert.alert('Could not remove', e?.message || 'Try again.');
     }
   }
 
@@ -903,18 +939,59 @@ export default function OwnerJobDetail() {
               {Array.isArray((job as any).checklist_items) && (job as any).checklist_items.length > 0 && (
                 <View style={{ marginTop: 8 }}>
                   {(job as any).checklist_items.map((line: string, i: number) => (
-                    <View key={i} style={{ flexDirection: 'row', gap: 6, paddingVertical: 2 }}>
-                      <Text style={{ color: '#0ea5e9', fontWeight: '700' }}>•</Text>
-                      <Text style={{ color: '#ddd', fontSize: 13, flex: 1 }}>{line}</Text>
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
+                      <Text style={{ color: theme.accent, fontWeight: '700' }}>•</Text>
+                      <Text style={{ color: theme.textPrimary, fontSize: 13, flex: 1 }}>{line}</Text>
+                      <TouchableOpacity
+                        onPress={() => removeChecklistItem(i)}
+                        hitSlop={8}
+                        style={{ padding: 2 }}
+                      >
+                        <Ionicons name="close" size={14} color={theme.textMuted} />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
               )}
               {!(job as any).description && !((job as any).checklist_items?.length) && (
-                <Text style={{ color: '#666', fontSize: 12, fontStyle: 'italic' }}>
+                <Text style={{ color: theme.textMuted, fontSize: 12, fontStyle: 'italic' }}>
                   No scope yet — tap Add to set instructions. Crew on site will be pinged when you save.
                 </Text>
               )}
+              {/* Inline quick-add so crew/owner can drop in items mid-job */}
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 8,
+                marginTop: 10, paddingTop: 10,
+                borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border,
+              }}>
+                <TextInput
+                  style={{
+                    flex: 1, backgroundColor: theme.surfaceInset, borderRadius: 8,
+                    paddingHorizontal: 12, paddingVertical: 8,
+                    color: theme.textPrimary, fontSize: 13,
+                  }}
+                  placeholder="Add a checklist item…"
+                  placeholderTextColor={theme.textMuted}
+                  value={quickChecklistDraft}
+                  onChangeText={setQuickChecklistDraft}
+                  onSubmitEditing={addQuickChecklistItem}
+                  returnKeyType="done"
+                  editable={!quickChecklistSaving}
+                />
+                <TouchableOpacity
+                  onPress={addQuickChecklistItem}
+                  disabled={!quickChecklistDraft.trim() || quickChecklistSaving}
+                  style={{
+                    width: 36, height: 36, borderRadius: 18,
+                    alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: quickChecklistDraft.trim() ? theme.accent : theme.surfaceInset,
+                  }}
+                >
+                  {quickChecklistSaving
+                    ? <ActivityIndicator size="small" color={theme.accentContrast} />
+                    : <Ionicons name="add" size={20} color={quickChecklistDraft.trim() ? theme.accentContrast : theme.textMuted} />}
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Plans / schematics / work-order attachments */}
