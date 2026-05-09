@@ -438,9 +438,9 @@ export default function OwnerInvoices() {
 
 
       <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeCreateModal}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <Pressable style={styles.modalBackdrop} onPress={closeCreateModal}>
-            <Pressable onPress={() => {}} style={styles.modalSheet}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalRoot}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeCreateModal} />
+          <View style={styles.modalSheet}>
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={closeCreateModal} disabled={submitting} hitSlop={10} style={styles.modalCloseBtn}>
                   <Ionicons name="close" size={22} color={theme.textMuted} />
@@ -600,43 +600,50 @@ export default function OwnerInvoices() {
                             </TouchableOpacity>
                           </View>
 
-                          <View style={styles.colHeader}>
-                            <Text style={[styles.colHeaderText, { flex: 2.4 }]}>Description</Text>
-                            <Text style={[styles.colHeaderText, { width: 44, textAlign: 'right' }]}>Qty</Text>
-                            <Text style={[styles.colHeaderText, { width: 70, textAlign: 'right' }]}>Price</Text>
-                            <Text style={[styles.colHeaderText, { width: 72, textAlign: 'right' }]}>Total</Text>
-                            <View style={{ width: 22 }} />
-                          </View>
-
                           {worksheet.map((row) => (
-                            <View key={row.id} style={styles.worksheetRow}>
+                            <View key={row.id} style={styles.worksheetCard}>
+                              {/* Description spans the full row so a long
+                                  scope doesn't scroll out of view as you type. */}
                               <TextInput
-                                style={[styles.cellInput, { flex: 2.4 }]}
-                                placeholder="Service or item"
+                                style={styles.descInput}
+                                placeholder="Description"
                                 placeholderTextColor={theme.textMuted}
                                 value={row.name}
                                 onChangeText={(v) => setWorksheet(prev => prev.map(r => r.id === row.id ? { ...r, name: v } : r))}
+                                multiline
+                                textAlignVertical="top"
                               />
-                              <TextInput
-                                style={[styles.cellInput, { width: 44, textAlign: 'right' }]}
-                                keyboardType="decimal-pad"
-                                value={row.qty}
-                                onChangeText={(v) => setWorksheet(prev => prev.map(r => r.id === row.id ? { ...r, qty: v } : r))}
-                              />
-                              <TextInput
-                                style={[styles.cellInput, { width: 70, textAlign: 'right' }]}
-                                keyboardType="decimal-pad"
-                                value={row.price}
-                                onChangeText={(v) => setWorksheet(prev => prev.map(r => r.id === row.id ? { ...r, price: v } : r))}
-                              />
-                              <Text style={[styles.cellTotal, { width: 72 }]}>${rowSubtotal(row).toFixed(2)}</Text>
-                              <TouchableOpacity
-                                onPress={() => setWorksheet(prev => prev.filter(r => r.id !== row.id))}
-                                hitSlop={6}
-                                style={{ width: 22, alignItems: 'center' }}
-                              >
-                                <Ionicons name="close" size={18} color={theme.danger} />
-                              </TouchableOpacity>
+                              <View style={styles.worksheetMeta}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.cellLabel}>Qty</Text>
+                                  <TextInput
+                                    style={[styles.cellInput, styles.numCell]}
+                                    keyboardType="decimal-pad"
+                                    value={row.qty}
+                                    onChangeText={(v) => setWorksheet(prev => prev.map(r => r.id === row.id ? { ...r, qty: v } : r))}
+                                  />
+                                </View>
+                                <View style={{ flex: 1.2 }}>
+                                  <Text style={styles.cellLabel}>Price</Text>
+                                  <TextInput
+                                    style={[styles.cellInput, styles.numCell]}
+                                    keyboardType="decimal-pad"
+                                    value={row.price}
+                                    onChangeText={(v) => setWorksheet(prev => prev.map(r => r.id === row.id ? { ...r, price: v } : r))}
+                                  />
+                                </View>
+                                <View style={{ flex: 1.2 }}>
+                                  <Text style={styles.cellLabel}>Total</Text>
+                                  <Text style={styles.cellTotal}>${rowSubtotal(row).toFixed(2)}</Text>
+                                </View>
+                                <TouchableOpacity
+                                  onPress={() => setWorksheet(prev => prev.filter(r => r.id !== row.id))}
+                                  hitSlop={8}
+                                  style={styles.removeBtn}
+                                >
+                                  <Ionicons name="close" size={18} color={theme.danger} />
+                                </TouchableOpacity>
+                              </View>
                             </View>
                           ))}
 
@@ -832,8 +839,7 @@ export default function OwnerInvoices() {
                 </View>
               )}
             </View>
-            </Pressable>
-          </Pressable>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -998,7 +1004,8 @@ function makeStyles(t: Theme) {
     },
     fabText: { color: t.accentContrast, fontSize: 28, fontWeight: '700', lineHeight: 30 },
 
-    modalBackdrop: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' },
+    modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: t.overlay },
+    modalBackdrop: { flex: 1, backgroundColor: t.overlay, justifyContent: 'flex-end' }, // legacy — used by the actions sheet below
     modalSheet: {
       backgroundColor: t.surfaceElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20,
       maxHeight: '88%', overflow: 'hidden',
@@ -1163,22 +1170,39 @@ function makeStyles(t: Theme) {
       backgroundColor: t.successMuted,
     },
     addLineText: { color: t.success, fontSize: 13, fontWeight: '800' },
-    colHeader: {
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      paddingHorizontal: 4, paddingBottom: 4,
+    worksheetCard: {
+      backgroundColor: t.surface,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+      padding: 12,
+      marginTop: 8,
+      gap: 8,
     },
-    colHeaderText: {
+    descInput: {
+      backgroundColor: t.surfaceInset,
+      borderRadius: 8,
+      paddingHorizontal: 12, paddingVertical: 10,
+      color: t.textPrimary, fontSize: 14, lineHeight: 20,
+      minHeight: 60,
+    },
+    worksheetMeta: {
+      flexDirection: 'row', alignItems: 'flex-end', gap: 8,
+    },
+    cellLabel: {
       color: t.textMuted, fontSize: 10, fontWeight: '900',
-      textTransform: 'uppercase', letterSpacing: 0.4,
+      textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4,
     },
-    worksheetRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      paddingVertical: 4,
+    numCell: { textAlign: 'right' },
+    removeBtn: {
+      width: 32, height: 36,
+      alignItems: 'center', justifyContent: 'center',
+      borderRadius: 6,
     },
     cellInput: {
       backgroundColor: t.surfaceInset,
       borderRadius: 8,
-      paddingHorizontal: 8, paddingVertical: 8,
+      paddingHorizontal: 8, paddingVertical: 9,
       color: t.textPrimary, fontSize: 13,
     },
     cellInputDimmed: { opacity: 0.55 },
@@ -1195,8 +1219,9 @@ function makeStyles(t: Theme) {
     },
     discountModeText: { color: t.textSecondary, fontSize: 13, fontWeight: '700' },
     cellTotal: {
-      color: t.textPrimary, fontSize: 13, fontWeight: '800',
+      color: t.textPrimary, fontSize: 14, fontWeight: '800',
       textAlign: 'right', fontVariant: ['tabular-nums'],
+      paddingVertical: 10,
     },
     worksheetEmpty: {
       color: t.textMuted, fontSize: 13, fontStyle: 'italic',
