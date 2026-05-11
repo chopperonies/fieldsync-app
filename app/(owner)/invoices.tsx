@@ -234,9 +234,10 @@ export default function OwnerInvoices() {
     }
   }, [inlineJobName, inlineJobAddress, inlineJobClient, inlineJobPhone]);
 
-  // Persist edits (recipient + internal notes/scope) back onto the job
-  // without firing an invoice email. Lets the owner use this editor as a
-  // working scratchpad while a job is in flight.
+  // Persist edits (recipient + internal notes/scope + worksheet totals) back
+  // onto the job without firing an invoice email. Lets the owner use this
+  // editor as a working scratchpad — including adding/removing line items on
+  // an already-issued invoice — without spamming the customer.
   const saveAndClose = useCallback(async () => {
     if (!selectedJob) {
       setModalOpen(false);
@@ -278,7 +279,24 @@ export default function OwnerInvoices() {
         console.warn('[invoice save] client update skipped:', clientErr?.message);
       }
 
-      if (composedDescription !== (selectedJob.description ?? null)) {
+      if (totalDue > 0) {
+        // Push amount + breakdown + description via the invoice endpoint with
+        // send_email:false. This is the path that actually persists worksheet
+        // edits (line items, discount, tax) back to the invoice — a plain
+        // description PATCH would lose the new total on the next reopen.
+        await mobilePost(`/api/mobile/owner/jobs/${selectedJob.id}/invoice`, {
+          amount: totalDue,
+          description: composedDescription,
+          recipient_email: trimmedEmail || null,
+          subtotal,
+          tax_amount: taxAmount,
+          discount_amount: discountAmount,
+          discount_label: discountAmount > 0 && discountMode === 'pct' && discountValue
+            ? `${parseFloat(discountValue) || 0}%`
+            : null,
+          send_email: false,
+        });
+      } else if (composedDescription !== (selectedJob.description ?? null)) {
         await mobilePatch(`/api/mobile/owner/jobs/${selectedJob.id}`, { description: composedDescription });
       }
       setModalOpen(false);
@@ -289,7 +307,7 @@ export default function OwnerInvoices() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedJob, worksheet, subject, internalNotes, recipientName, recipientEmail, loadData]);
+  }, [selectedJob, worksheet, subject, internalNotes, recipientName, recipientEmail, totalDue, subtotal, taxAmount, discountAmount, discountMode, discountValue, loadData]);
 
   const submitInvoice = useCallback(async () => {
     if (!selectedJob) return Alert.alert('Pick a job first');
@@ -1070,6 +1088,22 @@ export default function OwnerInvoices() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="checkmark-outline" size={18} color={theme.accent} />
                 <Text style={styles.submitGhostText}>Mark paid (no email)</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.submitGhost}
+              onPress={() => {
+                if (!actionJob) return;
+                const id = actionJob.id;
+                setActionJob(null);
+                openCreateModal(id);
+              }}
+              disabled={markingPaid}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="create-outline" size={18} color={theme.accent} />
+                <Text style={styles.submitGhostText}>Edit invoice</Text>
               </View>
             </TouchableOpacity>
 

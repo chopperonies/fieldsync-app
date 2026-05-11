@@ -600,22 +600,20 @@ export default function OwnerJobDetail() {
     const stamp = statusEnteredAt[target];
     const tsLine = stamp
       ? `Entered ${new Date(stamp.at).toLocaleString()}${stamp.actor ? ` · ${stamp.actor}` : ''}.`
-      : null;
+      : 'No entry timestamp recorded for this step.';
     // Tap on the current step → just show the timestamp.
     if (targetIdx !== -1 && currentIndex !== -1 && targetIdx === currentIndex) {
-      if (tsLine) {
-        Alert.alert(label, tsLine);
-      }
+      Alert.alert(label, tsLine);
       return;
     }
     // Revert confirm: only when moving backward on the linear path.
     if (targetIdx !== -1 && currentIndex !== -1 && targetIdx < currentIndex) {
       Alert.alert(
-        `Revert to ${label}?`,
+        `${label} — revert?`,
         [
           tsLine,
-          'This moves the job backward. Crew phones and the dashboard update instantly.',
-        ].filter(Boolean).join('\n\n'),
+          'Reverting moves the job backward. Crew phones and the dashboard update instantly.',
+        ].join('\n\n'),
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Revert', style: 'destructive', onPress: () => advance(target) },
