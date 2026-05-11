@@ -387,7 +387,10 @@ export default function OwnerOverview() {
                   leading={<RowAvatar icon={iconName} tint={iconColor} />}
                   title={label}
                   subtitle={`${a.job_name || 'Job'} · ${a.employee_name || 'Crew'} · ${timeAgo(a.created_at)} ago`}
-                  onPress={() => router.push({ pathname: '/(owner)/job/[id]', params: { id: a.job_id } } as any)}
+                  onPress={() => router.push({
+                    pathname: '/(owner)/job/[id]',
+                    params: a.type === 'photo' ? { id: a.job_id, tab: 'photos' } : { id: a.job_id },
+                  } as any)}
                 />
               </View>
             );

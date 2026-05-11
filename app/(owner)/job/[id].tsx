@@ -62,7 +62,7 @@ const PIPELINE_KEYS = ['quoted', 'scheduled', 'in_progress', 'complete', 'invoic
 type Tab = 'overview' | 'crew' | 'notes' | 'photos';
 
 export default function OwnerJobDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = makeStyles(theme);
@@ -72,7 +72,10 @@ export default function OwnerJobDetail() {
   const isApprover = role === 'owner' || role === 'manager' || role === 'supervisor';
   const isCrew = role === 'crew';
 
-  const [tab, setTab] = useState<Tab>('overview');
+  const initialTab: Tab = (['overview', 'crew', 'notes', 'photos'] as const).includes(tabParam as Tab)
+    ? (tabParam as Tab)
+    : 'overview';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [job, setJob] = useState<Job | null>(null);
   // First-entry timestamp per status (lifecycle popup uses this).
   const [statusEnteredAt, setStatusEnteredAt] = useState<Record<string, { at: string; actor?: string | null }>>({});
