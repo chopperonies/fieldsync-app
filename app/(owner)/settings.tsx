@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { mobileGet, mobilePatch, mobilePost } from '../../lib/mobileApi';
 import { useTheme } from '../../lib/themeContext';
+import { Theme } from '../../lib/theme';
 import { useRole, canSeeFinancials, canEditSettings } from '../../lib/useRole';
 import { clearUser } from '../../lib/storage';
 import { router } from 'expo-router';
@@ -15,6 +16,7 @@ import { ScreenHeader } from '../../components/Flat';
 
 export default function OwnerSettings() {
   const theme = useTheme();
+  const styles = makeStyles(theme);
   const role = useRole();
   const canEditCompany = canEditSettings(role);
   const showFinancialSections = canSeeFinancials(role);
@@ -138,23 +140,23 @@ export default function OwnerSettings() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#0ea5e9" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={theme.accent} /></View>;
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
     <ScreenHeader title="Settings" subtitle="Profile, company, plan, security" />
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.bg }]}
+      style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#0ea5e9" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
     >
-      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>My Profile</Text>
+      <Text style={styles.sectionLabel}>My Profile</Text>
       <MyProfile />
 
       <View style={styles.divider} />
 
-      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Company Info</Text>
+      <Text style={styles.sectionLabel}>Company Info</Text>
       <Text style={styles.hint}>
         {canEditCompany
           ? 'This appears on invoices sent to your clients.'
@@ -206,7 +208,7 @@ export default function OwnerSettings() {
         <>
       <View style={styles.divider} />
 
-      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Subscription</Text>
+      <Text style={styles.sectionLabel}>Subscription</Text>
       <View style={[styles.row, { marginBottom: 12 }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.rowLabel}>
@@ -232,7 +234,7 @@ export default function OwnerSettings() {
 
       <View style={styles.divider} />
 
-      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Payments</Text>
+      <Text style={styles.sectionLabel}>Payments</Text>
       <Text style={styles.hint}>Connect Stripe to let clients pay invoices by card through their portal.</Text>
       {stripeConnected === null ? (
         <ActivityIndicator color="#0ea5e9" style={{ marginTop: 8 }} />
@@ -260,17 +262,17 @@ export default function OwnerSettings() {
 
       <View style={styles.divider} />
 
-      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Appearance</Text>
+      <Text style={styles.sectionLabel}>Appearance</Text>
       <AppearanceSettings />
 
       <View style={styles.divider} />
 
-      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Security</Text>
+      <Text style={styles.sectionLabel}>Security</Text>
       <LockSettings />
 
       <View style={styles.divider} />
 
-      <Text style={[styles.sectionLabel, { color: theme.textPrimary }]}>Support</Text>
+      <Text style={styles.sectionLabel}>Support</Text>
       <TouchableOpacity
         style={styles.supportBtn}
         onPress={() => Linking.openURL('mailto:support@linkcrew.io')}
@@ -325,39 +327,41 @@ export default function OwnerSettings() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  content: { padding: 20, gap: 4 },
-  sectionLabel: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 4, marginTop: 8 },
-  hint: { color: '#555', fontSize: 13, marginBottom: 16, lineHeight: 18 },
-  fieldLabel: { color: '#888', fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 12 },
-  input: {
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a',
-    borderRadius: 10, padding: 14, color: '#fff', fontSize: 15,
-  },
-  saveBtn: {
-    backgroundColor: '#0ea5e9', borderRadius: 12,
-    padding: 16, alignItems: 'center', marginTop: 24,
-  },
-  saveBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
-  divider: { height: 1, backgroundColor: '#2a2a2a', marginVertical: 24 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  rowLabel: { color: '#fff', fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  supportBtn: {
-    borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 12,
-    padding: 16, alignItems: 'center', marginTop: 8,
-  },
-  supportBtnText: { color: '#0ea5e9', fontWeight: '700', fontSize: 15 },
-  statusDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4ade80', marginRight: 10 },
-  outlineBtn: {
-    borderWidth: 1, borderColor: '#ef4444', borderRadius: 12,
-    padding: 14, alignItems: 'center', marginTop: 4,
-  },
-  outlineBtnTextDanger: { color: '#ef4444', fontWeight: '700', fontSize: 15 },
-  outlineBtnBlue: {
-    borderWidth: 1, borderColor: '#0ea5e9', borderRadius: 12,
-    padding: 14, alignItems: 'center', marginTop: 4,
-  },
-  outlineBtnTextBlue: { color: '#0ea5e9', fontWeight: '700', fontSize: 15 },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg },
+    content: { padding: 20, gap: 4 },
+    sectionLabel: { color: t.textPrimary, fontSize: 17, fontWeight: '700', marginBottom: 4, marginTop: 8 },
+    hint: { color: t.textMuted, fontSize: 13, marginBottom: 16, lineHeight: 18 },
+    fieldLabel: { color: t.textSecondary, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 12 },
+    input: {
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, padding: 14, color: t.textPrimary, fontSize: 15,
+    },
+    saveBtn: {
+      backgroundColor: t.accent, borderRadius: 12,
+      padding: 16, alignItems: 'center', marginTop: 24,
+    },
+    saveBtnText: { color: t.accentContrast, fontWeight: '700', fontSize: 16 },
+    divider: { height: 1, backgroundColor: t.border, marginVertical: 24 },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+    rowLabel: { color: t.textPrimary, fontSize: 15, fontWeight: '600', marginBottom: 2 },
+    supportBtn: {
+      borderWidth: 1, borderColor: t.accent, borderRadius: 12,
+      padding: 16, alignItems: 'center', marginTop: 8,
+    },
+    supportBtnText: { color: t.accent, fontWeight: '700', fontSize: 15 },
+    statusDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: t.success, marginRight: 10 },
+    outlineBtn: {
+      borderWidth: 1, borderColor: t.danger, borderRadius: 12,
+      padding: 14, alignItems: 'center', marginTop: 4,
+    },
+    outlineBtnTextDanger: { color: t.danger, fontWeight: '700', fontSize: 15 },
+    outlineBtnBlue: {
+      borderWidth: 1, borderColor: t.accent, borderRadius: 12,
+      padding: 14, alignItems: 'center', marginTop: 4,
+    },
+    outlineBtnTextBlue: { color: t.accent, fontWeight: '700', fontSize: 15 },
+  });
+}
