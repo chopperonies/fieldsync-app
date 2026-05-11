@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert, Linking,
 } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { mobileGet, mobilePost } from '../../../lib/mobileApi';
 import { getUser } from '../../../lib/storage';
@@ -76,6 +77,7 @@ export default function MessageThread() {
   const { id: threadId } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const styles = makeStyles(theme);
+  const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,8 +179,8 @@ export default function MessageThread() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: theme.bg }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : insets.top}
     >
       <ScreenHeader
         title={title}
@@ -312,7 +314,7 @@ export default function MessageThread() {
         />
       )}
 
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, { paddingBottom: 10 + insets.bottom }]}>
         <TextInput
           style={styles.input}
           value={draft}
