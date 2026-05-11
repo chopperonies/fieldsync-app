@@ -24,13 +24,16 @@ export default function OwnerPhotos() {
   const [photos, setPhotos] = useState<PhotoUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
       const data = await mobileGet<PhotoUpdate[]>('/api/mobile/owner/photos');
       setPhotos(data || []);
-    } catch {
+      setErr(null);
+    } catch (e: any) {
       setPhotos([]);
+      setErr(e?.message || 'Failed to load photos');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -55,9 +58,9 @@ export default function OwnerPhotos() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={theme.accent} />}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="camera-outline" size={36} color={theme.textMuted} />
-            <Text style={styles.emptyTitle}>No photos yet</Text>
-            <Text style={styles.emptySub}>Crew photos from job sites land here.</Text>
+            <Ionicons name={err ? 'warning-outline' : 'camera-outline'} size={36} color={theme.textMuted} />
+            <Text style={styles.emptyTitle}>{err ? 'Could not load photos' : 'No photos yet'}</Text>
+            <Text style={styles.emptySub}>{err || 'Crew photos from job sites land here.'}</Text>
           </View>
         }
         renderItem={({ item }) => (
