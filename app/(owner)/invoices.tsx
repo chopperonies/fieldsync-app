@@ -294,6 +294,10 @@ export default function OwnerInvoices() {
         console.warn('[invoice save] client update skipped:', clientErr?.message);
       }
 
+      const sanitizedRows = worksheet
+        .filter(r => r.name.trim() || rowSubtotal(r) > 0)
+        .map(r => ({ name: r.name.trim(), qty: parseFloat(r.qty) || 0, price: parseFloat(r.price) || 0 }));
+      let savedSummary = '';
       if (totalDue > 0) {
         // Push amount + breakdown + description via the invoice endpoint with
         // send_email:false. This is the path that actually persists worksheet
@@ -309,17 +313,20 @@ export default function OwnerInvoices() {
           discount_label: discountAmount > 0 && discountMode === 'pct' && discountValue
             ? `${parseFloat(discountValue) || 0}%`
             : null,
-          line_items: worksheet
-            .filter(r => r.name.trim() || rowSubtotal(r) > 0)
-            .map(r => ({ name: r.name.trim(), qty: parseFloat(r.qty) || 0, price: parseFloat(r.price) || 0 })),
+          line_items: sanitizedRows,
           send_email: false,
         });
+        savedSummary = `${sanitizedRows.length} line item${sanitizedRows.length === 1 ? '' : 's'} · $${totalDue.toFixed(2)}`;
       } else if (composedDescription !== (selectedJob.description ?? null)) {
         await mobilePatch(`/api/mobile/owner/jobs/${selectedJob.id}`, { description: composedDescription });
+        savedSummary = 'notes only';
+      } else {
+        savedSummary = 'no changes';
       }
       setModalOpen(false);
       setInvoiceStep('edit');
       await loadData();
+      Alert.alert('Saved', savedSummary);
     } catch (e: any) {
       Alert.alert('Could not save', e?.message || 'Try again.');
     } finally {
