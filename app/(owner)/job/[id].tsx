@@ -438,6 +438,23 @@ export default function OwnerJobDetail() {
     }
   }
 
+  function openWorkOrderSheet() {
+    if (!job) return;
+    const email = client?.email || null;
+    const buttons: any[] = [];
+    if (email) {
+      buttons.push({ text: `Email to ${email}`, onPress: emailWorkOrder });
+    } else {
+      buttons.push({
+        text: 'Add client email to enable',
+        onPress: openClientEditor,
+      });
+    }
+    buttons.push({ text: 'Share link…', onPress: shareWorkOrder });
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Send work order', undefined, buttons);
+  }
+
   function openDirections() {
     if (!job?.address) return Alert.alert('No address', 'This job has no address on file.');
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`);
@@ -820,16 +837,10 @@ export default function OwnerJobDetail() {
               <Ionicons name="chatbubbles-outline" size={15} color={theme.accent} />
               <Text style={styles.visitActionText}>Open thread</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.visitActionChip} onPress={shareWorkOrder}>
-              <Ionicons name="share-outline" size={15} color={theme.accent} />
-              <Text style={styles.visitActionText}>Share work order</Text>
+            <TouchableOpacity style={styles.visitActionChip} onPress={openWorkOrderSheet}>
+              <Ionicons name="document-text-outline" size={15} color={theme.accent} />
+              <Text style={styles.visitActionText}>Work order</Text>
             </TouchableOpacity>
-            {clientEmail ? (
-              <TouchableOpacity style={styles.visitActionChip} onPress={emailWorkOrder}>
-                <Ionicons name="mail-outline" size={15} color={theme.accent} />
-                <Text style={styles.visitActionText}>Email work order</Text>
-              </TouchableOpacity>
-            ) : null}
             {statusKey === 'scheduled' ? (
               <TouchableOpacity style={styles.visitActionChip} onPress={() => handlePipePress('in_progress')}>
                 <Ionicons name="play-circle-outline" size={15} color={theme.stageGreen} />
