@@ -1023,7 +1023,7 @@ export default function OwnerInvoices() {
               )}
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { paddingBottom: 24 + insets.bottom }]}>
               {invoiceStep === 'edit' ? (
                 <>
                   <TouchableOpacity
