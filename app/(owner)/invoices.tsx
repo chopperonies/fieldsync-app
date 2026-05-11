@@ -44,6 +44,7 @@ type JobLite = {
   description?: string | null;
   address?: string | null;
   clients?: { name: string; email?: string | null } | null;
+  invoice_line_items?: Array<{ name: string; qty: number | string; price: number | string }> | null;
 };
 
 type Bucket = 'all' | 'unpaid' | 'paid';
@@ -131,23 +132,37 @@ export default function OwnerInvoices() {
     }
   }, []);
 
-  // Seed the worksheet from a job. Prefer the existing invoice_amount over
-  // estimate_amount so re-opening an already-invoiced job lands the editor
-  // on the same total the client got, not on the original quote.
+  // Seed the worksheet from a job. Prefer stored invoice_line_items (the
+  // structured worksheet from the last save) so reopening an already-invoiced
+  // job restores every line item the owner entered. Falls back to a single
+  // row built from invoice_amount, then estimate_amount.
   const applySelectedJob = useCallback((job: JobLite) => {
     setSelectedJob(job);
     setJobPickerOpen(false);
     const clientName = job.clients?.name || '';
     setSubject(clientName ? `For Services Rendered — ${clientName}` : (job.name || 'For Services Rendered'));
-    const inv = Number(job.invoice_amount) || 0;
-    const est = Number(job.estimate_amount) || 0;
-    const seed = inv > 0 ? inv : est;
-    setWorksheet([{
-      id: newRowId(),
-      name: job.name || 'Service',
-      qty: '1',
-      price: seed > 0 ? seed.toFixed(2) : '0',
-    }]);
+    const storedRows = Array.isArray(job.invoice_line_items) ? job.invoice_line_items : [];
+    if (storedRows.length > 0) {
+      setWorksheet(storedRows.map(r => ({
+        id: newRowId(),
+        name: String(r?.name || ''),
+        qty: String(r?.qty ?? '1'),
+        price: (() => {
+          const n = parseFloat(String(r?.price ?? '0'));
+          return Number.isFinite(n) ? n.toFixed(2) : '0';
+        })(),
+      })));
+    } else {
+      const inv = Number(job.invoice_amount) || 0;
+      const est = Number(job.estimate_amount) || 0;
+      const seed = inv > 0 ? inv : est;
+      setWorksheet([{
+        id: newRowId(),
+        name: job.name || 'Service',
+        qty: '1',
+        price: seed > 0 ? seed.toFixed(2) : '0',
+      }]);
+    }
     setTaxPct('0');
     setDiscountMode('pct');
     setDiscountValue('');
@@ -294,6 +309,9 @@ export default function OwnerInvoices() {
           discount_label: discountAmount > 0 && discountMode === 'pct' && discountValue
             ? `${parseFloat(discountValue) || 0}%`
             : null,
+          line_items: worksheet
+            .filter(r => r.name.trim() || rowSubtotal(r) > 0)
+            .map(r => ({ name: r.name.trim(), qty: parseFloat(r.qty) || 0, price: parseFloat(r.price) || 0 })),
           send_email: false,
         });
       } else if (composedDescription !== (selectedJob.description ?? null)) {
@@ -377,6 +395,9 @@ export default function OwnerInvoices() {
         discount_label: discountAmount > 0 && discountMode === 'pct' && discountValue
           ? `${parseFloat(discountValue) || 0}%`
           : null,
+        line_items: worksheet
+          .filter(r => r.name.trim() || rowSubtotal(r) > 0)
+          .map(r => ({ name: r.name.trim(), qty: parseFloat(r.qty) || 0, price: parseFloat(r.price) || 0 })),
       });
       setModalOpen(false);
       setInvoiceStep('edit');
