@@ -185,6 +185,7 @@ export default function OwnerJobs() {
   const [pendingCreateTime, setPendingCreateTime] = useState<string | null>(null);
   const [pendingCreateCrewId, setPendingCreateCrewId] = useState<string | null>(null);
   const [newWorkflowId, setNewWorkflowId] = useState<string | null>(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<string>('scheduled');
   const [newTypeLabel, setNewTypeLabel] = useState<string>('New job');
   const [saving, setSaving] = useState(false);
@@ -623,7 +624,7 @@ export default function OwnerJobs() {
             }
           }}
         >
-          <Pressable onPress={() => {}} style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '85%' }]}>
+          <Pressable onPress={() => {}} style={[styles.modal, { paddingBottom: Math.max(36, insets.bottom + 24), maxHeight: '85%' }]}>
             <View style={styles.typeHeader}>
               <Text style={styles.modalTitle}>What are you adding?</Text>
               <TouchableOpacity
@@ -800,7 +801,7 @@ export default function OwnerJobs() {
               closeAddModal();
             }}
           >
-            <Pressable onPress={() => {}} style={[styles.modal, { paddingBottom: 24 + insets.bottom, maxHeight: '90%' }]}>
+            <Pressable onPress={() => {}} style={[styles.modal, { paddingBottom: Math.max(36, insets.bottom + 24), maxHeight: '90%' }]}>
             <View style={styles.typeHeader}>
               <Text style={styles.modalTitle}>{newTypeLabel}</Text>
               <TouchableOpacity onPress={closeAddModal} hitSlop={8}>
@@ -812,6 +813,26 @@ export default function OwnerJobs() {
               contentContainerStyle={{ paddingBottom: 12 }}
               showsVerticalScrollIndicator={false}
             >
+              {workflows.length > 0 ? (
+                <TouchableOpacity
+                  style={styles.templatePickerRow}
+                  onPress={() => setTemplatePickerOpen(true)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.templateIcon, { backgroundColor: theme.accentMuted }]}>
+                    <Ionicons name="git-branch-outline" size={16} color={theme.accent} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.templatePickerLabel}>Service PRO template</Text>
+                    <Text style={styles.templatePickerValue} numberOfLines={1}>
+                      {newWorkflowId
+                        ? (workflows.find(w => w.id === newWorkflowId)?.name || 'Template')
+                        : 'None — blank job'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={16} color={theme.textMuted} />
+                </TouchableOpacity>
+              ) : null}
               <TextInput style={styles.modalInput} placeholder={newStatus === 'quoted' ? 'Estimate title' : 'Job title'} placeholderTextColor={theme.textMuted} value={newName} onChangeText={setNewName} />
               <View style={styles.formSection}>
                 <Text style={styles.formSectionTitle}>Client</Text>
@@ -975,6 +996,71 @@ export default function OwnerJobs() {
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={templatePickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTemplatePickerOpen(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setTemplatePickerOpen(false)}>
+          <Pressable onPress={() => {}} style={[styles.modal, { paddingBottom: Math.max(36, insets.bottom + 24), maxHeight: '75%' }]}>
+            <View style={styles.typeHeader}>
+              <Text style={styles.modalTitle}>Service PRO template</Text>
+              <TouchableOpacity onPress={() => setTemplatePickerOpen(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.templateRow, { borderColor: theme.border }]}
+                onPress={() => {
+                  setNewWorkflowId(null);
+                  setTemplatePickerOpen(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.templateIcon, { backgroundColor: theme.surfaceInset }]}>
+                  <Ionicons name="remove-circle-outline" size={18} color={theme.textMuted} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.templateName}>None — blank job</Text>
+                </View>
+                {newWorkflowId === null ? <Ionicons name="checkmark" size={18} color={theme.accent} /> : null}
+              </TouchableOpacity>
+              {workflows.map(wf => (
+                <TouchableOpacity
+                  key={wf.id}
+                  style={[styles.templateRow, { borderColor: theme.border }]}
+                  onPress={() => {
+                    setNewWorkflowId(wf.id);
+                    // Pre-fill name + description prefix only when the user
+                    // hasn't already typed something specific — preserves
+                    // anything they entered before opening the picker.
+                    if (!newName.trim() || /^new (job|install|repair|estimate)$/i.test(newName.trim())) {
+                      setNewName(wf.name);
+                    }
+                    if (!newDesc.trim()) {
+                      setNewDesc(`${wf.name} — `);
+                    }
+                    setTemplatePickerOpen(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.templateIcon, { backgroundColor: theme.accentMuted }]}>
+                    <Ionicons name="git-branch-outline" size={18} color={theme.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.templateName}>{wf.name}</Text>
+                    {wf.description ? <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text> : null}
+                  </View>
+                  {newWorkflowId === wf.id ? <Ionicons name="checkmark" size={18} color={theme.accent} /> : null}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <CalendarPicker
@@ -2089,6 +2175,14 @@ function makeStyles(t: Theme) {
     typeHint: { color: t.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 14, marginTop: -8 },
     typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },
     templatesLabel: { color: t.textMuted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
+    templatePickerRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: t.surfaceInset,
+      borderRadius: 10, padding: 10, marginBottom: 10,
+      borderWidth: 1, borderColor: t.border,
+    },
+    templatePickerLabel: { color: t.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    templatePickerValue: { color: t.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 2 },
     templateRow: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       paddingVertical: 12, paddingHorizontal: 12,
