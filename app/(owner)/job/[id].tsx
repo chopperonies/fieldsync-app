@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Alert, Linking, Modal, TextInput, Share,
   KeyboardAvoidingView, Platform, Image, RefreshControl, Keyboard, Switch,
 } from 'react-native';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { Stack, useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -105,6 +105,8 @@ export default function OwnerJobDetail() {
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [cameraBusy, setCameraBusy] = useState(false);
+  const [chipsHaveOverflow, setChipsHaveOverflow] = useState(false);
+  const [chipsAtEnd, setChipsAtEnd] = useState(false);
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [clientNameDraft, setClientNameDraft] = useState('');
   const [clientPhoneDraft, setClientPhoneDraft] = useState('');
@@ -152,6 +154,13 @@ export default function OwnerJobDetail() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Resetting the sub-tab to Overview on blur means navigating away (modal,
+  // thread, photo viewer) and returning lands you on the summary instead of
+  // the last specialized tab — matches the iOS Mail/Maps convention.
+  useFocusEffect(useCallback(() => {
+    return () => { setTab('overview'); };
+  }, []));
 
   async function advance(statusKey: string) {
     if (!job) return;
@@ -809,7 +818,24 @@ export default function OwnerJobDetail() {
           ) : null}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.visitActionsScroll}>
+        <View style={styles.visitActionsWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.visitActionsScroll}
+          scrollEventThrottle={16}
+          onContentSizeChange={(cw, _ch) => {
+            // No way to read the ScrollView's width directly here; rely on the
+            // first onScroll layout snapshot. As a fallback, mark overflow true
+            // by default if there are enough chips to plausibly overflow.
+          }}
+          onScroll={(e) => {
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            const hasOverflow = contentSize.width > layoutMeasurement.width + 1;
+            setChipsHaveOverflow(hasOverflow);
+            setChipsAtEnd(hasOverflow ? contentOffset.x + layoutMeasurement.width >= contentSize.width - 6 : true);
+          }}
+        >
           <View style={styles.visitActions}>
             <TouchableOpacity
               style={[styles.visitActionChip, !job.address && styles.visitActionDisabled]}
@@ -855,6 +881,16 @@ export default function OwnerJobDetail() {
             ) : null}
           </View>
         </ScrollView>
+        {chipsHaveOverflow && !chipsAtEnd ? (
+          <View pointerEvents="none" style={styles.visitActionsFade}>
+            <View style={[styles.visitActionsFadeSlice, { backgroundColor: theme.surface, opacity: 0.15 }]} />
+            <View style={[styles.visitActionsFadeSlice, { backgroundColor: theme.surface, opacity: 0.4 }]} />
+            <View style={[styles.visitActionsFadeSlice, { backgroundColor: theme.surface, opacity: 0.7 }]} />
+            <View style={[styles.visitActionsFadeSlice, { backgroundColor: theme.surface, opacity: 1 }]} />
+            <Ionicons name="chevron-forward" size={14} color={theme.textMuted} style={styles.visitActionsFadeChevron} />
+          </View>
+        ) : null}
+        </View>
 
         {/* Tabs — segmented control */}
         <View style={styles.tabSegment}>
@@ -1655,7 +1691,18 @@ function makeStyles(t: Theme) {
     },
     clientEditChipText: { color: t.accent, fontSize: 11, fontWeight: '900' },
     clientContactLine: { color: t.textMuted, fontSize: 12, marginTop: 3 },
-    visitActionsScroll: { marginTop: 14 },
+    visitActionsWrap: { position: 'relative', marginTop: 14 },
+    visitActionsScroll: {},
+    visitActionsFade: {
+      position: 'absolute',
+      right: 0,
+      top: 0,
+      bottom: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    visitActionsFadeSlice: { width: 7, alignSelf: 'stretch' },
+    visitActionsFadeChevron: { paddingHorizontal: 4 },
     visitActions: { flexDirection: 'row', gap: 6 },
     visitActionChip: {
       flexDirection: 'row',
