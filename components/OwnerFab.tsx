@@ -15,16 +15,20 @@ const FAB_SIZE = 60;
 
 type Action = { label: string; icon: any; color: string; path?: string; quick?: 'invoice'; key: string };
 
-// Full action catalog. Filtered per-role at render time — crew sees
-// only the actions they're allowed to take.
+// Full action catalog. Each entry is a one-tap path — no cascading sub-
+// sheets. Job/Install/Repair used to live behind a TypePicker; they're now
+// surfaced as direct tiles here so the only place to "add anything" is
+// this FAB.
 const ALL_ACTIONS: Action[] = [
-  { key: 'request', label: 'Request', icon: 'file-tray-full', color: '#b7791f', path: '/(owner)/requests?open=new' },
-  { key: 'job',     label: 'Job',     icon: 'hammer',         color: '#2f7d20', path: '/(owner)/jobs?open=new' },
-  { key: 'client',  label: 'Client',  icon: 'person-add',     color: '#0f766e', path: '/(owner)/clients?open=new' },
-  { key: 'estimate', label: 'Estimate', icon: 'document-text', color: '#0e7490', path: '/(owner)/jobs?open=new_estimate' },
-  { key: 'invoice', label: 'Invoice', icon: 'document-text',  color: '#1d4ed8', quick: 'invoice' },
-  { key: 'expense', label: 'Expense', icon: 'receipt',        color: '#7c3aed', path: '/(owner)/expense-new' },
-  { key: 'message', label: 'Message', icon: 'chatbubble',     color: '#0e7490', path: '/(owner)/message-new' },
+  { key: 'estimate', label: 'Estimate', icon: 'document-text-outline', color: '#0e7490', path: '/(owner)/jobs?open=new_estimate' },
+  { key: 'job',      label: 'Job',      icon: 'hammer-outline',        color: '#2f7d20', path: '/(owner)/jobs?open=new_job' },
+  { key: 'invoice',  label: 'Invoice',  icon: 'cash-outline',          color: '#1d4ed8', quick: 'invoice' },
+  { key: 'install',  label: 'Install',  icon: 'build-outline',         color: '#0e7490', path: '/(owner)/jobs?open=new_install' },
+  { key: 'repair',   label: 'Repair',   icon: 'construct-outline',     color: '#b7791f', path: '/(owner)/jobs?open=new_repair' },
+  { key: 'expense',  label: 'Expense',  icon: 'receipt-outline',       color: '#7c3aed', path: '/(owner)/expense-new' },
+  { key: 'client',   label: 'Client',   icon: 'person-add-outline',    color: '#0f766e', path: '/(owner)/clients?open=new' },
+  { key: 'request',  label: 'Request',  icon: 'file-tray-full-outline', color: '#b7791f', path: '/(owner)/requests?open=new' },
+  { key: 'message',  label: 'Message',  icon: 'chatbubble-outline',    color: '#0e7490', path: '/(owner)/message-new' },
 ];
 
 export default function OwnerFab() {
@@ -45,7 +49,8 @@ export default function OwnerFab() {
     if (a.key === 'crew') return canManageCrew(role);
     if (a.key === 'invoice' || a.key === 'expense') return canCreateInvoices(role);
     if (a.key === 'estimate') return canCreateInvoices(role);
-    if (a.key === 'client' || a.key === 'job') return canCreateInvoices(role); // manager+
+    if (a.key === 'client') return canCreateInvoices(role);
+    if (a.key === 'job' || a.key === 'install' || a.key === 'repair') return canCreateInvoices(role);
     if (a.key === 'request') return canCreateInvoices(role);
     return true;
   });

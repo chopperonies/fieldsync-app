@@ -235,10 +235,11 @@ export default function OwnerJobs() {
   const [openedViaDeepLink, setOpenedViaDeepLink] = useState(false);
   useEffect(() => {
     if (params.open === 'new_estimate' || params.open === 'new_quote') {
-      setNewScheduledDate(selectedDay);
-      setChoiceOpen('estimate');
+      // FAB / Search deep link → drop the user straight on the real-estimate
+      // form. The "send yourself a test estimate" branch stays reachable
+      // inside the create form's options menu.
       setOpenedViaDeepLink(true);
-      // Clear so re-tapping the pill triggers this again next time.
+      startCreate('New estimate', 'quoted', null, '');
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
     } else if (params.open === 'new_request') {
       // Backwards-compatible old deep link. New request creation lives at
@@ -248,10 +249,19 @@ export default function OwnerJobs() {
       setShowAdd(true);
       setOpenedViaDeepLink(true);
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
-    } else if (params.open === 'new') {
-      // Deep link from OwnerFab's Job action — show the type picker.
-      setShowTypePicker(true);
+    } else if (params.open === 'new' || params.open === 'new_job') {
+      // FAB Job tile → go straight to the blank job form. The Build-for-me
+      // variant is still reachable via the contextual TypePicker on Schedule.
       setOpenedViaDeepLink(true);
+      startCreate('New job', 'scheduled', null, '');
+      setTimeout(() => router.setParams({ open: undefined } as any), 100);
+    } else if (params.open === 'new_install') {
+      setOpenedViaDeepLink(true);
+      startCreate('New install', 'scheduled', null, 'Install — ');
+      setTimeout(() => router.setParams({ open: undefined } as any), 100);
+    } else if (params.open === 'new_repair') {
+      setOpenedViaDeepLink(true);
+      startCreate('New repair', 'scheduled', null, 'Repair — ');
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
     }
   }, [params.open]);
