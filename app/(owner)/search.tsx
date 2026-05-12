@@ -31,17 +31,6 @@ type SearchResponse = {
   invoices: JobHit[];
 };
 
-// "Create new" actions live in the empty state and the zero-results state,
-// not in the typed-results state. Mirrors Linear's pattern of surfacing
-// create affordances only when the user has no result to act on.
-const CREATE_ACTIONS = [
-  { label: 'New client',   icon: 'person-add-outline',    onPress: () => router.push('/(owner)/clients?open=new' as any) },
-  { label: 'New estimate', icon: 'document-text-outline', onPress: () => router.push('/(owner)/jobs?open=new_estimate' as any) },
-  { label: 'New job',      icon: 'hammer-outline',        onPress: () => router.push('/(owner)/jobs?open=new' as any) },
-  { label: 'New invoice',  icon: 'cash-outline',          onPress: () => router.push('/(owner)/invoices?open=quick_invoice' as any) },
-  { label: 'Log expense',  icon: 'receipt-outline',       onPress: () => router.push({ pathname: '/(owner)/expense-new', params: { ts: String(Date.now()) } } as any) },
-] as const;
-
 const GROUP_LIMIT = 5;
 
 export default function OwnerSearch() {
@@ -52,6 +41,7 @@ export default function OwnerSearch() {
 
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [data, setData] = useState<SearchResponse>({ clients: [], estimates: [], jobs: [], invoices: [] });
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
 
@@ -59,6 +49,7 @@ export default function OwnerSearch() {
 
   const fetchUniversal = useCallback(async (query: string) => {
     setLoading(true);
+    setErr(null);
     try {
       const res = await mobileGet<SearchResponse>(
         `/api/mobile/owner/search?q=${encodeURIComponent(query)}&type=all`,
@@ -69,8 +60,9 @@ export default function OwnerSearch() {
         jobs: res?.jobs || [],
         invoices: res?.invoices || [],
       });
-    } catch {
+    } catch (e: any) {
       setData({ clients: [], estimates: [], jobs: [], invoices: [] });
+      setErr(e?.message || 'Search failed');
     } finally {
       setLoading(false);
     }
@@ -154,6 +146,12 @@ export default function OwnerSearch() {
         keyboardDismissMode="on-drag"
         contentContainerStyle={{ paddingTop: 8, paddingBottom: 140 }}
       >
+        {err ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="warning-outline" size={16} color={theme.danger} />
+            <Text style={styles.errorText} numberOfLines={2}>{err}</Text>
+          </View>
+        ) : null}
         {showEmptyState ? (
           <>
             <SectionTitle theme={theme} label="Recent" />
@@ -163,7 +161,7 @@ export default function OwnerSearch() {
                   <ActivityIndicator color={theme.accent} />
                 </View>
               ) : (
-                <Text style={styles.emptyHint}>Anything you touch will show up here.</Text>
+                <Text style={styles.emptyHint}>Anything you touch will show up here. Use the + button to add a client, estimate, job, or invoice.</Text>
               )
             ) : (
               recent.map((j, i) => (
@@ -173,41 +171,16 @@ export default function OwnerSearch() {
                 </View>
               ))
             )}
-
-            <SectionTitle theme={theme} label="Create new" />
-            {CREATE_ACTIONS.map((a, i) => (
-              <View key={a.label}>
-                {i > 0 ? <Divider inset={64} /> : null}
-                <Row
-                  leading={<RowAvatar icon={a.icon as any} tint={theme.accent} />}
-                  title={a.label}
-                  onPress={a.onPress}
-                />
-              </View>
-            ))}
           </>
         ) : loading && totalHits === 0 ? (
           <View style={{ paddingVertical: 36, alignItems: 'center' }}>
             <ActivityIndicator color={theme.accent} />
           </View>
         ) : totalHits === 0 ? (
-          <>
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyTitle}>No results for "{q}"</Text>
-              <Text style={styles.emptySub}>Try a different keyword, or create one below.</Text>
-            </View>
-            <SectionTitle theme={theme} label="Create new" />
-            {CREATE_ACTIONS.map((a, i) => (
-              <View key={a.label}>
-                {i > 0 ? <Divider inset={64} /> : null}
-                <Row
-                  leading={<RowAvatar icon={a.icon as any} tint={theme.accent} />}
-                  title={a.label}
-                  onPress={a.onPress}
-                />
-              </View>
-            ))}
-          </>
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyTitle}>No results for "{q}"</Text>
+            <Text style={styles.emptySub}>Try a different keyword, or use the + button to add it.</Text>
+          </View>
         ) : (
           <>
             <Group theme={theme} label="Clients" count={data.clients.length} seeAll={() => router.push('/(owner)/clients' as any)}>
@@ -420,6 +393,13 @@ function makeStyles(t: Theme) {
     },
     input: { flex: 1, color: t.textPrimary, fontSize: 15, paddingVertical: 0 },
     emptyHint: { color: t.textMuted, fontSize: 13, paddingHorizontal: 16, paddingVertical: 8 },
+    errorBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      marginHorizontal: 16, marginTop: 8,
+      backgroundColor: t.dangerMuted,
+      borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8,
+    },
+    errorText: { color: t.danger, fontSize: 12, fontWeight: '700', flexShrink: 1 },
     emptyWrap: { paddingTop: 36, paddingHorizontal: 16, alignItems: 'center' },
     emptyTitle: { color: t.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
     emptySub: { color: t.textMuted, fontSize: 13, textAlign: 'center' },
