@@ -942,11 +942,21 @@ export default function OwnerJobs() {
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.scheduleCompact, { flex: 1 }]} onPress={() => setTimePickerOpen('start')}>
                         <Ionicons name="time-outline" size={16} color={theme.accent} />
-                        <Text style={styles.scheduleCompactValue} numberOfLines={1}>{formatVisitTime(newScheduledTime) || 'Start'}</Text>
+                        <Text
+                          style={[styles.scheduleCompactValue, !newScheduledTime && { color: theme.textMuted, fontWeight: '600' }]}
+                          numberOfLines={1}
+                        >
+                          {newScheduledTime ? formatVisitTime(newScheduledTime) : 'Start'}
+                        </Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.scheduleCompact, { flex: 1 }]} onPress={() => setTimePickerOpen('end')}>
                         <Ionicons name="time-outline" size={16} color={theme.accent} />
-                        <Text style={styles.scheduleCompactValue} numberOfLines={1}>{formatVisitTime(newScheduledEndTime) || 'End'}</Text>
+                        <Text
+                          style={[styles.scheduleCompactValue, !newScheduledEndTime && { color: theme.textMuted, fontWeight: '600' }]}
+                          numberOfLines={1}
+                        >
+                          {newScheduledEndTime ? formatVisitTime(newScheduledEndTime) : 'End'}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                     <View style={styles.repeatBox}>
