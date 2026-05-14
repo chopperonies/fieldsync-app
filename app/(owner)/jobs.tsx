@@ -897,7 +897,7 @@ export default function OwnerJobs() {
                 />
               </View>
               <TextInput
-                style={[styles.modalInput, { height: 96, textAlignVertical: 'top' }]}
+                style={[styles.modalInput, { minHeight: 130, textAlignVertical: 'top', paddingTop: 12 }]}
                 placeholder={"Notes for your crew — scope, access, materials, anything special.\n(Line items / pricing go in the Product / Service section below.)"}
                 placeholderTextColor={theme.textMuted}
                 value={newDesc}
@@ -935,27 +935,18 @@ export default function OwnerJobs() {
                 </View>
                 {!newScheduleLater ? (
                   <>
-                    <TouchableOpacity style={styles.scheduleField} onPress={() => setPickerOpen('new')}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.scheduleLabel}>Date</Text>
-                        <Text style={styles.scheduleValue}>{prettyDate(newScheduledDate)}</Text>
-                      </View>
-                      <Ionicons name="calendar-outline" size={20} color={theme.accent} />
-                    </TouchableOpacity>
                     <View style={styles.scheduleRowFields}>
-                      <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalfField]} onPress={() => setTimePickerOpen('start')}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.scheduleLabel}>Start time</Text>
-                          <Text style={styles.scheduleValue}>{formatVisitTime(newScheduledTime)}</Text>
-                        </View>
-                        <Ionicons name="time-outline" size={18} color={theme.accent} />
+                      <TouchableOpacity style={[styles.scheduleCompact, { flex: 1.4 }]} onPress={() => setPickerOpen('new')}>
+                        <Ionicons name="calendar-outline" size={16} color={theme.accent} />
+                        <Text style={styles.scheduleCompactValue} numberOfLines={1}>{prettyDate(newScheduledDate)}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.scheduleField, styles.scheduleHalfField]} onPress={() => setTimePickerOpen('end')}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.scheduleLabel}>End time</Text>
-                          <Text style={styles.scheduleValue}>{formatVisitTime(newScheduledEndTime)}</Text>
-                        </View>
-                        <Ionicons name="time-outline" size={18} color={theme.accent} />
+                      <TouchableOpacity style={[styles.scheduleCompact, { flex: 1 }]} onPress={() => setTimePickerOpen('start')}>
+                        <Ionicons name="time-outline" size={16} color={theme.accent} />
+                        <Text style={styles.scheduleCompactValue} numberOfLines={1}>{formatVisitTime(newScheduledTime) || 'Start'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.scheduleCompact, { flex: 1 }]} onPress={() => setTimePickerOpen('end')}>
+                        <Ionicons name="time-outline" size={16} color={theme.accent} />
+                        <Text style={styles.scheduleCompactValue} numberOfLines={1}>{formatVisitTime(newScheduledEndTime) || 'End'}</Text>
                       </TouchableOpacity>
                     </View>
                     <View style={styles.repeatBox}>
@@ -2264,6 +2255,12 @@ function makeStyles(t: Theme) {
     scheduleHalfField: { flex: 1, marginBottom: 0 },
     scheduleLabel: { color: t.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     scheduleValue: { color: t.textPrimary, fontSize: 15, fontWeight: '600', marginTop: 2 },
+    scheduleCompact: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: t.surfaceInset, borderWidth: 1, borderColor: t.border,
+      borderRadius: 10, paddingHorizontal: 10, paddingVertical: 11,
+    },
+    scheduleCompactValue: { color: t.textPrimary, fontSize: 13, fontWeight: '700', flexShrink: 1 },
     formSection: {
       borderTopWidth: 1,
       borderTopColor: t.border,
