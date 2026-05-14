@@ -172,6 +172,7 @@ export default function OwnerJobs() {
   const [newClientName, setNewClientName] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
+  const [newAddressLine2, setNewAddressLine2] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newEstimate, setNewEstimate] = useState('');
   const [newLineItems, setNewLineItems] = useState<LineItem[]>([]);
@@ -288,8 +289,9 @@ export default function OwnerJobs() {
     ].filter(Boolean).join('\n\n') || null;
     setSaving(true);
     try {
+      const combinedAddress = [newAddress.trim(), newAddressLine2.trim()].filter(Boolean).join('\n');
       const data = await mobilePost<Job>('/api/mobile/owner/jobs', {
-        name: newName.trim(), address: newAddress.trim(),
+        name: newName.trim(), address: combinedAddress,
         description: finalDescription,
         estimate_amount: finalEstimate,
         scheduled_date: newScheduleLater ? null : newScheduledDate,
@@ -309,7 +311,7 @@ export default function OwnerJobs() {
         const parsed = fromDateString((data as any).scheduled_date);
         if (parsed) setAnchor(parsed);
       }
-      setNewName(''); setNewClientName(''); setNewClientPhone(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
+      setNewName(''); setNewClientName(''); setNewClientPhone(''); setNewAddress(''); setNewAddressLine2(''); setNewDesc(''); setNewEstimate('');
       setNewLineItems([]);
       setNewScheduledDate(null); setNewScheduledTime(null); setNewScheduledEndTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
       setNewScheduleLater(false); setNewRepeat('none'); setNewInvoiceReminder(true); setSelectedCrewIds(new Set());
@@ -335,6 +337,7 @@ export default function OwnerJobs() {
     setNewClientName('');
     setNewClientPhone('');
     setNewAddress('');
+    setNewAddressLine2('');
     setNewDesc(defaultDesc);
     setNewEstimate('');
     setNewLineItems([]);
@@ -815,6 +818,7 @@ export default function OwnerJobs() {
               </TouchableOpacity>
             </View>
             <ScrollView
+              style={{ flexGrow: 0, flexShrink: 1 }}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: 12 }}
               showsVerticalScrollIndicator={false}
@@ -869,18 +873,29 @@ export default function OwnerJobs() {
                   textContentType="telephoneNumber"
                 />
               </View>
-              <TextInput
-                style={[styles.modalInput, { minHeight: 80, textAlignVertical: 'top', paddingTop: 12 }]}
-                placeholder={'Street address\nCity, State ZIP'}
-                placeholderTextColor={theme.textMuted}
-                value={newAddress}
-                onChangeText={setNewAddress}
-                multiline
-                numberOfLines={2}
-                textContentType="fullStreetAddress"
-                autoComplete="street-address"
-                autoCapitalize="words"
-              />
+              <View style={styles.formSection}>
+                <Text style={styles.formSectionTitle}>Job address</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Street address (e.g. 123 Main St)"
+                  placeholderTextColor={theme.textMuted}
+                  value={newAddress}
+                  onChangeText={setNewAddress}
+                  textContentType="streetAddressLine1"
+                  autoComplete="address-line1"
+                  autoCapitalize="words"
+                />
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="City, State ZIP (e.g. Fort Wayne, IN 46802)"
+                  placeholderTextColor={theme.textMuted}
+                  value={newAddressLine2}
+                  onChangeText={setNewAddressLine2}
+                  textContentType="streetAddressLine2"
+                  autoComplete="postal-address-locality"
+                  autoCapitalize="words"
+                />
+              </View>
               <TextInput
                 style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
                 placeholder="What's the job? (e.g. Install 3-ton split system, replace ductwork)"
@@ -2224,7 +2239,7 @@ function makeStyles(t: Theme) {
     },
     templatePickerLabel: { color: t.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     templatePickerValue: { color: t.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 2 },
-    templatePickerStages: { color: t.textMuted, fontSize: 11, marginTop: 3 },
+    templatePickerStages: { color: t.textSecondary, fontSize: 11, marginTop: 3, fontWeight: '600' },
     templateRow: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       paddingVertical: 12, paddingHorizontal: 12,
