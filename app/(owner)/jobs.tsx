@@ -167,7 +167,7 @@ export default function OwnerJobs() {
   const [showAdd, setShowAdd] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [choiceOpen, setChoiceOpen] = useState<null | 'job' | 'estimate'>(null);
-  const [workflows, setWorkflows] = useState<Array<{ id: string; name: string; description?: string | null; industry?: string | null }>>([]);
+  const [workflows, setWorkflows] = useState<Array<{ id: string; name: string; description?: string | null; industry?: string | null; stages?: string[] }>>([]);
   const [newName, setNewName] = useState('');
   const [newClientName, setNewClientName] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
@@ -219,7 +219,7 @@ export default function OwnerJobs() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    mobileGet<Array<{ id: string; name: string; description?: string | null; industry?: string | null }>>('/api/mobile/owner/workflows')
+    mobileGet<Array<{ id: string; name: string; description?: string | null; industry?: string | null; stages?: string[] }>>('/api/mobile/owner/workflows')
       .then(ws => setWorkflows(ws || []))
       .catch(() => setWorkflows([]));
     mobileGet<EmployeeLite[]>('/api/mobile/owner/crew')
@@ -699,7 +699,13 @@ export default function OwnerJobs() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.templateName}>{wf.name}</Text>
-                        {wf.description ? <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text> : null}
+                        {wf.stages && wf.stages.length > 0 ? (
+                          <Text style={styles.templateDesc} numberOfLines={1}>
+                            {wf.stages.length} stages · {wf.stages.join(' → ')}
+                          </Text>
+                        ) : wf.description ? (
+                          <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text>
+                        ) : null}
                       </View>
                       <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
                     </TouchableOpacity>
@@ -829,6 +835,16 @@ export default function OwnerJobs() {
                         ? (workflows.find(w => w.id === newWorkflowId)?.name || 'Template')
                         : 'None — blank job'}
                     </Text>
+                    {(() => {
+                      const stages = newWorkflowId
+                        ? workflows.find(w => w.id === newWorkflowId)?.stages || []
+                        : [];
+                      return stages.length > 0 ? (
+                        <Text style={styles.templatePickerStages} numberOfLines={1}>
+                          {stages.join(' → ')}
+                        </Text>
+                      ) : null;
+                    })()}
                   </View>
                   <Ionicons name="chevron-down" size={16} color={theme.textMuted} />
                 </TouchableOpacity>
@@ -1071,7 +1087,13 @@ export default function OwnerJobs() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.templateName}>{wf.name}</Text>
-                    {wf.description ? <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text> : null}
+                    {wf.stages && wf.stages.length > 0 ? (
+                      <Text style={styles.templateDesc} numberOfLines={1}>
+                        {wf.stages.length} stages · {wf.stages.join(' → ')}
+                      </Text>
+                    ) : wf.description ? (
+                      <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text>
+                    ) : null}
                   </View>
                   {newWorkflowId === wf.id ? <Ionicons name="checkmark" size={18} color={theme.accent} /> : null}
                 </TouchableOpacity>
@@ -2201,6 +2223,7 @@ function makeStyles(t: Theme) {
     },
     templatePickerLabel: { color: t.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     templatePickerValue: { color: t.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 2 },
+    templatePickerStages: { color: t.textMuted, fontSize: 11, marginTop: 3 },
     templateRow: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       paddingVertical: 12, paddingHorizontal: 12,
