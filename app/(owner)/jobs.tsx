@@ -700,7 +700,7 @@ export default function OwnerJobs() {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.templateName}>{wf.name}</Text>
                         {wf.stages && wf.stages.length > 0 ? (
-                          <Text style={styles.templateDesc} numberOfLines={1}>
+                          <Text style={styles.templateDesc} numberOfLines={2}>
                             {wf.stages.length} stages · {wf.stages.join(' → ')}
                           </Text>
                         ) : wf.description ? (
@@ -840,8 +840,8 @@ export default function OwnerJobs() {
                         ? workflows.find(w => w.id === newWorkflowId)?.stages || []
                         : [];
                       return stages.length > 0 ? (
-                        <Text style={styles.templatePickerStages} numberOfLines={1}>
-                          {stages.join(' → ')}
+                        <Text style={styles.templatePickerStages} numberOfLines={2}>
+                          {stages.length} stages · {stages.join(' → ')}
                         </Text>
                       ) : null;
                     })()}
@@ -870,12 +870,13 @@ export default function OwnerJobs() {
                 />
               </View>
               <TextInput
-                style={[styles.modalInput, { minHeight: 60, textAlignVertical: 'top', paddingTop: 12 }]}
-                placeholder="Street, City State ZIP"
+                style={[styles.modalInput, { minHeight: 80, textAlignVertical: 'top', paddingTop: 12 }]}
+                placeholder={'Street address\nCity, State ZIP'}
                 placeholderTextColor={theme.textMuted}
                 value={newAddress}
                 onChangeText={setNewAddress}
                 multiline
+                numberOfLines={2}
                 textContentType="fullStreetAddress"
                 autoComplete="street-address"
                 autoCapitalize="words"
