@@ -1059,6 +1059,14 @@ export default function OwnerJobs() {
               <TouchableOpacity
                 style={[styles.templateRow, { borderColor: theme.border }]}
                 onPress={() => {
+                  // If the title was auto-filled by a previous template
+                  // (matches any workflow name), clear it so the user
+                  // sees the placeholder again. Custom titles are kept.
+                  const trimmedName = newName.trim().toLowerCase();
+                  const wasAutoFilled =
+                    workflows.some(w => w.name.trim().toLowerCase() === trimmedName)
+                    || /^new (job|install|repair|estimate)$/.test(trimmedName);
+                  if (wasAutoFilled) setNewName('');
                   setNewWorkflowId(null);
                   setTemplatePickerOpen(false);
                 }}
