@@ -259,11 +259,11 @@ export default function OwnerJobs() {
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
     } else if (params.open === 'new_install') {
       setOpenedViaDeepLink(true);
-      startCreate('New install', 'scheduled', null, 'Install — ');
+      startCreate('New install', 'scheduled', null, '');
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
     } else if (params.open === 'new_repair') {
       setOpenedViaDeepLink(true);
-      startCreate('New repair', 'scheduled', null, 'Repair — ');
+      startCreate('New repair', 'scheduled', null, '');
       setTimeout(() => router.setParams({ open: undefined } as any), 100);
     }
   }, [params.open]);
@@ -675,7 +675,7 @@ export default function OwnerJobs() {
                   color={theme.stageCyan}
                   label="Install"
                   hint="New install job"
-                  onPress={() => startCreate('New install', 'scheduled', null, 'Install — ')}
+                  onPress={() => startCreate('New install', 'scheduled', null, '')}
                 />
                 <TypeTile
                   theme={theme}
@@ -683,7 +683,7 @@ export default function OwnerJobs() {
                   color={theme.stageAmber}
                   label="Repair"
                   hint="Service call / fix"
-                  onPress={() => startCreate('New repair', 'scheduled', null, 'Repair — ')}
+                  onPress={() => startCreate('New repair', 'scheduled', null, '')}
                 />
               </View>
 
@@ -694,7 +694,7 @@ export default function OwnerJobs() {
                     <TouchableOpacity
                       key={wf.id}
                       style={[styles.templateRow, { borderColor: theme.border }]}
-                      onPress={() => startCreate(wf.name, 'scheduled', wf.id, `${wf.name} — `)}
+                      onPress={() => startCreate(wf.name, 'scheduled', wf.id, wf.name)}
                       activeOpacity={0.7}
                     >
                       <View style={[styles.templateIcon, { backgroundColor: theme.accentMuted }]}>
@@ -897,8 +897,8 @@ export default function OwnerJobs() {
                 />
               </View>
               <TextInput
-                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
-                placeholder="What's the job? (e.g. Install 3-ton split system, replace ductwork)"
+                style={[styles.modalInput, { height: 96, textAlignVertical: 'top' }]}
+                placeholder={"Notes for your crew — scope, access, materials, anything special.\n(Line items / pricing go in the Product / Service section below.)"}
                 placeholderTextColor={theme.textMuted}
                 value={newDesc}
                 onChangeText={setNewDesc}
@@ -1077,23 +1077,17 @@ export default function OwnerJobs() {
                   style={[styles.templateRow, { borderColor: theme.border }]}
                   onPress={() => {
                     setNewWorkflowId(wf.id);
-                    // Pre-fill name + description prefix when the user
-                    // hasn't typed anything specific yet. Treat the FAB
-                    // defaults ("New job", "Install — ") AND any previous
-                    // template's auto-fill as "untouched" so switching
-                    // templates updates both fields.
+                    // Pre-fill only the title when the user hasn't typed
+                    // anything specific yet. Description is left alone so
+                    // the placeholder tip stays visible — auto-prefilling
+                    // "<Template> — " only hid the tip without teaching
+                    // what to write.
                     const trimmedName = newName.trim().toLowerCase();
-                    const trimmedDesc = newDesc.trim().toLowerCase();
                     const isUntouchedName =
                       !trimmedName
                       || /^new (job|install|repair|estimate)$/.test(trimmedName)
                       || workflows.some(w => w.name.trim().toLowerCase() === trimmedName);
-                    const isUntouchedDesc =
-                      !trimmedDesc
-                      || /^(install|repair)\s*—$/.test(trimmedDesc)
-                      || workflows.some(w => `${w.name.trim().toLowerCase()} —` === trimmedDesc);
                     if (isUntouchedName) setNewName(wf.name);
-                    if (isUntouchedDesc) setNewDesc(`${wf.name} — `);
                     setTemplatePickerOpen(false);
                   }}
                   activeOpacity={0.7}
