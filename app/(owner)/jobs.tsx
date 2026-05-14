@@ -853,10 +853,20 @@ export default function OwnerJobs() {
                   textContentType="telephoneNumber"
                 />
               </View>
-              <TextInput style={styles.modalInput} placeholder="Address" placeholderTextColor={theme.textMuted} value={newAddress} onChangeText={setNewAddress} />
+              <TextInput
+                style={[styles.modalInput, { minHeight: 60, textAlignVertical: 'top', paddingTop: 12 }]}
+                placeholder="Street, City State ZIP"
+                placeholderTextColor={theme.textMuted}
+                value={newAddress}
+                onChangeText={setNewAddress}
+                multiline
+                textContentType="fullStreetAddress"
+                autoComplete="street-address"
+                autoCapitalize="words"
+              />
               <TextInput
                 style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
-                placeholder="Scope of work / description"
+                placeholder="What's the job? (e.g. Install 3-ton split system, replace ductwork)"
                 placeholderTextColor={theme.textMuted}
                 value={newDesc}
                 onChangeText={setNewDesc}
@@ -1035,15 +1045,23 @@ export default function OwnerJobs() {
                   style={[styles.templateRow, { borderColor: theme.border }]}
                   onPress={() => {
                     setNewWorkflowId(wf.id);
-                    // Pre-fill name + description prefix only when the user
-                    // hasn't already typed something specific — preserves
-                    // anything they entered before opening the picker.
-                    if (!newName.trim() || /^new (job|install|repair|estimate)$/i.test(newName.trim())) {
-                      setNewName(wf.name);
-                    }
-                    if (!newDesc.trim()) {
-                      setNewDesc(`${wf.name} — `);
-                    }
+                    // Pre-fill name + description prefix when the user
+                    // hasn't typed anything specific yet. Treat the FAB
+                    // defaults ("New job", "Install — ") AND any previous
+                    // template's auto-fill as "untouched" so switching
+                    // templates updates both fields.
+                    const trimmedName = newName.trim().toLowerCase();
+                    const trimmedDesc = newDesc.trim().toLowerCase();
+                    const isUntouchedName =
+                      !trimmedName
+                      || /^new (job|install|repair|estimate)$/.test(trimmedName)
+                      || workflows.some(w => w.name.trim().toLowerCase() === trimmedName);
+                    const isUntouchedDesc =
+                      !trimmedDesc
+                      || /^(install|repair)\s*—$/.test(trimmedDesc)
+                      || workflows.some(w => `${w.name.trim().toLowerCase()} —` === trimmedDesc);
+                    if (isUntouchedName) setNewName(wf.name);
+                    if (isUntouchedDesc) setNewDesc(`${wf.name} — `);
                     setTemplatePickerOpen(false);
                   }}
                   activeOpacity={0.7}
