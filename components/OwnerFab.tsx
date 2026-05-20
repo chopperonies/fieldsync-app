@@ -115,21 +115,6 @@ export default function OwnerFab() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.quickStrip}>
-                <TouchableOpacity style={styles.quickLink} onPress={() => pick({ key: 'schedule', label: 'Schedule', icon: 'calendar', color: theme.accent, path: '/(owner)/jobs' })}>
-                  <Ionicons name="calendar-outline" size={15} color={theme.accent} />
-                  <Text style={[styles.quickText, { color: theme.accent }]}>Schedule</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.quickLink} onPress={() => pick({ key: 'requests', label: 'Requests', icon: 'file-tray-full', color: theme.accent, path: '/(owner)/requests' })}>
-                  <Ionicons name="file-tray-full-outline" size={15} color={theme.accent} />
-                  <Text style={[styles.quickText, { color: theme.accent }]}>Requests</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.quickLink} onPress={() => pick({ key: 'search', label: 'Search', icon: 'search', color: theme.accent, path: '/(owner)/search' })}>
-                  <Ionicons name="search-outline" size={15} color={theme.accent} />
-                  <Text style={[styles.quickText, { color: theme.accent }]}>Search</Text>
-                </TouchableOpacity>
-              </View>
-
               <View style={styles.actionGrid}>
                 {actions.map((a) => (
                 <Pressable
@@ -207,22 +192,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  quickStrip: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  quickLink: {
-    flex: 1,
-    minHeight: 36,
-    borderRadius: 8,
-    backgroundColor: 'rgba(36, 68, 87, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 5,
-  },
-  quickText: { fontSize: 12, fontWeight: '900' },
   tile: {
     width: '31.9%',
     minHeight: 72,
