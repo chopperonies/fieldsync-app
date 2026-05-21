@@ -702,9 +702,9 @@ export default function OwnerJobs() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.templateName}>{wf.name}</Text>
-                        {wf.stages && wf.stages.length > 0 ? (
+                        {wf.stages && wf.stages.length > 1 ? (
                           <Text style={styles.templateDesc} numberOfLines={2}>
-                            {wf.stages.length} stages · {wf.stages.join(' → ')}
+                            {wf.stages.slice(1).join(' → ')}
                           </Text>
                         ) : wf.description ? (
                           <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text>
@@ -843,9 +843,9 @@ export default function OwnerJobs() {
                       const stages = newWorkflowId
                         ? workflows.find(w => w.id === newWorkflowId)?.stages || []
                         : [];
-                      return stages.length > 0 ? (
+                      return stages.length > 1 ? (
                         <Text style={styles.templatePickerStages} numberOfLines={2}>
-                          {stages.length} stages · {stages.join(' → ')}
+                          {stages.slice(1).join(' → ')}
                         </Text>
                       ) : null;
                     })()}
@@ -1106,9 +1106,9 @@ export default function OwnerJobs() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.templateName}>{wf.name}</Text>
-                    {wf.stages && wf.stages.length > 0 ? (
+                    {wf.stages && wf.stages.length > 1 ? (
                       <Text style={styles.templateDesc} numberOfLines={1}>
-                        {wf.stages.length} stages · {wf.stages.join(' → ')}
+                        {wf.stages.slice(1).join(' → ')}
                       </Text>
                     ) : wf.description ? (
                       <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text>
