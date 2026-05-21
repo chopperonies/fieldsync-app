@@ -373,7 +373,7 @@ export default function OwnerJobs() {
         if (parsed) setAnchor(parsed);
       }
       setNewName(''); setNewClientName(''); setNewClientPhone(''); setNewAddress(''); setNewAddressLine2(''); setNewDesc(''); setNewEstimate('');
-      setNewLineItems([]);
+      setNewLineItems([]); setAddressPredictions([]);
       setNewScheduledDate(null); setNewScheduledTime(null); setNewScheduledEndTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
       setNewScheduleLater(false); setNewRepeat('none'); setNewInvoiceReminder(true); setSelectedCrewIds(new Set());
       setNewTypeLabel('New job');
@@ -420,8 +420,8 @@ export default function OwnerJobs() {
     Keyboard.dismiss();
     setShowAdd(false);
     // Reset so next open starts clean.
-    setNewName(''); setNewClientName(''); setNewClientPhone(''); setNewAddress(''); setNewDesc(''); setNewEstimate('');
-    setNewLineItems([]);
+    setNewName(''); setNewClientName(''); setNewClientPhone(''); setNewAddress(''); setNewAddressLine2(''); setNewDesc(''); setNewEstimate('');
+    setNewLineItems([]); setAddressPredictions([]);
     setNewScheduledDate(null); setNewScheduledTime(null); setNewScheduledEndTime(null); setNewWorkflowId(null); setNewStatus('scheduled');
     setNewScheduleLater(false); setNewRepeat('none'); setNewInvoiceReminder(true); setSelectedCrewIds(new Set());
     setNewTypeLabel('New job');
@@ -881,6 +881,7 @@ export default function OwnerJobs() {
             <ScrollView
               style={{ flexGrow: 0, flexShrink: 1 }}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               contentContainerStyle={{ paddingBottom: 12 }}
               showsVerticalScrollIndicator={false}
             >
