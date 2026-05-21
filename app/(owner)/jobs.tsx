@@ -200,6 +200,8 @@ export default function OwnerJobs() {
   const [newAddressLine2, setNewAddressLine2] = useState('');
   const [addressPredictions, setAddressPredictions] = useState<Array<{ place_id: string; main: string; secondary: string }>>([]);
   const addressJustPicked = useRef(false);
+  const addressSectionY = useRef(0);
+  const addJobScrollRef = useRef<ScrollView>(null);
   const [newDesc, setNewDesc] = useState('');
   const [newEstimate, setNewEstimate] = useState('');
   const [newLineItems, setNewLineItems] = useState<LineItem[]>([]);
@@ -879,6 +881,7 @@ export default function OwnerJobs() {
               </TouchableOpacity>
             </View>
             <ScrollView
+              ref={addJobScrollRef}
               style={{ flexGrow: 0, flexShrink: 1 }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
@@ -935,7 +938,10 @@ export default function OwnerJobs() {
                   textContentType="telephoneNumber"
                 />
               </View>
-              <View style={styles.formSection}>
+              <View
+                style={styles.formSection}
+                onLayout={e => { addressSectionY.current = e.nativeEvent.layout.y; }}
+              >
                 <Text style={styles.formSectionTitle}>Job address</Text>
                 <TextInput
                   style={styles.modalInput}
@@ -943,6 +949,11 @@ export default function OwnerJobs() {
                   placeholderTextColor={theme.textMuted}
                   value={newAddress}
                   onChangeText={setNewAddress}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      addJobScrollRef.current?.scrollTo({ y: Math.max(0, addressSectionY.current - 8), animated: true });
+                    }, 50);
+                  }}
                   textContentType="streetAddressLine1"
                   autoComplete="address-line1"
                   autoCapitalize="words"
