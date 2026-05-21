@@ -462,7 +462,7 @@ export default function OwnerJobs() {
         {([
           { key: 'grid', label: 'Grid' },
           { key: 'list', label: 'List' },
-          { key: 'map', label: 'Map' },
+          { key: 'map', label: 'Route' },
         ] as Array<{ key: ViewMode; label: string }>).map(item => (
           <TouchableOpacity
             key={item.key}
@@ -1633,15 +1633,15 @@ function MapScheduleView({
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
     >
       <View style={styles.mapPanel}>
-        <Ionicons name="map-outline" size={30} color={theme.accent} />
-        <Text style={styles.mapTitle}>Map view</Text>
+        <Ionicons name="navigate-outline" size={30} color={theme.accent} />
+        <Text style={styles.mapTitle}>Route</Text>
         <Text style={styles.mapCopy}>
-          Jobs with addresses will live here. For now, use the route buttons below to open each stop in maps.
+          Tap a stop to open it in Google Maps for directions.
         </Text>
       </View>
       {jobs.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>No stops to map</Text>
+          <Text style={styles.emptyTitle}>No stops on this day</Text>
           <TouchableOpacity onPress={onAddJob}>
             <Text style={styles.emptyCta}>+ Schedule a job</Text>
           </TouchableOpacity>
