@@ -47,6 +47,15 @@ const OBVIOUS_LEADING_STAGES = new Set([
   'scheduled', 'booked', 'quote sent', 'quoted', 'estimate sent',
   'new job', 'new lead', 'inquiry',
 ]);
+function formatCurrencyInput(raw: string): string {
+  if (!raw) return '';
+  const [intPart, decPart] = raw.split('.');
+  const digits = intPart.replace(/[^0-9]/g, '');
+  if (!digits && !decPart) return '';
+  const intDisplay = digits ? Number(digits).toLocaleString('en-US') : '0';
+  return decPart !== undefined ? `$${intDisplay}.${decPart.slice(0, 2)}` : `$${intDisplay}`;
+}
+
 function trimStageBreadcrumb(stages: string[]): string {
   const rest = stages.slice(1);
   while (rest.length > 1 && OBVIOUS_LEADING_STAGES.has(rest[0].trim().toLowerCase())) {
@@ -62,10 +71,10 @@ const HOUR_HEIGHT = 72;
 const COL_WIDTH = 154;
 const GUTTER_WIDTH = 56;
 const REPEAT_OPTIONS: Array<{ key: RepeatOption; label: string }> = [
-  { key: 'none', label: 'Does not repeat' },
-  { key: 'weekly', label: 'Every week' },
-  { key: 'biweekly', label: 'Every 2 weeks' },
-  { key: 'monthly', label: 'Every month' },
+  { key: 'none', label: 'None' },
+  { key: 'weekly', label: 'Weekly' },
+  { key: 'biweekly', label: 'Biweekly' },
+  { key: 'monthly', label: 'Monthly' },
   { key: 'as_needed', label: 'As needed' },
 ];
 
@@ -922,10 +931,12 @@ export default function OwnerJobs() {
               />
               <TextInput
                 style={styles.modalInput}
-                placeholder={newLineItems.length ? 'Estimate set from line items' : 'Estimate amount (e.g. 2500)'}
+                placeholder={newLineItems.length ? 'Estimate set from line items' : 'Estimate amount (e.g. $2,500)'}
                 placeholderTextColor={theme.textMuted}
-                value={newLineItems.length ? String(lineItemsTotal(newLineItems).toFixed(2)) : newEstimate}
-                onChangeText={setNewEstimate}
+                value={newLineItems.length
+                  ? formatCurrencyInput(lineItemsTotal(newLineItems).toFixed(2))
+                  : formatCurrencyInput(newEstimate)}
+                onChangeText={text => setNewEstimate(text.replace(/[^0-9.]/g, ''))}
                 keyboardType="decimal-pad"
                 editable={newLineItems.length === 0}
               />
@@ -977,7 +988,7 @@ export default function OwnerJobs() {
                     </View>
                     <View style={styles.repeatBox}>
                       <Text style={styles.scheduleLabel}>Repeating</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.repeatOptions}>
+                      <View style={styles.repeatOptions}>
                         {REPEAT_OPTIONS.map(option => {
                           const active = newRepeat === option.key;
                           return (
@@ -991,7 +1002,7 @@ export default function OwnerJobs() {
                             </TouchableOpacity>
                           );
                         })}
-                      </ScrollView>
+                      </View>
                     </View>
                   </>
                 ) : null}
@@ -2320,7 +2331,7 @@ function makeStyles(t: Theme) {
       padding: 12,
       marginBottom: 10,
     },
-    repeatOptions: { gap: 8, paddingTop: 3 },
+    repeatOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 3 },
     repeatChip: {
       borderWidth: 1,
       borderColor: t.border,
