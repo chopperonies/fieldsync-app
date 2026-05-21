@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList, TextInput,
   ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard, Linking, Switch, Pressable,
@@ -198,6 +198,8 @@ export default function OwnerJobs() {
   const [newClientPhone, setNewClientPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newAddressLine2, setNewAddressLine2] = useState('');
+  const [addressPredictions, setAddressPredictions] = useState<Array<{ place_id: string; main: string; secondary: string }>>([]);
+  const addressJustPicked = useRef(false);
   const [newDesc, setNewDesc] = useState('');
   const [newEstimate, setNewEstimate] = useState('');
   const [newLineItems, setNewLineItems] = useState<LineItem[]>([]);
@@ -243,6 +245,40 @@ export default function OwnerJobs() {
   }, [rangeStart, rangeEnd]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (addressJustPicked.current) {
+      addressJustPicked.current = false;
+      return;
+    }
+    if (newAddress.trim().length < 3) {
+      setAddressPredictions([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      mobileGet<{ predictions: Array<{ place_id: string; main: string; secondary: string }> }>(
+        `/api/mobile/places/autocomplete?q=${encodeURIComponent(newAddress.trim())}`
+      )
+        .then(res => setAddressPredictions(res.predictions || []))
+        .catch(() => setAddressPredictions([]));
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [newAddress]);
+
+  async function pickAddressPrediction(placeId: string) {
+    try {
+      const details = await mobileGet<{ street: string; city: string; state: string; zip: string }>(
+        `/api/mobile/places/details?place_id=${encodeURIComponent(placeId)}`
+      );
+      addressJustPicked.current = true;
+      setNewAddress(details.street || '');
+      const line2 = [details.city, details.state].filter(Boolean).join(', ') + (details.zip ? ` ${details.zip}` : '');
+      setNewAddressLine2(line2.trim());
+      setAddressPredictions([]);
+    } catch {
+      setAddressPredictions([]);
+    }
+  }
 
   useEffect(() => {
     mobileGet<Array<{ id: string; name: string; description?: string | null; industry?: string | null; stages?: string[] }>>('/api/mobile/owner/workflows')
@@ -910,6 +946,24 @@ export default function OwnerJobs() {
                   autoComplete="address-line1"
                   autoCapitalize="words"
                 />
+                {addressPredictions.length > 0 ? (
+                  <View style={styles.predictionList}>
+                    {addressPredictions.map(p => (
+                      <TouchableOpacity
+                        key={p.place_id}
+                        style={[styles.predictionRow, { borderBottomColor: theme.border }]}
+                        onPress={() => pickAddressPrediction(p.place_id)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="location-outline" size={16} color={theme.textMuted} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.predictionMain} numberOfLines={1}>{p.main}</Text>
+                          {p.secondary ? <Text style={styles.predictionSecondary} numberOfLines={1}>{p.secondary}</Text> : null}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
                 <TextInput
                   style={styles.modalInput}
                   placeholder="City, State ZIP (e.g. Fort Wayne, IN 46802)"
@@ -2341,6 +2395,18 @@ function makeStyles(t: Theme) {
       backgroundColor: t.surfaceElevated,
     },
     repeatChipText: { color: t.textSecondary, fontSize: 12, fontWeight: '800' },
+    predictionList: {
+      marginTop: -6, marginBottom: 8,
+      borderWidth: 1, borderColor: t.border, borderRadius: 10,
+      backgroundColor: t.surfaceElevated, overflow: 'hidden',
+    },
+    predictionRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingVertical: 10, paddingHorizontal: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    predictionMain: { color: t.textPrimary, fontSize: 14, fontWeight: '700' },
+    predictionSecondary: { color: t.textSecondary, fontSize: 12, marginTop: 1 },
     teamGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     teamChip: {
       flexDirection: 'row',
