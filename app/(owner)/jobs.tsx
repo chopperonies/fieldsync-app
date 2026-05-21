@@ -39,6 +39,22 @@ type RepeatOption = 'none' | 'weekly' | 'biweekly' | 'monthly' | 'as_needed';
 
 const DAY_LETTERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Strip the obvious pre-active stages so the breadcrumb spends its
+// limited width on the parts of the flow that the owner actually
+// thinks about. Some templates have a 1-step preamble (e.g. General:
+// "Scheduled"), others have 2 (e.g. Landscaping: "Quote Sent → Scheduled").
+const OBVIOUS_LEADING_STAGES = new Set([
+  'scheduled', 'booked', 'quote sent', 'quoted', 'estimate sent',
+  'new job', 'new lead', 'inquiry',
+]);
+function trimStageBreadcrumb(stages: string[]): string {
+  const rest = stages.slice(1);
+  while (rest.length > 1 && OBVIOUS_LEADING_STAGES.has(rest[0].trim().toLowerCase())) {
+    rest.shift();
+  }
+  return rest.join(' → ');
+}
+
 // Calendar grid dimensions
 const HOUR_START = 6;
 const HOUR_END = 21;
@@ -704,7 +720,7 @@ export default function OwnerJobs() {
                         <Text style={styles.templateName}>{wf.name}</Text>
                         {wf.stages && wf.stages.length > 1 ? (
                           <Text style={styles.templateDesc} numberOfLines={2}>
-                            {wf.stages.slice(1).join(' → ')}
+                            {trimStageBreadcrumb(wf.stages)}
                           </Text>
                         ) : wf.description ? (
                           <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text>
@@ -845,7 +861,7 @@ export default function OwnerJobs() {
                         : [];
                       return stages.length > 1 ? (
                         <Text style={styles.templatePickerStages} numberOfLines={2}>
-                          {stages.slice(1).join(' → ')}
+                          {trimStageBreadcrumb(stages)}
                         </Text>
                       ) : null;
                     })()}
@@ -1108,7 +1124,7 @@ export default function OwnerJobs() {
                     <Text style={styles.templateName}>{wf.name}</Text>
                     {wf.stages && wf.stages.length > 1 ? (
                       <Text style={styles.templateDesc} numberOfLines={1}>
-                        {wf.stages.slice(1).join(' → ')}
+                        {trimStageBreadcrumb(wf.stages)}
                       </Text>
                     ) : wf.description ? (
                       <Text style={styles.templateDesc} numberOfLines={1}>{wf.description}</Text>
