@@ -144,6 +144,7 @@ export default function JobDetailScreen() {
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [cameraBusy, setCameraBusy] = useState(false);
+  const [photoKindPickerOpen, setPhotoKindPickerOpen] = useState(false);
 
   async function uploadJobPhoto(base64: string): Promise<string | null> {
     if (!job) return null;
@@ -159,7 +160,7 @@ export default function JobDetailScreen() {
     return data.publicUrl;
   }
 
-  async function handleOpenCamera() {
+  async function handleOpenCamera(kind: 'before' | 'after' | 'other') {
     if (!job) return;
     setCameraBusy(true);
     try {
@@ -169,10 +170,10 @@ export default function JobDetailScreen() {
       if (!url) return;
       await mobilePost(`/api/mobile/crew/jobs/${job.id}/updates`, {
         type: 'photo',
-        message: 'Site photo',
+        message: kind === 'before' ? 'Before photo' : kind === 'after' ? 'After photo' : 'Site photo',
         photo_url: url,
+        photo_kind: kind,
       });
-      Alert.alert('Uploaded', 'Photo saved to this job.');
     } catch (e: any) {
       Alert.alert('Failed', e.message || 'Could not save photo.');
     } finally {
@@ -230,7 +231,7 @@ export default function JobDetailScreen() {
         break;
       }
       case 'open_camera': {
-        handleOpenCamera();
+        setPhotoKindPickerOpen(true);
         break;
       }
       case 'add_note': {
@@ -440,6 +441,31 @@ export default function JobDetailScreen() {
           </View>
         </View>
       </Modal>
+      <Modal visible={photoKindPickerOpen} transparent animationType="fade" onRequestClose={() => setPhotoKindPickerOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>What kind of photo?</Text>
+            {(['before', 'after', 'other'] as const).map(kind => (
+              <TouchableOpacity
+                key={kind}
+                style={[styles.modalSave, { marginTop: 10 }]}
+                onPress={() => {
+                  setPhotoKindPickerOpen(false);
+                  setTimeout(() => handleOpenCamera(kind), 80);
+                }}
+              >
+                <Text style={styles.modalSaveText}>
+                  {kind === 'before' ? 'Before' : kind === 'after' ? 'After' : 'Other'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => setPhotoKindPickerOpen(false)} style={[styles.modalCancel, { marginTop: 10 }]}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {cameraBusy && (
         <View style={styles.busyOverlay}>
           <ActivityIndicator size="large" color={theme.accent} />

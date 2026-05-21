@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Pressable,
   ActivityIndicator, Alert, Linking, Modal, TextInput, Share,
   KeyboardAvoidingView, Platform, Image, RefreshControl, Keyboard, Switch,
 } from 'react-native';
@@ -47,11 +47,13 @@ type Assignment = {
   checked_out_at: string | null;
   employees: { id: string; name: string; phone?: string | null; role?: string | null } | null;
 };
+type PhotoKind = 'before' | 'after' | 'other';
 type Update = {
   id: string;
   type: string | null;
   message: string | null;
   photo_url: string | null;
+  photo_kind: PhotoKind | null;
   created_at: string;
   employees?: { name: string } | null;
 };
@@ -105,6 +107,7 @@ export default function OwnerJobDetail() {
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [cameraBusy, setCameraBusy] = useState(false);
+  const [photoKindPickerOpen, setPhotoKindPickerOpen] = useState(false);
   const [chipsHaveOverflow, setChipsHaveOverflow] = useState(false);
   const [chipsAtEnd, setChipsAtEnd] = useState(false);
   const [clientModalOpen, setClientModalOpen] = useState(false);
@@ -531,7 +534,7 @@ export default function OwnerJobDetail() {
     return data.publicUrl;
   }
 
-  async function handleAddPhoto() {
+  async function handleAddPhoto(kind: PhotoKind) {
     if (!job) return;
     setCameraBusy(true);
     try {
@@ -541,11 +544,11 @@ export default function OwnerJobDetail() {
       if (!url) return;
       await mobilePost(`/api/mobile/owner/jobs/${job.id}/updates`, {
         type: 'photo',
-        message: 'Site photo',
+        message: kind === 'before' ? 'Before photo' : kind === 'after' ? 'After photo' : 'Site photo',
         photo_url: url,
+        photo_kind: kind,
       });
       await load();
-      Alert.alert('Uploaded', 'Photo saved to this job.');
     } catch (e: any) {
       Alert.alert('Failed', e?.message || 'Could not save photo.');
     } finally {
@@ -772,6 +775,9 @@ export default function OwnerJobDetail() {
   const invoiceAmountExisting = Number((job as any).invoice_amount) || 0;
   const isPaid = String((job as any).payment_status || '').toLowerCase() === 'paid';
   const photoUpdates = updates.filter(u => u.type === 'photo' && u.photo_url);
+  const beforePhotos = photoUpdates.filter(u => u.photo_kind === 'before');
+  const afterPhotos = photoUpdates.filter(u => u.photo_kind === 'after');
+  const otherPhotos = photoUpdates.filter(u => u.photo_kind !== 'before' && u.photo_kind !== 'after');
   const noteUpdates = updates.filter(u => u.type === 'note' && u.message);
   const hasAssignedFieldWorker = assignments.some(a => String(a.employees?.role || '').toLowerCase() === 'crew');
   const requiresApproval = !!(job as any).requires_owner_approval;
@@ -1379,7 +1385,7 @@ export default function OwnerJobDetail() {
           <>
             <View style={styles.cardHeader}>
               <Text style={styles.sectionLabel}>Photos ({photoUpdates.length})</Text>
-              <TouchableOpacity onPress={handleAddPhoto} style={styles.cardEdit} disabled={cameraBusy}>
+              <TouchableOpacity onPress={() => setPhotoKindPickerOpen(true)} style={styles.cardEdit} disabled={cameraBusy}>
                 <Text style={styles.cardEditText}>{cameraBusy ? 'Uploading' : '+ Photo'}</Text>
               </TouchableOpacity>
             </View>
@@ -1388,16 +1394,31 @@ export default function OwnerJobDetail() {
                 <Text style={{ color: '#666' }}>No photos yet.</Text>
               </View>
             ) : (
-              <View style={styles.photoGrid}>
-                {photoUpdates.map(u => (
-                  <TouchableOpacity key={u.id} style={styles.photoCell} onPress={() => setPhotoViewerUrl(u.photo_url)}>
-                    <Image source={{ uri: u.photo_url! }} style={styles.photo} />
-                    <Text style={styles.photoMeta}>
-                      {u.employees?.name || 'Crew'} · {new Date(u.created_at).toLocaleDateString()}
-                    </Text>
-                  </TouchableOpacity>
+              <>
+                {[
+                  { label: 'Before', items: beforePhotos },
+                  { label: 'After', items: afterPhotos },
+                  { label: 'Other', items: otherPhotos },
+                ].map(section => (
+                  <View key={section.label} style={{ marginBottom: 14 }}>
+                    <Text style={[styles.sectionLabel, { marginBottom: 6 }]}>{section.label} ({section.items.length})</Text>
+                    {section.items.length === 0 ? (
+                      <Text style={[styles.photoMeta, { marginBottom: 4 }]}>None yet.</Text>
+                    ) : (
+                      <View style={styles.photoGrid}>
+                        {section.items.map(u => (
+                          <TouchableOpacity key={u.id} style={styles.photoCell} onPress={() => setPhotoViewerUrl(u.photo_url)}>
+                            <Image source={{ uri: u.photo_url! }} style={styles.photo} />
+                            <Text style={styles.photoMeta}>
+                              {u.employees?.name || 'Crew'} · {new Date(u.created_at).toLocaleDateString()}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
                 ))}
-              </View>
+              </>
             )}
           </>
         )}
@@ -1586,7 +1607,33 @@ export default function OwnerJobDetail() {
         </View>
       </Modal>
 
-      {/* Full-screen photo viewer */}
+      <Modal visible={photoKindPickerOpen} transparent animationType="slide" onRequestClose={() => setPhotoKindPickerOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setPhotoKindPickerOpen(false)}>
+          <Pressable onPress={() => {}} style={[styles.modalSheet, { paddingBottom: 24 + insets.bottom }]}>
+            <Text style={styles.modalTitle}>What kind of photo?</Text>
+            {(['before', 'after', 'other'] as PhotoKind[]).map(kind => (
+              <TouchableOpacity
+                key={kind}
+                style={[styles.kindRow, { borderColor: theme.border }]}
+                onPress={() => {
+                  setPhotoKindPickerOpen(false);
+                  setTimeout(() => handleAddPhoto(kind), 80);
+                }}
+              >
+                <Ionicons
+                  name={kind === 'before' ? 'arrow-back-circle-outline' : kind === 'after' ? 'checkmark-circle-outline' : 'camera-outline'}
+                  size={22}
+                  color={theme.accent}
+                />
+                <Text style={[styles.kindLabel, { color: theme.textPrimary }]}>
+                  {kind === 'before' ? 'Before' : kind === 'after' ? 'After' : 'Other'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={!!photoViewerUrl} transparent animationType="fade" onRequestClose={() => setPhotoViewerUrl(null)}>
         <View style={styles.photoViewer}>
           <TouchableOpacity style={styles.photoViewerClose} onPress={() => setPhotoViewerUrl(null)}>
@@ -1922,6 +1969,12 @@ function makeStyles(t: Theme) {
 
     photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
     photoCell: { width: '48%' },
+    kindRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingVertical: 14, paddingHorizontal: 14, marginTop: 8,
+      borderWidth: 1, borderRadius: 12,
+    },
+    kindLabel: { fontSize: 16, fontWeight: '700' },
     photo: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: t.surfaceInset },
     photoMeta: { color: t.textMuted, fontSize: 10, marginTop: 4 },
     photoViewer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
