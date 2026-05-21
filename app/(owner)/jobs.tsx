@@ -156,7 +156,7 @@ export default function OwnerJobs() {
 
   const [anchor, setAnchor] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [selectedDay, setSelectedDay] = useState<string>(toDateString(new Date()));
-  const [view, setView] = useState<ViewMode>('list');
+  const [view, setView] = useState<ViewMode>('grid');
   const [jobs, setJobs] = useState<ScheduleJob[]>([]);
   const [crewMembers, setCrewMembers] = useState<EmployeeLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -460,8 +460,8 @@ export default function OwnerJobs() {
 
       <View style={styles.viewSegment}>
         {([
-          { key: 'list', label: 'List' },
           { key: 'grid', label: 'Grid' },
+          { key: 'list', label: 'List' },
           { key: 'map', label: 'Map' },
         ] as Array<{ key: ViewMode; label: string }>).map(item => (
           <TouchableOpacity
