@@ -863,7 +863,7 @@ export default function OwnerJobs() {
           closeAddModal();
         }}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <Pressable
             style={styles.modalOverlay}
             onPress={() => {
