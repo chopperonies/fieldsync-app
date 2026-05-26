@@ -807,7 +807,7 @@ export default function OwnerJobDetail() {
           </TouchableOpacity>
           <Text style={[styles.title, { flex: 1, fontSize: 18 }]} numberOfLines={1}>{job.name}</Text>
         </View>
-        <View style={{ flex: 1 }}>
+        <View>
           {job.address ? <Text style={styles.subtitle}>{job.address}</Text> : null}
           <View style={styles.clientHeaderRow}>
             <Text style={client?.name ? styles.clientLine : styles.clientMissing}>
