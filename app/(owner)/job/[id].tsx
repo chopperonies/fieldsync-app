@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Pressable,
   ActivityIndicator, Alert, Linking, Modal, TextInput, Share,
@@ -110,6 +110,16 @@ export default function OwnerJobDetail() {
   const [photoKindPickerOpen, setPhotoKindPickerOpen] = useState(false);
   const [chipsHaveOverflow, setChipsHaveOverflow] = useState(false);
   const [chipsAtEnd, setChipsAtEnd] = useState(false);
+  const chipsLayoutWidth = useRef(0);
+  const chipsContentWidth = useRef(0);
+  const recomputeChipsOverflow = useCallback(() => {
+    const layout = chipsLayoutWidth.current;
+    const content = chipsContentWidth.current;
+    if (!layout || !content) return;
+    const hasOverflow = content > layout + 1;
+    setChipsHaveOverflow(hasOverflow);
+    setChipsAtEnd(prev => (hasOverflow ? prev : true));
+  }, []);
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [clientNameDraft, setClientNameDraft] = useState('');
   const [clientPhoneDraft, setClientPhoneDraft] = useState('');
@@ -830,10 +840,13 @@ export default function OwnerJobDetail() {
           showsHorizontalScrollIndicator={false}
           style={styles.visitActionsScroll}
           scrollEventThrottle={16}
-          onContentSizeChange={(cw, _ch) => {
-            // No way to read the ScrollView's width directly here; rely on the
-            // first onScroll layout snapshot. As a fallback, mark overflow true
-            // by default if there are enough chips to plausibly overflow.
+          onLayout={(e) => {
+            chipsLayoutWidth.current = e.nativeEvent.layout.width;
+            recomputeChipsOverflow();
+          }}
+          onContentSizeChange={(cw) => {
+            chipsContentWidth.current = cw;
+            recomputeChipsOverflow();
           }}
           onScroll={(e) => {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
@@ -893,7 +906,9 @@ export default function OwnerJobDetail() {
             <View style={[styles.visitActionsFadeSlice, { backgroundColor: theme.surface, opacity: 0.4 }]} />
             <View style={[styles.visitActionsFadeSlice, { backgroundColor: theme.surface, opacity: 0.7 }]} />
             <View style={[styles.visitActionsFadeSlice, { backgroundColor: theme.surface, opacity: 1 }]} />
-            <Ionicons name="chevron-forward" size={14} color={theme.textMuted} style={styles.visitActionsFadeChevron} />
+            <View style={styles.visitActionsFadeChevronWrap}>
+              <Ionicons name="chevron-forward" size={18} color={theme.accent} />
+            </View>
           </View>
         ) : null}
         </View>
@@ -1749,7 +1764,17 @@ function makeStyles(t: Theme) {
       alignItems: 'center',
     },
     visitActionsFadeSlice: { width: 7, alignSelf: 'stretch' },
-    visitActionsFadeChevron: { paddingHorizontal: 4 },
+    visitActionsFadeChevronWrap: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: t.surface,
+      borderWidth: 1,
+      borderColor: t.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 2,
+    },
     visitActions: { flexDirection: 'row', gap: 6 },
     visitActionChip: {
       flexDirection: 'row',
