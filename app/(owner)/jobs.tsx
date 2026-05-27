@@ -97,14 +97,19 @@ function friendlyDayLabel(iso: string): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-function formatVisitTime(value?: string | null): string {
+function formatVisitTime(value?: string | null, compact = false): string {
   if (!value) return 'Anytime';
   const [hhRaw, mmRaw = '00'] = String(value).split(':');
   const hh = Number(hhRaw);
   if (!Number.isFinite(hh)) return 'Anytime';
   const suffix = hh >= 12 ? 'PM' : 'AM';
   const hour = hh % 12 || 12;
-  return `${hour}:${mmRaw.padStart(2, '0').slice(0, 2)} ${suffix}`;
+  const mins = mmRaw.padStart(2, '0').slice(0, 2);
+  if (compact) {
+    const minsPart = mins === '00' ? '' : `:${mins}`;
+    return `${hour}${minsPart}${suffix.toLowerCase().charAt(0)}`;
+  }
+  return `${hour}:${mins} ${suffix}`;
 }
 
 function timeToMinutes(value?: string | null): number | null {
@@ -960,7 +965,7 @@ export default function OwnerJobs() {
                 />
                 {addressPredictions.length > 0 ? (
                   <View style={styles.predictionList}>
-                    {addressPredictions.map(p => (
+                    {addressPredictions.slice(0, 3).map(p => (
                       <TouchableOpacity
                         key={p.place_id}
                         style={[styles.predictionRow, { borderBottomColor: theme.border }]}
@@ -1039,7 +1044,7 @@ export default function OwnerJobs() {
                           style={[styles.scheduleCompactValue, !newScheduledTime && { color: theme.textMuted, fontWeight: '600' }]}
                           numberOfLines={1}
                         >
-                          {newScheduledTime ? formatVisitTime(newScheduledTime) : 'Start'}
+                          {newScheduledTime ? formatVisitTime(newScheduledTime, true) : 'Start'}
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.scheduleCompact, { flex: 1 }]} onPress={() => setTimePickerOpen('end')}>
@@ -1048,7 +1053,7 @@ export default function OwnerJobs() {
                           style={[styles.scheduleCompactValue, !newScheduledEndTime && { color: theme.textMuted, fontWeight: '600' }]}
                           numberOfLines={1}
                         >
-                          {newScheduledEndTime ? formatVisitTime(newScheduledEndTime) : 'End'}
+                          {newScheduledEndTime ? formatVisitTime(newScheduledEndTime, true) : 'End'}
                         </Text>
                       </TouchableOpacity>
                     </View>
